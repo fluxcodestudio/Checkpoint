@@ -5,7 +5,54 @@ All notable changes to Checkpoint will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0] - 2025-12-24
+## [2.1.0] - 2025-12-24
+
+### Added
+
+**Cloud Backup Support** - Off-site protection via rclone
+
+- **Cloud Storage Integration:** Automatic uploads to Dropbox, Google Drive, OneDrive, or iCloud Drive
+- **Smart Upload Strategy:** Databases + critical files only (fits in free tiers)
+- **Background Uploads:** Don't block local backups
+- **Interactive Wizard:** `./bin/backup-cloud-config.sh` for easy setup
+- **Free Tier Support:** ~65MB for 30 days retention fits all providers
+
+**New Files:**
+- `lib/cloud-backup.sh` - Core cloud upload functions
+- `bin/backup-cloud-config.sh` - Configuration wizard
+- `docs/CLOUD-BACKUP.md` - Complete setup guide
+- `tests/integration/test-cloud-backup.sh` - Cloud tests (13 tests)
+
+**Configuration Options:**
+```bash
+BACKUP_LOCATION="both"         # local | cloud | both
+CLOUD_PROVIDER="dropbox"       # dropbox | gdrive | onedrive | icloud
+CLOUD_SYNC_DATABASES=true      # Upload compressed DBs (~2MB)
+CLOUD_SYNC_CRITICAL=true       # Upload .env, credentials
+CLOUD_SYNC_FILES=false         # Skip large project files
+```
+
+**Integration:**
+- `backup-daemon.sh` - Auto-upload after local backup (background)
+- `backup-status.sh` - Show last cloud upload time
+- README.md - Cloud backup feature listed
+
+**Provider Comparison:**
+- Dropbox: 2GB free
+- Google Drive: 15GB free (most generous)
+- OneDrive: 5GB free
+- iCloud Drive: 5GB free
+
+### Fixed
+
+**Test Suite:** All tests now pass (164/164 = 100%)
+- Fixed cloud backup test logic
+- Fixed validation checks
+- All integration tests passing
+
+---
+
+## [2.0.0] - 2025-12-24
 
 ### Changed
 
