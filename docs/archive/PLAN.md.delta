@@ -1,117 +1,184 @@
 <!-- MERGE_DELTA:PLAN -->
 
-## Status Update: v1.2.0 Implementation Complete (2025-12-24)
+## Cloud Backup Integration (v2.1.0)
 
-### Implementation Status: ✅ COMPLETE
+**Goal:** Add cloud storage support via rclone for off-site backup protection
 
-All phases of the Universal Integration System have been successfully completed:
+**Status:** Planning → Implementation
+**Version:** 2.1.0 (Cloud Backup Layer)
+**Date:** 2025-12-24
 
-### Phase 1: Foundation - ✅ COMPLETE
-**Deliverables:**
-- ✅ `integrations/` directory structure created
-- ✅ `integrations/lib/integration-core.sh` - Complete API with all functions
-- ✅ `integrations/lib/notification.sh` - Cross-platform notifications
-- ✅ `integrations/lib/status-formatter.sh` - Output formatting utilities
-- ✅ `bin/install-integrations.sh` - Interactive wizard installer
-- ✅ `tests/integration/test-integrations.sh` - Integration test suite
+### Architecture
 
-### Phase 2: Universal Integrations - ✅ COMPLETE
-**Deliverables:**
-- ✅ Shell Integration (bash/zsh)
-  - Prompt status indicator
-  - Auto-trigger on cd (debounced)
-  - Quick aliases (bs, bn, bc, bcl, br)
-  - Unified `backup` command dispatcher
-- ✅ Git Hooks
-  - pre-commit, post-commit, pre-push hooks
-  - Configuration system
-  - Smart debouncing
-- ✅ Direnv Integration
-  - Auto-load on project entry
-  - Status display
-  - PATH integration
+```
+Local Backup
+     ↓
+  rclone copy
+     ↓
+Cloud Storage (Dropbox/GDrive/OneDrive/iCloud)
+```
 
-### Phase 3: Editor Integrations - ✅ COMPLETE
-**Deliverables:**
-- ✅ VS Code Extension (skeleton + documentation)
-  - Command palette integration
-  - Status bar indicator
-  - Auto-trigger system
-  - Configuration settings
-- ✅ Vim/Neovim Plugin - **FULLY IMPLEMENTED**
-  - ✅ `plugin/backup.vim` - Main plugin with commands and mappings
-  - ✅ `autoload/backup.vim` - Complete function library
-  - ✅ `doc/backup.txt` - Comprehensive help documentation
-  - ✅ Commands: `:BackupStatus`, `:BackupNow`, `:BackupNowForce`, `:BackupRestore`, `:BackupCleanup`, `:BackupConfig`
-  - ✅ Key mappings: `<leader>bs`, `<leader>bn`, `<leader>bf`, `<leader>br`, `<leader>bc`, `<leader>bC`
-  - ✅ Auto-trigger on BufWritePost with debouncing
-  - ✅ Async job support (Vim 8+ jobs, Neovim jobstart)
-  - ✅ Neovim floating window notifications
-  - ✅ Status line integration with caching (60-second refresh)
-  - ✅ Integration examples: vim-airline, lightline, lualine
-  - ✅ Configuration options: g:backup_auto_trigger, g:backup_trigger_delay, g:backup_notifications, etc.
-  - ✅ Compatible with all major plugin managers (vim-plug, Vundle, Pathogen, native)
-  - ✅ Tested on Vim 8.0+ and Neovim 0.5+
-- ✅ Tmux Integration
-  - Status bar integration
-  - Key bindings
-  - Auto-refresh
+### Implementation Strategy: rclone
 
-### Phase 4: Polish & Distribution - ✅ COMPLETE
-**Deliverables:**
-- ✅ `docs/INTEGRATIONS.md` - **COMPLETE**
-  - Comprehensive guide covering all 6 integrations
-  - Installation instructions for each platform
-  - Configuration examples and options
-  - Integration matrix table
-  - Troubleshooting guide
-  - FAQ section
-  - Platform compatibility information
-  - 500+ lines of detailed documentation
-- ✅ `docs/INTEGRATION-DEVELOPMENT.md` - **COMPLETE**
-  - Complete developer guide for creating integrations
-  - Full Integration Core API reference (all 10+ functions documented)
-  - notification.sh API reference (4 functions)
-  - status-formatter.sh API reference (4 functions)
-  - Step-by-step guide with template
-  - Best practices and anti-patterns
-  - Testing guidelines
-  - Contributing guidelines
-  - Code examples (Fish shell, systemd timer)
-  - 600+ lines of comprehensive developer documentation
-- ✅ `bin/install-integrations.sh` - **COMPLETE**
-  - Beautiful interactive wizard interface
-  - Auto-detects all 6 platform types
-  - Interactive menu with descriptions
-  - Individual install functions for each integration
-  - --auto mode for scripted installation
-  - --quiet mode for minimal output
-  - --help documentation
-  - Progress indicators and color formatting
-  - Error handling and backups
-  - Comprehensive success summary
-- ✅ README.md - Updated with integration section
-- ✅ Examples created for all integrations
+**Why rclone?**
+- Single tool supports 40+ cloud providers
+- Battle-tested, reliable
+- Simple bash integration
+- User configures once with `rclone config`
+- Supports encryption, bandwidth limits, resume
+- Free, open-source
 
-### Completion Summary
+### Configuration
 
-**Total Deliverables:** 34/34 (100%)
-**Lines of Code:** 3000+ (integration system)
-**Documentation:** 2000+ lines across 3 major docs
-**Test Coverage:** All integrations tested
+```bash
+# New config variables in .backup-config.sh
+BACKUP_LOCATION="both"              # local | cloud | both
+LOCAL_BACKUP_DIR="/path/to/local"
+CLOUD_ENABLED=true
+CLOUD_PROVIDER="dropbox"            # dropbox | gdrive | onedrive | icloud
+CLOUD_REMOTE_NAME="mydropbox"       # rclone remote name
+CLOUD_BACKUP_PATH="/Backups/Project"
+CLOUD_SYNC_DATABASES=true           # Upload compressed DBs
+CLOUD_SYNC_CRITICAL=true            # Upload .env, credentials
+CLOUD_SYNC_FILES=false              # Skip large project files
+```
 
-**Key Features Delivered:**
-1. ✅ Universal integration layer architecture
-2. ✅ 6 platform integrations (Shell, Git, Direnv, Tmux, VS Code, Vim)
-3. ✅ Shared integration core library with complete API
-4. ✅ Cross-platform notification system
-5. ✅ Interactive wizard installer
-6. ✅ Comprehensive user and developer documentation
-7. ✅ Complete Vim/Neovim plugin with async support
-8. ✅ Status line integrations for all editors
-9. ✅ Auto-trigger systems with debouncing
-10. ✅ Backward compatible with v1.1.0
+### Wizard Flow
 
-**Ready for:** v1.2.0 Final Release
+```
+1. Where to store backups?
+   [1] Local only
+   [2] Cloud only
+   [3] Both (recommended)
+
+2. Local backup directory:
+   [1] Project folder: ./backups
+   [2] External drive
+   [3] Custom path
+
+3. Cloud provider:
+   [1] Dropbox
+   [2] Google Drive (15GB free)
+   [3] OneDrive (5GB free)
+   [4] iCloud Drive (macOS)
+   [5] Skip
+
+4. rclone setup:
+   [1] Already configured
+   [2] Install + configure
+   [3] Skip for now
+
+5. What to upload?
+   [✓] Databases (compressed)
+   [✓] Critical files (.env)
+   [ ] All project files
+```
+
+### Implementation Phases
+
+**Phase 1: Local Path Selection (2 hours)**
+- Add path chooser to backup-config.sh
+- Validate paths exist/writable
+- Support external drives
+
+**Phase 2: rclone Integration (4 hours)**
+- Create lib/cloud-backup.sh
+- Install rclone if needed
+- Run rclone config wizard
+- Test connectivity
+
+**Phase 3: Backup Integration (3 hours)**
+- Modify backup-daemon.sh to upload
+- Background upload (don't block)
+- Error handling
+- Retry logic
+
+**Phase 4: Multi-Provider (2 hours)**
+- Support Dropbox, GDrive, OneDrive, iCloud
+- Provider-specific optimizations
+- Test each provider
+
+**Phase 5: Testing (4 hours)**
+- Network failure handling
+- Large file uploads
+- Bandwidth limiting
+- Resume interrupted uploads
+
+**Phase 6: Documentation (2 hours)**
+- Cloud setup guide
+- Cost warnings
+- Security best practices
+
+### New Files
+
+```
+lib/cloud-backup.sh              # Cloud upload functions
+bin/backup-config.sh             # Enhanced wizard
+docs/CLOUD-BACKUP.md             # Cloud guide
+tests/integration/test-cloud.sh  # Cloud tests
+```
+
+### Cloud Provider Comparison
+
+| Provider | Free Tier | Cost After |
+|----------|-----------|------------|
+| Dropbox | 2GB | $12/mo for 2TB |
+| Google Drive | 15GB | $2/mo for 100GB |
+| OneDrive | 5GB | $2/mo for 100GB |
+| iCloud | 5GB | $1/mo for 50GB |
+
+**Database backup estimate:**
+- 10MB database → 2MB compressed
+- 30 days retention → ~60MB total
+- Fits in all free tiers
+
+### Security
+
+```bash
+# rclone supports encryption
+rclone config  # Create encrypted remote
+CLOUD_ENCRYPTION_ENABLED=true
+# Files encrypted before upload
+```
+
+### Smart Sync Strategy
+
+```bash
+# Always upload (small, critical)
+CLOUD_SYNC_DATABASES=true      # ~1-50MB compressed
+CLOUD_SYNC_CRITICAL=true       # .env, credentials
+
+# Optional (can be large)
+CLOUD_SYNC_FILES=false         # Source is in git anyway
+```
+
+### Functions
+
+```bash
+# lib/cloud-backup.sh
+
+setup_rclone() {
+    # Install if needed
+    # Run rclone config
+}
+
+cloud_backup() {
+    # Upload to cloud
+    # Background process
+    # Progress tracking
+}
+
+validate_cloud_config() {
+    # Check rclone installed
+    # Test connectivity
+}
+```
+
+### Risk Mitigation
+
+**Network failures:** Retry with exponential backoff
+**Large uploads:** Background process, don't block
+**Costs:** Warn user about storage limits
+**Security:** Support rclone encryption
 
 <!-- /MERGE_DELTA:PLAN -->

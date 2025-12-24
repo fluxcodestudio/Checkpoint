@@ -1,186 +1,195 @@
 <!-- MERGE_DELTA:TODO -->
 
-## Completed Items Update (2025-12-24)
+## Phase 5: Cloud Backup Integration 📦
 
-### Phase 1: Foundation Infrastructure - COMPLETED ✅
+**Goal:** Add cloud storage support via rclone
+**Timeline:** Week 6 (Jan 29 - Feb 4)
+**Priority:** 🟡 HIGH
 
-#### Directory Structure - COMPLETED ✅
-- [x] Create `integrations/` directory
-- [x] Create `integrations/lib/` for shared utilities
-- [x] Create `integrations/shell/` for shell integration
-- [x] Create `integrations/git/` for git hooks
-- [x] Create `integrations/direnv/` for direnv integration
-- [x] Create `integrations/vscode/` for VS Code extension
-- [x] Create `integrations/vim/` for Vim plugin
-- [x] Create `integrations/tmux/` for tmux integration
+### 5.1 Local Path Selection - 0.5 days
 
-#### Core Libraries - COMPLETED ✅
-- [x] Create `integrations/lib/integration-core.sh` (all functions implemented)
-- [x] Create `integrations/lib/notification.sh` (all functions implemented)
-- [x] Create `integrations/lib/status-formatter.sh` (all functions implemented)
+- [ ] Enhance `bin/backup-config.sh` wizard
+  - [ ] Add "Choose backup location" step
+  - [ ] Option 1: Project folder (./backups)
+  - [ ] Option 2: External drive (/Volumes/Backups)
+  - [ ] Option 3: Custom path (with validation)
+  - [ ] Validate path exists and is writable
+  - [ ] Create directory if doesn't exist
+  - [ ] Update LOCAL_BACKUP_DIR in config
 
-#### Integration Installer - COMPLETED ✅
-- [x] Create `bin/install-integrations.sh`
-  - [x] Interactive wizard for choosing integrations
-  - [x] Auto-detect available shells (bash/zsh/fish)
-  - [x] Auto-detect editors (VS Code/Vim/Neovim)
-  - [x] Auto-detect tools (git/direnv/tmux)
-  - [x] Install selected integrations
-  - [x] Print success summary with next steps
+### 5.2 rclone Integration - 1 day
 
-### Phase 2: Universal Integrations - COMPLETED ✅
+- [ ] Create `lib/cloud-backup.sh`
+  - [ ] Function: `check_rclone_installed()` - Detect rclone
+  - [ ] Function: `install_rclone()` - Install if needed
+  - [ ] Function: `setup_rclone_remote()` - Run config wizard
+  - [ ] Function: `list_rclone_remotes()` - Show configured remotes
+  - [ ] Function: `test_rclone_connection()` - Verify connectivity
+  - [ ] Error handling for all functions
 
-#### 2.1 Shell Integration - COMPLETED ✅
-- [x] Create `integrations/shell/backup-shell-integration.sh`
-- [x] Create `integrations/shell/install.sh`
-- [x] Create `integrations/shell/README.md`
-- [x] All testing completed
+- [ ] Enhance `bin/backup-config.sh` wizard
+  - [ ] Add "Cloud backup" section
+  - [ ] Ask: Local only / Cloud only / Both
+  - [ ] If cloud: Choose provider (Dropbox/GDrive/OneDrive/iCloud)
+  - [ ] Check if rclone installed
+  - [ ] Offer to install rclone if missing
+  - [ ] Run rclone config if needed
+  - [ ] Select remote from list
+  - [ ] Choose cloud path
+  - [ ] Ask what to upload (databases/critical/all)
+  - [ ] Save cloud config variables
 
-#### 2.2 Git Hooks Integration - COMPLETED ✅
-- [x] Create `integrations/git/hooks/pre-commit`
-- [x] Create `integrations/git/hooks/post-commit`
-- [x] Create `integrations/git/hooks/pre-push`
-- [x] Create `integrations/git/install-git-hooks.sh`
-- [x] Create `integrations/git/README.md`
-- [x] All testing completed
+### 5.3 Cloud Upload Implementation - 1 day
 
-#### 2.3 Direnv Integration - COMPLETED ✅
-- [x] All direnv integration files created and tested
+- [ ] Enhance `lib/cloud-backup.sh`
+  - [ ] Function: `cloud_upload_databases()` - Upload DB backups
+  - [ ] Function: `cloud_upload_critical()` - Upload .env, credentials
+  - [ ] Function: `cloud_upload_files()` - Upload all files
+  - [ ] Function: `cloud_upload()` - Main upload function
+  - [ ] Support background uploads (don't block)
+  - [ ] Add progress indication
+  - [ ] Add retry logic (3 attempts with backoff)
+  - [ ] Log all cloud operations
+  - [ ] Handle network errors gracefully
 
-### Phase 3: Editor Integrations - COMPLETED ✅
+- [ ] Modify `bin/backup-daemon.sh`
+  - [ ] Source lib/cloud-backup.sh
+  - [ ] After local backup, check BACKUP_LOCATION
+  - [ ] If "cloud" or "both", trigger cloud upload
+  - [ ] Run cloud upload in background
+  - [ ] Don't wait for completion
+  - [ ] Log cloud upload PID
+  - [ ] Add cloud status to backup status
 
-#### 3.2 Vim/Neovim Plugin - COMPLETED ✅
+- [ ] Modify `bin/backup-now.sh`
+  - [ ] Add `--local-only` flag
+  - [ ] Add `--cloud-only` flag
+  - [ ] Add `--skip-cloud` flag
+  - [ ] Trigger cloud upload after local backup
+  - [ ] Show upload progress if foreground
 
-**Day 1-2: Core Plugin - COMPLETED ✅**
-- [x] Create `integrations/vim/plugin/backup.vim`
-  - [x] Configuration variables (g:backup_auto_trigger, g:backup_trigger_delay, etc.)
-  - [x] Command definitions (:BackupStatus, :BackupNow, :BackupRestore, etc.)
-  - [x] Key mapping setup (<leader>bs, <leader>bn, etc.)
-  - [x] Auto-trigger setup (BufWritePost autocmd)
+### 5.4 Multi-Provider Support - 0.5 days
 
-- [x] Create `integrations/vim/autoload/backup.vim`
-  - [x] `backup#Status()` - Show status in split window
-  - [x] `backup#Now()` - Trigger backup
-  - [x] `backup#NowForce()` - Force backup
-  - [x] `backup#Restore()` - Restore wizard in terminal
-  - [x] `backup#Cleanup()` - Cleanup preview
-  - [x] `backup#Config()` - Open config file
-  - [x] `backup#StatusLine()` - Status line integration with caching
-  - [x] `backup#AutoTrigger()` - Debounced auto-trigger with async job support
-  - [x] Neovim floating window notifications
-  - [x] Vim 8+ and Neovim async job support
+- [ ] Add provider-specific handling
+  - [ ] Dropbox: Handle 2GB file limit
+  - [ ] Google Drive: Optimize for large files
+  - [ ] OneDrive: Handle path encoding
+  - [ ] iCloud: Use native folder on macOS
+  - [ ] Detect provider from remote type
+  - [ ] Provider-specific error messages
 
-- [x] Implement commands
-  - [x] `:BackupStatus` - Dashboard in new split
-  - [x] `:BackupNow` - Debounced backup
-  - [x] `:BackupNowForce` - Force bypass debounce
-  - [x] `:BackupRestore` - Interactive wizard
-  - [x] `:BackupCleanup` - Cleanup preview
-  - [x] `:BackupConfig` - Open .backup-config.sh
+- [ ] Add provider documentation
+  - [ ] Setup guide for Dropbox
+  - [ ] Setup guide for Google Drive
+  - [ ] Setup guide for OneDrive
+  - [ ] Setup guide for iCloud Drive
+  - [ ] Cost comparison table
+  - [ ] Free tier limits
 
-**Day 3: Documentation & Testing - COMPLETED ✅**
-- [x] Create `integrations/vim/doc/backup.txt`
-  - [x] Introduction and installation
-  - [x] Commands reference with *backup-commands* tags
-  - [x] Mappings reference with *backup-mappings* tags
-  - [x] Configuration options with *g:backup_* tags
-  - [x] Status line integration examples
-  - [x] Auto-trigger documentation
-  - [x] Examples section
-  - [x] Troubleshooting section
-  - [x] License information
+### 5.5 Status & Monitoring - 0.5 days
 
-- [x] Create `integrations/vim/README.md`
-  - [x] Installation (vim-plug, Vundle, Pathogen, native)
-  - [x] Configuration options and examples
-  - [x] Commands table
-  - [x] Key mappings table
-  - [x] Status line integration (vim-airline, lightline, lualine)
-  - [x] Auto-trigger behavior documentation
-  - [x] Troubleshooting guide
-  - [x] Compatibility information
+- [ ] Enhance `bin/backup-status.sh`
+  - [ ] Show cloud backup status
+  - [ ] Last cloud upload time
+  - [ ] Cloud upload errors
+  - [ ] Cloud storage used
+  - [ ] Cloud remote name
+  - [ ] Next scheduled upload
 
-- [x] Testing
-  - [x] Verified Vim 8.0+ compatibility
-  - [x] Verified Neovim 0.5+ compatibility
-  - [x] Tested auto-trigger mechanism
-  - [x] Tested all commands
-  - [x] Tested key mappings
-  - [x] Tested async job support (Vim 8+ jobs, Neovim jobstart)
-  - [x] Tested Neovim floating windows
-  - [x] Tested status line caching
+- [ ] Add cloud health check
+  - [ ] Test cloud connectivity
+  - [ ] Verify remote exists
+  - [ ] Check cloud space available
+  - [ ] Warn if approaching limits
 
-#### 3.3 Tmux Integration - COMPLETED ✅
-- [x] All tmux integration files created and tested
+### 5.6 Configuration & Settings - 0.5 days
 
-### Phase 4: Polish & Release - COMPLETED ✅
+- [ ] Add config template `templates/backup-config.yaml`
+  - [ ] Cloud backup section
+  - [ ] All cloud options documented
+  - [ ] Example configurations
 
-#### Documentation - COMPLETED ✅
+- [ ] Config validation
+  - [ ] Validate CLOUD_REMOTE_NAME exists
+  - [ ] Validate CLOUD_BACKUP_PATH format
+  - [ ] Warn if cloud enabled but rclone missing
+  - [ ] Check remote accessibility
 
-- [x] Complete `docs/INTEGRATIONS.md`
-  - [x] Overview of all integrations
-  - [x] Installation guide for each (Shell, Git, Direnv, Tmux, VS Code, Vim)
-  - [x] Configuration reference for each integration
-  - [x] Integration matrix table showing features
-  - [x] Troubleshooting guide with common issues
-  - [x] FAQ section
-  - [x] Architecture diagrams
-  - [x] Platform compatibility information
-  - [x] Examples for each integration
+### 5.7 Error Handling & Recovery - 0.5 days
 
-- [x] Complete `docs/INTEGRATION-DEVELOPMENT.md`
-  - [x] Overview and architecture
-  - [x] Getting started guide
-  - [x] Integration Core API complete reference:
-    - [x] integration_init()
-    - [x] integration_trigger_backup([OPTIONS])
-    - [x] integration_get_status([OPTIONS])
-    - [x] integration_get_status_compact()
-    - [x] integration_get_status_emoji()
-    - [x] integration_check_lock()
-    - [x] integration_should_trigger([INTERVAL])
-    - [x] integration_debounce()
-    - [x] integration_format_time_ago()
-    - [x] integration_time_since_backup()
-  - [x] notification.sh API reference
-  - [x] status-formatter.sh API reference
-  - [x] Step-by-step guide for creating new integrations
-  - [x] Integration template with complete example
-  - [x] Best practices and anti-patterns
-  - [x] Testing guidelines
-  - [x] Contributing guidelines
-  - [x] Code style guide
-  - [x] Example integrations (Fish shell, systemd timer)
+- [ ] Network failure handling
+  - [ ] Detect offline state
+  - [ ] Queue uploads for later
+  - [ ] Retry when connection restored
+  - [ ] Don't fail local backup if cloud fails
 
-#### Unified Installer - COMPLETED ✅
+- [ ] Upload recovery
+  - [ ] Resume interrupted uploads
+  - [ ] Track upload state
+  - [ ] Clean up partial uploads
+  - [ ] Retry failed uploads
 
-- [x] Create `bin/install-integrations.sh`
-  - [x] Beautiful wizard interface with color formatting
-  - [x] Auto-detect environment:
-    - [x] detect_shell() - bash/zsh detection
-    - [x] detect_git() - git availability
-    - [x] detect_tmux() - tmux availability
-    - [x] detect_direnv() - direnv availability
-    - [x] detect_vscode() - VS Code detection
-    - [x] detect_vim() - Vim/Neovim detection
-  - [x] Interactive menu for selecting integrations
-  - [x] Individual install functions for each integration:
-    - [x] install_shell_integration()
-    - [x] install_git_integration()
-    - [x] install_tmux_integration()
-    - [x] install_direnv_integration()
-    - [x] install_vscode_integration() (with manual instructions)
-    - [x] install_vim_integration() (with manual instructions)
-  - [x] --auto mode for non-interactive installation
-  - [x] --quiet mode for minimal output
-  - [x] --help documentation
-  - [x] Install selected integrations with progress indicators
-  - [x] Verify installations
-  - [x] Print detailed success summary with next steps
-  - [x] Error handling and backup creation
+### 5.8 Testing - 1 day
 
-**Status:** v1.2.0 Integration System COMPLETE
-**Completion:** 100% (34/34 deliverables)
-**Ready for:** Final release preparation
+- [ ] Create `tests/integration/test-cloud-backup.sh`
+  - [ ] Test local path selection
+  - [ ] Test rclone installation detection
+  - [ ] Test cloud config wizard (mocked)
+  - [ ] Test upload functions (mocked rclone)
+  - [ ] Test error handling
+  - [ ] Test retry logic
+  - [ ] Test background uploads
+
+- [ ] Manual testing with real providers
+  - [ ] Test Dropbox upload/download
+  - [ ] Test Google Drive upload/download
+  - [ ] Test OneDrive upload/download
+  - [ ] Test large file uploads
+  - [ ] Test network interruption
+  - [ ] Test bandwidth limiting
+
+### 5.9 Documentation - 1 day
+
+- [ ] Create `docs/CLOUD-BACKUP.md`
+  - [ ] Overview and benefits
+  - [ ] Setup instructions
+  - [ ] Provider comparison
+  - [ ] Cost analysis
+  - [ ] Security best practices
+  - [ ] Troubleshooting
+  - [ ] FAQ
+
+- [ ] Update existing docs
+  - [ ] Update README.md with cloud features
+  - [ ] Update COMMANDS.md with cloud flags
+  - [ ] Update MIGRATION.md if needed
+  - [ ] Update installation guide
+
+- [ ] Create examples
+  - [ ] Example: Dropbox setup
+  - [ ] Example: Google Drive setup
+  - [ ] Example: Local + cloud hybrid
+  - [ ] Example: Cloud-only configuration
+
+### 5.10 Security & Privacy - 0.5 days
+
+- [ ] Add encryption support
+  - [ ] Document rclone crypt remote
+  - [ ] Guide for encrypted backups
+  - [ ] Key management best practices
+
+- [ ] Privacy documentation
+  - [ ] What data is uploaded
+  - [ ] Provider access considerations
+  - [ ] GDPR considerations
+  - [ ] How to delete cloud backups
+
+### Phase 5 Completion
+
+- [ ] Integration testing (cloud + local)
+- [ ] Performance testing (upload speeds)
+- [ ] Security audit
+- [ ] Update CHANGELOG.md
+- [ ] Tag v2.1.0-beta1
 
 <!-- /MERGE_DELTA:TODO -->

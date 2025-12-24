@@ -22,6 +22,13 @@ fi
 
 source "$CONFIG_FILE"
 
+# Load cloud backup library if cloud enabled
+SCRIPT_DIR="$(dirname "$0")"
+CLOUD_LIB="$SCRIPT_DIR/../lib/cloud-backup.sh"
+if [[ -f "$CLOUD_LIB" ]] && [[ "${CLOUD_ENABLED:-false}" == "true" ]]; then
+    source "$CLOUD_LIB"
+fi
+
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
@@ -356,6 +363,17 @@ cleanup_old_backups
 
 # Update coordination state
 echo "$NOW" > "$BACKUP_TIME_STATE"
+
+# Cloud Upload (if enabled)
+if [[ "${CLOUD_ENABLED:-false}" == "true" ]] && [[ "${BACKUP_LOCATION:-local}" != "local" ]]; then
+    log "☁️  Starting cloud upload..."
+    if type cloud_upload_background &>/dev/null; then
+        cloud_upload_background
+        log "☁️  Cloud upload running in background"
+    else
+        log "⚠️  Cloud backup library not loaded"
+    fi
+fi
 
 # Summary
 db_count=$(find "$DATABASE_DIR" -name "*.db.gz" -type f 2>/dev/null | wc -l | tr -d ' ')

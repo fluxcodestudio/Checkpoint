@@ -14,6 +14,7 @@ Automated, intelligent backup system that works with any editor, any workflow. B
 - **Database Snapshots** — Compressed timestamped database backups (SQLite supported)
 - **Version Archiving** — When a file changes, old version moves to archive (not deleted)
 - **Critical File Coverage** — Backs up .env, credentials, IDE settings, notes (kept out of GitHub)
+- **Cloud Backup** — Optional off-site protection via rclone (Dropbox, Google Drive, OneDrive, iCloud)
 - **Drive Verification** — Ensures you're backing up to the correct external drive
 - **Dual Triggers** — Hourly daemon + first-prompt detection for new sessions
 - **Graceful Degradation** — Works even when external drive disconnected
@@ -55,6 +56,7 @@ backups/
 | `git` | ✅ Yes | Change detection | `brew install git` (macOS) |
 | `sqlite3` | Conditional | Database backups | `brew install sqlite3` (macOS) |
 | `gzip` | ✅ Yes | Compression | Pre-installed on macOS/Linux |
+| `rclone` | Optional | Cloud backups | `brew install rclone` or see [docs/CLOUD-BACKUP.md](docs/CLOUD-BACKUP.md) |
 | `launchctl` | macOS only | Daemon scheduling | Pre-installed on macOS |
 
 **Note:** The installer will check for required dependencies and warn if any are missing.

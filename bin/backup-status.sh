@@ -398,6 +398,24 @@ if [ "$DRIVE_VERIFICATION_ENABLED" = "true" ]; then
     fi
 fi
 
+# Cloud Backup Status
+if [ "${CLOUD_ENABLED:-false}" = "true" ]; then
+    # Load cloud library to get status
+    SCRIPT_DIR="$(dirname "$0")"
+    CLOUD_LIB="$SCRIPT_DIR/../lib/cloud-backup.sh"
+    if [ -f "$CLOUD_LIB" ]; then
+        source "$CLOUD_LIB"
+        cloud_last_upload=$(get_cloud_status)
+        if check_rclone_installed && test_rclone_connection "${CLOUD_REMOTE_NAME:-}" 2>&1 | grep -q "successful"; then
+            printf "│   ${COLOR_GREEN}✅${COLOR_RESET} Cloud:            $cloud_last_upload%-$((25 - ${#cloud_last_upload}))s │\n" ""
+        else
+            printf "│   ${COLOR_YELLOW}⚠️${COLOR_RESET}  Cloud:            Not connected%-21s │\n" ""
+        fi
+    else
+        printf "│   ${COLOR_RED}❌${COLOR_RESET} Cloud:            Library missing%-20s │\n" ""
+    fi
+fi
+
 # Warnings
 if [ ${#warnings[@]} -gt 0 ]; then
     echo "│                                                              │"
