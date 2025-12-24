@@ -1,0 +1,44 @@
+{
+  "name": "backup-status",
+  "version": "1.0.0",
+  "description": "Show comprehensive backup system health dashboard with statistics, component status, warnings, and retention policies",
+  "author": "ClaudeCode Project Backups",
+  "category": "backup",
+  "tags": ["backup", "status", "monitoring", "health"],
+  "command": "./run.sh",
+  "arguments": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["dashboard", "compact", "timeline", "json"],
+          "default": "dashboard",
+          "description": "Output format (dashboard, compact, timeline, json)"
+        },
+        "project": {
+          "type": "string",
+          "description": "Project directory path (optional, defaults to current)"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "description": "Show full dashboard",
+      "command": "/backup-status"
+    },
+    {
+      "description": "Compact one-line status",
+      "command": "/backup-status --compact"
+    },
+    {
+      "description": "Timeline view of backups",
+      "command": "/backup-status --timeline"
+    },
+    {
+      "description": "JSON output for scripting",
+      "command": "/backup-status --json"
+    }
+  ]
+}

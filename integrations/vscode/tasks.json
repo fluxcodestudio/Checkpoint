@@ -1,0 +1,94 @@
+{
+  // ClaudeCode Project Backups - VS Code Tasks
+  // Copy this to .vscode/tasks.json in your project
+  // Version: 1.2.0
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Backup: Show Status",
+      "type": "shell",
+      "command": "${env:CLAUDECODE_BACKUP_ROOT}/bin/backup-status.sh",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "Backup: Trigger Now",
+      "type": "shell",
+      "command": "${env:CLAUDECODE_BACKUP_ROOT}/bin/backup-now.sh",
+      "args": ["--force"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "Backup: Show Config",
+      "type": "shell",
+      "command": "${env:CLAUDECODE_BACKUP_ROOT}/bin/backup-config.sh",
+      "args": ["show"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "Backup: Cleanup (Preview)",
+      "type": "shell",
+      "command": "${env:CLAUDECODE_BACKUP_ROOT}/bin/backup-cleanup.sh",
+      "args": ["--preview"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "Backup: List Backups",
+      "type": "shell",
+      "command": "${env:CLAUDECODE_BACKUP_ROOT}/bin/backup-restore.sh",
+      "args": ["--list"],
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "Backup: Auto (Status + Trigger)",
+      "dependsOn": [
+        "Backup: Show Status",
+        "Backup: Trigger Now"
+      ],
+      "dependsOrder": "sequence",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new"
+      },
+      "problemMatcher": [],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    }
+  ]
+}

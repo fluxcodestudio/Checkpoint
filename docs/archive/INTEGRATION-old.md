@@ -1,6 +1,6 @@
 # Integration Guide
 
-How to integrate ClaudeCode Project Backups with different workflows and tools.
+How to integrate Checkpoint Project Backups with different workflows and tools.
 
 ---
 
@@ -111,7 +111,7 @@ Drive marker file path: /Volumes/MyDrive/project/.backup-drive-marker
 **Setup on Desktop:**
 ```bash
 cd /Volumes/WorkDrive/MyProject
-/path/to/ClaudeCode-Project-Backups/bin/install.sh
+/path/to/Checkpoint-Project-Backups/bin/install.sh
 
 # Configuration
 Project name: MyProject
@@ -124,7 +124,7 @@ Drive marker file: /Volumes/WorkDrive/MyProject/.backup-drive-marker
 ```bash
 # Same steps, same paths
 cd /Volumes/WorkDrive/MyProject
-/path/to/ClaudeCode-Project-Backups/bin/install.sh
+/path/to/Checkpoint-Project-Backups/bin/install.sh
 
 # IMPORTANT: Same marker file path
 Drive marker file: /Volumes/WorkDrive/MyProject/.backup-drive-marker
@@ -153,7 +153,7 @@ Drive marker file: /Volumes/WorkDrive/MyProject/.backup-drive-marker
 # Then install normally
 
 cd /Volumes/NetworkDrive/MyProject
-/path/to/ClaudeCode-Project-Backups/bin/install.sh
+/path/to/Checkpoint-Project-Backups/bin/install.sh
 
 # Disable drive verification (always mounted)
 Enable external drive verification? n
@@ -192,7 +192,7 @@ GIT_COMMIT_MESSAGE="Auto-backup: $(date '+%Y-%m-%d %H:%M')"
 
 **Automatically added during install:**
 ```
-# ClaudeCode Project Backups
+# Checkpoint Project Backups
 backups/
 .backup-config.sh
 
@@ -331,7 +331,7 @@ cleanup_old_backups() {
 Add to `.claude/backup-daemon.sh` at end of main execution:
 ```bash
 # Send notification
-osascript -e 'display notification "Backup completed successfully" with title "ClaudeCode Backups"'
+osascript -e 'display notification "Backup completed successfully" with title "Checkpoint Backups"'
 ```
 
 **Email notification:**
@@ -386,7 +386,7 @@ jobs:
 `Dockerfile`:
 ```dockerfile
 # Install backup system
-COPY ClaudeCode-Project-Backups /backups-system
+COPY Checkpoint-Project-Backups /backups-system
 RUN /backups-system/bin/install.sh /app
 
 # Run backups in container

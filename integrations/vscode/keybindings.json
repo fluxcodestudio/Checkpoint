@@ -1,0 +1,35 @@
+[
+  // ClaudeCode Project Backups - VS Code Keybindings
+  // Add these to your keybindings.json (Ctrl+K Ctrl+S -> Open Keyboard Shortcuts JSON)
+  // Version: 1.2.0
+  {
+    "key": "ctrl+shift+b s",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Backup: Show Status",
+    "when": "!inDebugMode"
+  },
+  {
+    "key": "ctrl+shift+b n",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Backup: Trigger Now",
+    "when": "!inDebugMode"
+  },
+  {
+    "key": "ctrl+shift+b c",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Backup: Show Config",
+    "when": "!inDebugMode"
+  },
+  {
+    "key": "ctrl+shift+b l",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Backup: Cleanup (Preview)",
+    "when": "!inDebugMode"
+  },
+  {
+    "key": "ctrl+shift+b r",
+    "command": "workbench.action.tasks.runTask",
+    "args": "Backup: List Backups",
+    "when": "!inDebugMode"
+  }
+]

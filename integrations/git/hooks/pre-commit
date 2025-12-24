@@ -1,0 +1,61 @@
+#!/bin/bash
+# ClaudeCode Project Backups - Git Pre-Commit Hook
+# Automatically creates a backup before each commit
+# Version: 1.2.0
+
+# Find integration directory
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+INTEGRATION_DIR="$(cd "$HOOK_DIR/../.." && pwd)"
+
+# Load integration core
+if [[ -f "$INTEGRATION_DIR/lib/integration-core.sh" ]]; then
+    BACKUP_INTEGRATION_QUIET_LOAD=true
+    source "$INTEGRATION_DIR/lib/integration-core.sh"
+else
+    echo "❌ Error: integration-core.sh not found" >&2
+    exit 1
+fi
+
+# Initialize integration
+integration_init || exit 1
+
+# ==============================================================================
+# PRE-COMMIT BACKUP
+# ==============================================================================
+
+# Check if we're in a git repository
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+    exit 0  # Not in a git repo, skip silently
+fi
+
+# Check if backup is disabled for this hook
+if [[ "${BACKUP_GIT_PRE_COMMIT_DISABLED:-false}" == "true" ]]; then
+    exit 0  # Disabled, skip silently
+fi
+
+# Display message (unless quiet mode)
+if [[ "${BACKUP_GIT_QUIET:-false}" != "true" ]]; then
+    echo "🔄 Creating backup before commit..."
+fi
+
+# Trigger backup (force mode to bypass debounce)
+if integration_trigger_backup --force --quiet; then
+    if [[ "${BACKUP_GIT_QUIET:-false}" != "true" ]]; then
+        echo "✅ Backup created successfully"
+    fi
+    exit 0
+else
+    exit_code=$?
+
+    # Check if user wants to block commits on backup failure
+    if [[ "${BACKUP_GIT_BLOCK_ON_FAILURE:-false}" == "true" ]]; then
+        echo "❌ Backup failed - commit blocked" >&2
+        echo "   Set BACKUP_GIT_BLOCK_ON_FAILURE=false to allow commits anyway" >&2
+        exit 1
+    else
+        if [[ "${BACKUP_GIT_QUIET:-false}" != "true" ]]; then
+            echo "⚠️  Backup failed but commit allowed (exit code: $exit_code)" >&2
+        fi
+        exit 0  # Allow commit to proceed
+    fi
+fi

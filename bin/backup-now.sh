@@ -1,0 +1,541 @@
+#!/bin/bash
+# Checkpoint - Manual Backup Trigger
+# Force an immediate backup with progress reporting
+
+set -euo pipefail
+
+# ==============================================================================
+# INITIALIZATION
+# ==============================================================================
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+
+# Source foundation library
+if [ -f "$LIB_DIR/backup-lib.sh" ]; then
+    source "$LIB_DIR/backup-lib.sh"
+else
+    echo "Error: Foundation library not found: $LIB_DIR/backup-lib.sh" >&2
+    exit 1
+fi
+
+# ==============================================================================
+# COMMAND LINE OPTIONS
+# ==============================================================================
+
+FORCE_BACKUP=false
+DATABASE_ONLY=false
+FILES_ONLY=false
+VERBOSE=false
+DRY_RUN=false
+WAIT_FOR_COMPLETION=false
+QUIET=false
+SHOW_HELP=false
+PROJECT_DIR="${PWD}"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE_BACKUP=true
+            shift
+            ;;
+        --database-only)
+            DATABASE_ONLY=true
+            shift
+            ;;
+        --files-only)
+            FILES_ONLY=true
+            shift
+            ;;
+        --verbose)
+            VERBOSE=true
+            shift
+            ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        --wait)
+            WAIT_FOR_COMPLETION=true
+            shift
+            ;;
+        --quiet)
+            QUIET=true
+            shift
+            ;;
+        --help|-h)
+            SHOW_HELP=true
+            shift
+            ;;
+        *)
+            # Assume it's a project directory
+            if [ -d "$1" ]; then
+                PROJECT_DIR="$1"
+            else
+                echo "Unknown option or invalid directory: $1" >&2
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+# ==============================================================================
+# HELP TEXT
+# ==============================================================================
+
+if [ "$SHOW_HELP" = true ]; then
+    cat <<EOF
+Checkpoint - Manual Backup Trigger
+
+USAGE:
+    backup-now.sh [OPTIONS] [PROJECT_DIR]
+
+OPTIONS:
+    --force             Force backup even if interval not reached
+    --database-only     Only backup database
+    --files-only        Only backup files
+    --verbose           Show detailed progress
+    --dry-run           Preview what would be backed up
+    --wait              Wait for completion (don't background)
+    --quiet             Suppress non-error output
+    --help, -h          Show this help message
+
+EXAMPLES:
+    backup-now.sh                    # Standard backup
+    backup-now.sh --force            # Force immediate backup
+    backup-now.sh --database-only    # Only backup database
+    backup-now.sh --verbose          # Show detailed progress
+    backup-now.sh --dry-run          # Preview changes
+
+EXIT CODES:
+    0 - Backup completed successfully
+    1 - Pre-flight checks failed
+    2 - Backup failed
+    3 - Another backup is already running
+
+EOF
+    exit 0
+fi
+
+# ==============================================================================
+# OUTPUT FUNCTIONS
+# ==============================================================================
+
+log_info() {
+    [ "$QUIET" = true ] && return
+    echo "$@"
+}
+
+log_success() {
+    [ "$QUIET" = true ] && return
+    echo -e "${COLOR_GREEN}$@${COLOR_RESET}"
+}
+
+log_error() {
+    echo -e "${COLOR_RED}$@${COLOR_RESET}" >&2
+}
+
+log_warn() {
+    [ "$QUIET" = true ] && return
+    echo -e "${COLOR_YELLOW}$@${COLOR_RESET}"
+}
+
+log_verbose() {
+    [ "$VERBOSE" = false ] && return
+    echo -e "${COLOR_GRAY}$@${COLOR_RESET}"
+}
+
+# ==============================================================================
+# LOAD CONFIGURATION
+# ==============================================================================
+
+if ! load_backup_config "$PROJECT_DIR"; then
+    log_error "Error: No backup configuration found in: $PROJECT_DIR"
+    log_error "Run install.sh first or specify project directory"
+    exit 1
+fi
+
+# Initialize state directories
+init_state_dirs
+
+# ==============================================================================
+# PRE-FLIGHT CHECKS
+# ==============================================================================
+
+log_info "🚀 Triggering backup for ${COLOR_CYAN}$PROJECT_NAME${COLOR_RESET}..."
+log_info ""
+
+preflight_errors=0
+
+log_info "✅ Pre-flight checks..."
+
+# Check drive connection
+if [ "$DRIVE_VERIFICATION_ENABLED" = "true" ]; then
+    if check_drive; then
+        log_verbose "   ✓ Drive connected"
+    else
+        log_error "   ✗ Drive not connected: $DRIVE_MARKER_FILE"
+        ((preflight_errors++))
+    fi
+fi
+
+# Check configuration
+if check_config_status; then
+    log_verbose "   ✓ Configuration valid"
+else
+    log_error "   ✗ Configuration invalid"
+    ((preflight_errors++))
+fi
+
+# Check for running backup
+lock_pid=$(get_lock_pid "$PROJECT_NAME" || echo "")
+if [ -n "$lock_pid" ]; then
+    log_error "   ✗ Another backup is running (PID: $lock_pid)"
+    log_error ""
+    log_error "Wait for it to complete or kill process: kill $lock_pid"
+    exit 3
+else
+    log_verbose "   ✓ No other backup running"
+fi
+
+# Check if backup interval reached (unless forced)
+if [ "$FORCE_BACKUP" = false ]; then
+    time_until_next=$(time_until_next_backup)
+    if [ $time_until_next -gt 0 ]; then
+        log_warn "   ⚠ Backup interval not reached (${time_until_next}s remaining)"
+        log_warn "     Use --force to override"
+        exit 1
+    else
+        log_verbose "   ✓ Backup interval reached"
+    fi
+else
+    log_verbose "   ✓ Force mode enabled"
+fi
+
+if [ $preflight_errors -gt 0 ]; then
+    log_error ""
+    log_error "Pre-flight checks failed ($preflight_errors errors)"
+    exit 1
+fi
+
+log_info ""
+
+# ==============================================================================
+# DRY RUN MODE
+# ==============================================================================
+
+if [ "$DRY_RUN" = true ]; then
+    log_info "🔍 Dry run mode - previewing changes..."
+    log_info ""
+
+    # Database changes
+    if [ "$FILES_ONLY" = false ]; then
+        if [ -n "$DB_PATH" ] && [ -f "$DB_PATH" ]; then
+            current_state=$(stat -f%z "$DB_PATH" 2>/dev/null || echo "0")
+            last_state=$(cat "$DB_STATE_FILE" 2>/dev/null || echo "")
+
+            if [ "$current_state" != "$last_state" ] || [ "$FORCE_BACKUP" = true ]; then
+                db_size=$(format_bytes $current_state)
+                log_info "📦 Database: Would backup (${db_size})"
+                log_verbose "   Path: $DB_PATH"
+            else
+                log_info "📦 Database: No changes detected"
+            fi
+        else
+            log_info "📦 Database: Not configured"
+        fi
+        log_info ""
+    fi
+
+    # File changes
+    if [ "$DATABASE_ONLY" = false ]; then
+        cd "$PROJECT_DIR" || exit 1
+
+        changed_files=$(mktemp)
+
+        # Get changed files (same logic as daemon)
+        git diff --name-only >> "$changed_files" 2>/dev/null || true
+        git diff --cached --name-only >> "$changed_files" 2>/dev/null || true
+        git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+
+        if [ "$BACKUP_ENV_FILES" = true ]; then
+            find . -maxdepth 3 -type f \( -name ".env" -o -name ".env.*" \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        fi
+
+        if [ ! -s "$changed_files" ]; then
+            log_info "📁 Files: No changes detected"
+        else
+            file_count=$(sort -u "$changed_files" | wc -l | tr -d ' ')
+            log_info "📁 Files: Would backup $file_count files"
+            log_info ""
+
+            if [ "$VERBOSE" = true ]; then
+                log_verbose "   Changed files:"
+                sort -u "$changed_files" | head -20 | while read -r file; do
+                    log_verbose "   • $file"
+                done
+                if [ $file_count -gt 20 ]; then
+                    log_verbose "   ... and $((file_count - 20)) more"
+                fi
+            fi
+        fi
+
+        rm "$changed_files"
+    fi
+
+    log_info ""
+    log_info "Dry run complete. Use 'backup-now.sh --force' to execute."
+    exit 0
+fi
+
+# ==============================================================================
+# BACKUP EXECUTION
+# ==============================================================================
+
+# Acquire lock
+if ! acquire_backup_lock "$PROJECT_NAME"; then
+    log_error "Failed to acquire backup lock"
+    exit 3
+fi
+
+# Ensure lock is released on exit
+trap 'release_backup_lock' EXIT
+
+# Initialize backup directories
+if ! init_backup_dirs; then
+    log_error "Failed to initialize backup directories"
+    exit 2
+fi
+
+# Track backup start time
+backup_start=$(date +%s)
+backup_errors=0
+
+log_info "📦 Backup in progress..."
+log_info ""
+
+# ==============================================================================
+# DATABASE BACKUP
+# ==============================================================================
+
+if [ "$FILES_ONLY" = false ]; then
+    if [ -n "$DB_PATH" ] && [ -f "$DB_PATH" ]; then
+        # Check if database changed
+        current_state=$(stat -f%z "$DB_PATH" 2>/dev/null)
+        last_state=$(cat "$DB_STATE_FILE" 2>/dev/null || echo "")
+
+        if [ "$current_state" != "$last_state" ] || [ "$FORCE_BACKUP" = true ]; then
+            log_info "   ▸ Database: Backing up..."
+
+            timestamp=$(date '+%m.%d.%y - %H:%M')
+            backup_file="$DATABASE_DIR/${PROJECT_NAME} - ${timestamp}.db.gz"
+
+            if [ "$DB_TYPE" = "sqlite" ]; then
+                if sqlite3 "$DB_PATH" ".backup /tmp/${PROJECT_NAME}_temp.db" && \
+                   gzip -c "/tmp/${PROJECT_NAME}_temp.db" > "$backup_file" && \
+                   rm "/tmp/${PROJECT_NAME}_temp.db"; then
+
+                    backup_size=$(stat -f%z "$backup_file")
+                    backup_size_human=$(format_bytes $backup_size)
+                    log_success "   ▸ Database: ✅ Done ($backup_size_human compressed)"
+
+                    # Update state
+                    echo "$current_state" > "$DB_STATE_FILE"
+                else
+                    log_error "   ▸ Database: ❌ Failed"
+                    ((backup_errors++))
+                fi
+            else
+                log_error "   ▸ Database: ❌ Unsupported type: $DB_TYPE"
+                ((backup_errors++))
+            fi
+        else
+            log_info "   ▸ Database: No changes detected"
+        fi
+    else
+        log_verbose "   ▸ Database: Not configured"
+    fi
+fi
+
+# ==============================================================================
+# FILE BACKUP
+# ==============================================================================
+
+if [ "$DATABASE_ONLY" = false ]; then
+    log_info "   ▸ Files: Scanning for changes..."
+
+    cd "$PROJECT_DIR" || exit 2
+
+    changed_files=$(mktemp)
+
+    # Get changed files
+    git diff --name-only >> "$changed_files" 2>/dev/null || true
+    git diff --cached --name-only >> "$changed_files" 2>/dev/null || true
+    git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+
+    if [ "$BACKUP_ENV_FILES" = true ]; then
+        find . -maxdepth 3 -type f \( -name ".env" -o -name ".env.*" \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+    fi
+
+    if [ "$BACKUP_CREDENTIALS" = true ]; then
+        find . -maxdepth 3 -type f \( \
+            -name "*.pem" -o -name "*.key" -o \
+            -name "credentials.json" -o -name "secrets.*" -o \
+            -name "*.p12" -o -name "*.pfx" \
+        \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+    fi
+
+    if [ "$BACKUP_IDE_SETTINGS" = true ]; then
+        [ -f ".vscode/settings.json" ] && echo ".vscode/settings.json" >> "$changed_files"
+        [ -f ".vscode/launch.json" ] && echo ".vscode/launch.json" >> "$changed_files"
+        [ -f ".idea/workspace.xml" ] && echo ".idea/workspace.xml" >> "$changed_files"
+    fi
+
+    if [ "$BACKUP_LOCAL_NOTES" = true ]; then
+        find . -maxdepth 2 -type f \( \
+            -name "NOTES.md" -o -name "NOTES.txt" -o \
+            -name "TODO.local.md" -o -name "*.private.md" \
+        \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+    fi
+
+    if [ "$BACKUP_LOCAL_DATABASES" = true ]; then
+        main_db_name=$(basename "$DB_PATH" 2>/dev/null || echo "")
+        find . -maxdepth 3 -type f \( -name "*.db" -o -name "*.sqlite" -o -name "*.sql" \) \
+            ! -name "$main_db_name" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+    fi
+
+    if [ ! -s "$changed_files" ]; then
+        log_info "   ▸ Files: No changes detected"
+    else
+        file_count=0
+        archived_count=0
+        timestamp=$(date +%Y%m%d_%H%M%S)
+
+        total_files=$(sort -u "$changed_files" | wc -l | tr -d ' ')
+        log_info "   ▸ Files: $total_files modified files found"
+        log_info "   ▸ Files: Backing up..."
+
+        while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            [ ! -f "$file" ] && continue
+            [[ "$file" == backups/* ]] && continue
+
+            current_file="$FILES_DIR/$file"
+            current_dir=$(dirname "$current_file")
+            archived_file="$ARCHIVED_DIR/${file}.${timestamp}"
+            archived_dir=$(dirname "$archived_file")
+
+            mkdir -p "$current_dir"
+
+            # Check if file changed
+            if [ -f "$current_file" ]; then
+                if ! cmp -s "$file" "$current_file"; then
+                    mkdir -p "$archived_dir"
+                    mv "$current_file" "$archived_file"
+                    ((archived_count++))
+                    cp "$file" "$current_file"
+                    ((file_count++))
+
+                    [ "$VERBOSE" = true ] && log_verbose "      • Backed up: $file"
+                fi
+            else
+                cp "$file" "$current_file"
+                ((file_count++))
+
+                [ "$VERBOSE" = true ] && log_verbose "      • New file: $file"
+            fi
+
+        done < <(sort -u "$changed_files")
+
+        rm "$changed_files"
+
+        if [ $file_count -gt 0 ]; then
+            log_success "   ▸ Files: ✅ $file_count files backed up ($archived_count archived)"
+
+            # Auto-commit to git (if enabled)
+            if [ "$AUTO_COMMIT_ENABLED" = true ]; then
+                if git add -A && git commit -m "$GIT_COMMIT_MESSAGE" -q 2>/dev/null; then
+                    log_success "   ▸ Git: ✅ Changes committed"
+                fi
+            fi
+        else
+            log_info "   ▸ Files: No changes to backup"
+        fi
+    fi
+fi
+
+# ==============================================================================
+# CLEANUP
+# ==============================================================================
+
+log_info "   ▸ Cleanup: Checking retention..."
+
+# Remove old backups
+db_removed=$(find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} 2>/dev/null | wc -l | tr -d ' ')
+find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>/dev/null || true
+
+file_removed=$(find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} 2>/dev/null | wc -l | tr -d ' ')
+find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>/dev/null || true
+
+find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null || true
+
+if [ $db_removed -gt 0 ] || [ $file_removed -gt 0 ]; then
+    space_freed=$((db_removed + file_removed))
+    log_success "   ▸ Cleanup: ✅ $db_removed old database backups, $file_removed old files removed"
+else
+    log_verbose "   ▸ Cleanup: ✅ No old backups to remove"
+fi
+
+# ==============================================================================
+# UPDATE STATE
+# ==============================================================================
+
+backup_end=$(date +%s)
+backup_duration=$((backup_end - backup_start))
+
+echo "$backup_end" > "$BACKUP_TIME_STATE"
+
+# ==============================================================================
+# SUMMARY
+# ==============================================================================
+
+log_info ""
+
+if [ $backup_errors -eq 0 ]; then
+    log_success "✅ Backup complete in ${backup_duration}s"
+else
+    log_error "⚠️  Backup completed with $backup_errors errors"
+fi
+
+log_info ""
+log_info "📊 Summary:"
+
+# Get updated statistics
+db_count=$(count_database_backups)
+current_files=$(count_current_files)
+archived_files=$(count_archived_files)
+
+log_info "   Database: $db_count snapshots"
+log_info "   Files: $current_files backed up, $archived_files archived"
+
+if [ $db_removed -gt 0 ] || [ $file_removed -gt 0 ]; then
+    log_info "   Cleanup: $db_removed DB backups, $file_removed files removed"
+fi
+
+log_info ""
+log_info "View status: ${COLOR_CYAN}backup-status.sh${COLOR_RESET}"
+
+if [ -f "$LOG_FILE" ]; then
+    log_info "View logs: ${COLOR_CYAN}tail -f $LOG_FILE${COLOR_RESET}"
+fi
+
+log_info ""
+
+# Exit code
+if [ $backup_errors -gt 0 ]; then
+    exit 2
+else
+    exit 0
+fi

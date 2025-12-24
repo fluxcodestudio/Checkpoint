@@ -1,0 +1,22 @@
+# ClaudeCode Project Backups - Minimal Configuration
+# Bare minimum settings required for basic backup functionality
+
+project:
+  name: "MyProject"
+  directory: "/path/to/your/project"
+
+backup:
+  directory: "/path/to/your/project/backups"
+
+retention:
+  database_days: 30
+  file_days: 60
+
+database:
+  enabled: false
+
+drive:
+  verification_enabled: false
+
+git:
+  auto_commit: false

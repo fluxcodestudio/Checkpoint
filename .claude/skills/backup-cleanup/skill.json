@@ -1,0 +1,9 @@
+{
+  "name": "backup-cleanup",
+  "version": "1.1.0",
+  "description": "Smart cleanup utility with preview mode, recommendations, and safety features for managing backup disk space",
+  "author": "ClaudeCode Project Backups",
+  "category": "backup",
+  "tags": ["backup", "cleanup", "maintenance", "disk-space"],
+  "command": "./run.sh"
+}

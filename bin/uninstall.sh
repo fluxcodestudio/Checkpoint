@@ -1,5 +1,5 @@
 #!/bin/bash
-# ClaudeCode Project Backups - Uninstaller
+# Checkpoint - Uninstaller
 # Removes backup system from a project (keeps backup data)
 
 set -euo pipefail
@@ -24,7 +24,7 @@ source "$CONFIG_FILE"
 # ==============================================================================
 
 echo "═══════════════════════════════════════════════"
-echo "ClaudeCode Project Backups - Uninstaller"
+echo "Checkpoint - Uninstaller"
 echo "═══════════════════════════════════════════════"
 echo ""
 echo "Project: $PROJECT_NAME"

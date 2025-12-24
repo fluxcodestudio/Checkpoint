@@ -1,0 +1,69 @@
+# ClaudeCode Project Backups - External Drive Configuration
+# For projects backed up to external/removable drives
+# Useful for multi-computer workflows
+
+project:
+  name: "PortableProject"
+  directory: "/Volumes/ExternalDrive/MyProject"
+
+backup:
+  # Backup on the same external drive
+  directory: "/Volumes/ExternalDrive/MyProject/backups"
+
+  interval: 3600
+  session_idle_threshold: 600
+
+  critical_files:
+    env_files: true
+    credentials: true
+    ide_settings: false
+    local_notes: false
+    local_databases: false
+
+database:
+  enabled: true
+  type: "sqlite"
+  path: "/Volumes/ExternalDrive/MyProject/data/app.db"
+  compression: true
+
+retention:
+  database_days: 30
+  file_days: 60
+  keep_minimum: 5                   # Keep extra backups for safety
+
+# CRITICAL: Drive verification for external drives
+drive:
+  verification_enabled: true        # Must be true for external drives
+  marker_file: "/Volumes/ExternalDrive/.backup-drive-marker"
+
+  # Graceful degradation
+  fallback_enabled: true            # Log to local disk if drive disconnected
+  fallback_location: "~/.claudecode-backups/fallback"
+
+git:
+  auto_commit: false                # Usually disabled for external drives
+
+logging:
+  level: "info"
+  file: "/Volumes/ExternalDrive/MyProject/backups/backup.log"
+  max_size: "10MB"
+  rotate: true
+
+# Multi-Computer Setup Notes:
+#
+# 1. Install this config on all computers that use this drive
+# 2. Use IDENTICAL configuration on all computers
+# 3. The marker_file ensures only one computer backs up at a time
+# 4. When drive is disconnected, logs go to fallback_location
+#
+# Workflow:
+#   - Unplug drive from Computer A
+#   - Plug into Computer B
+#   - Start working (backup triggers automatically)
+#   - Drive verification prevents conflicts
+#
+# Creating the marker file:
+#   touch /Volumes/ExternalDrive/.backup-drive-marker
+#
+# Verification check:
+#   ls -la /Volumes/ExternalDrive/.backup-drive-marker

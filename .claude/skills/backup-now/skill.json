@@ -1,0 +1,77 @@
+{
+  "name": "backup-now",
+  "version": "1.0.0",
+  "description": "Trigger an immediate backup with progress reporting. Supports force mode, selective backups (database/files only), verbose output, and dry-run preview",
+  "author": "ClaudeCode Project Backups",
+  "category": "backup",
+  "tags": ["backup", "trigger", "manual", "force"],
+  "command": "./run.sh",
+  "arguments": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "force": {
+          "type": "boolean",
+          "default": false,
+          "description": "Force backup even if interval not reached"
+        },
+        "database-only": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only backup database"
+        },
+        "files-only": {
+          "type": "boolean",
+          "default": false,
+          "description": "Only backup files"
+        },
+        "verbose": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show detailed progress"
+        },
+        "dry-run": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preview what would be backed up"
+        },
+        "wait": {
+          "type": "boolean",
+          "default": false,
+          "description": "Wait for completion (don't background)"
+        },
+        "quiet": {
+          "type": "boolean",
+          "default": false,
+          "description": "Suppress non-error output"
+        },
+        "project": {
+          "type": "string",
+          "description": "Project directory path (optional, defaults to current)"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "description": "Standard backup",
+      "command": "/backup-now"
+    },
+    {
+      "description": "Force immediate backup",
+      "command": "/backup-now --force"
+    },
+    {
+      "description": "Only backup database",
+      "command": "/backup-now --database-only"
+    },
+    {
+      "description": "Preview changes without backing up",
+      "command": "/backup-now --dry-run"
+    },
+    {
+      "description": "Verbose backup with details",
+      "command": "/backup-now --verbose --force"
+    }
+  ]
+}

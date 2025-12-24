@@ -1,5 +1,5 @@
 #!/bin/bash
-# ClaudeCode Project Backups - Smart Backup Trigger
+# Checkpoint - Smart Backup Trigger
 # Runs on every user prompt via Claude Code UserPromptSubmit hook
 # Triggers backup on first prompt of new session, then coordinates with daemon
 

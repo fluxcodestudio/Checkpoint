@@ -1,0 +1,61 @@
+#!/bin/bash
+# ClaudeCode Project Backups - Git Post-Commit Hook
+# Shows backup status after commit completes
+# Version: 1.2.0
+
+# Find integration directory
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+INTEGRATION_DIR="$(cd "$HOOK_DIR/../.." && pwd)"
+
+# Load integration core
+if [[ -f "$INTEGRATION_DIR/lib/integration-core.sh" ]]; then
+    BACKUP_INTEGRATION_QUIET_LOAD=true
+    source "$INTEGRATION_DIR/lib/integration-core.sh"
+else
+    echo "❌ Error: integration-core.sh not found" >&2
+    exit 1
+fi
+
+# Initialize integration
+integration_init || exit 1
+
+# ==============================================================================
+# POST-COMMIT STATUS
+# ==============================================================================
+
+# Check if we're in a git repository
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+    exit 0  # Not in a git repo, skip silently
+fi
+
+# Check if status display is disabled
+if [[ "${BACKUP_GIT_POST_COMMIT_DISABLED:-false}" == "true" ]]; then
+    exit 0  # Disabled, skip silently
+fi
+
+# Skip if quiet mode
+if [[ "${BACKUP_GIT_QUIET:-false}" == "true" ]]; then
+    exit 0
+fi
+
+# Get backup status
+echo ""
+echo "📊 Backup Status:"
+
+# Show compact status
+status=$(integration_get_status_compact 2>/dev/null)
+if [[ $? -eq 0 && -n "$status" ]]; then
+    echo "   $status"
+else
+    echo "   ❌ Unable to retrieve backup status"
+fi
+
+# Show time since last backup
+time_ago=$(integration_time_since_backup 2>/dev/null)
+if [[ -n "$time_ago" ]]; then
+    echo "   Last backup: $time_ago"
+fi
+
+echo ""
+
+exit 0

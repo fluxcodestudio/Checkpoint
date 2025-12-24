@@ -1,0 +1,64 @@
+# ClaudeCode Project Backups - Paranoid Configuration
+# Maximum retention and aggressive backup strategy
+
+project:
+  name: "CriticalProject"
+  directory: "/path/to/critical/project"
+
+backup:
+  directory: "/path/to/critical/project/backups"
+
+  # Frequent backups
+  interval: 1800                    # 30 minutes (more frequent)
+  session_idle_threshold: 300       # 5 minutes = new session (more sensitive)
+
+  # Back up everything possible
+  critical_files:
+    env_files: true
+    credentials: true
+    ide_settings: true              # Include IDE settings
+    local_notes: true               # Include all notes
+    local_databases: true           # Include all local DB files
+
+database:
+  enabled: true
+  type: "sqlite"
+  path: "/path/to/critical/database.db"
+  compression: true
+  backup_method: "copy"             # Safe copy method
+
+retention:
+  # Maximum retention
+  database_days: 365                # 1 year of database history
+  file_days: 365                    # 1 year of file history
+  keep_minimum: 10                  # Keep at least 10 backups always
+  size_limit: "50GB"                # Allow up to 50GB of backups
+
+drive:
+  verification_enabled: true        # Require verified external drive
+  marker_file: "/Volumes/BackupDrive/.backup-drive-marker"
+  fallback_enabled: true            # Log to fallback if drive missing
+
+git:
+  auto_commit: true                 # Auto-commit everything
+  commit_message: "Auto-backup: {timestamp}"
+  auto_push: false                  # Don't push automatically (manual review)
+
+notifications:
+  enabled: true                     # Enable notifications
+  methods: ["terminal", "macos"]    # All available methods
+  on_success: false                 # Don't spam on success
+  on_failure: true                  # Alert on failures
+
+logging:
+  level: "debug"                    # Maximum verbosity
+  file: "/path/to/critical/project/backups/backup.log"
+  max_size: "50MB"                  # Larger log file
+  rotate: true
+
+# Advanced: Custom exclusions (if needed)
+# exclusions:
+#   patterns:
+#     - "node_modules/**"
+#     - "*.log"
+#     - "tmp/**"

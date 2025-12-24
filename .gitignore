@@ -36,5 +36,5 @@ Temporary Items
 # Local testing
 test-output/
 
-# Claude Code IDE settings (development only)
-.claude/
+# Claude Code IDE settings (local only - skills are shipped with project)
+.claude/settings.local.json

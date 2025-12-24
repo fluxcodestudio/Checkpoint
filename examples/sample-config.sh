@@ -1,5 +1,5 @@
 #!/bin/bash
-# ClaudeCode Project Backups - Example Configurations
+# Checkpoint - Example Configurations
 # Copy and customize these for different project types
 
 # ==============================================================================

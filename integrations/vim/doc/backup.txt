@@ -1,0 +1,322 @@
+*backup.txt*  Checkpoint for Vim/Neovim
+
+CONTENTS                                              *backup-contents*
+
+    1. Introduction .............. |backup-introduction|
+    2. Installation .............. |backup-installation|
+    3. Commands .................. |backup-commands|
+    4. Mappings .................. |backup-mappings|
+    5. Configuration ............. |backup-configuration|
+    6. Status Line ............... |backup-statusline|
+    7. Auto-Trigger .............. |backup-auto-trigger|
+    8. Examples .................. |backup-examples|
+    9. Troubleshooting ........... |backup-troubleshooting|
+    10. License .................. |backup-license|
+
+==============================================================================
+1. INTRODUCTION                                    *backup-introduction*
+
+Checkpoint plugin brings automated backup functionality to
+Vim and Neovim. Features include:
+
+- Backup on save (auto-trigger)
+- Quick commands and key mappings
+- Status line integration
+- Real-time notifications
+- Compatible with Vim 8.0+ and Neovim 0.5+
+
+==============================================================================
+2. INSTALLATION                                    *backup-installation*
+
+Using vim-plug: >
+    Plug '/path/to/ClaudeCode-Project-Backups/integrations/vim'
+<
+
+Using Vundle: >
+    Plugin '/path/to/ClaudeCode-Project-Backups/integrations/vim'
+<
+
+Using Pathogen: >
+    cd ~/.vim/bundle
+    git clone /path/to/ClaudeCode-Project-Backups/integrations/vim backup
+<
+
+Using native package manager (Vim 8+, Neovim): >
+    mkdir -p ~/.vim/pack/plugins/start
+    cp -r /path/to/integrations/vim ~/.vim/pack/plugins/start/backup
+<
+
+After installation, restart Vim or run: >
+    :source ~/.vimrc
+<
+
+==============================================================================
+3. COMMANDS                                        *backup-commands*
+
+:BackupStatus                                      *:BackupStatus*
+    Show backup status dashboard in a new split window.
+    Press 'q' or <Esc> to close.
+
+:BackupNow                                         *:BackupNow*
+    Trigger backup immediately (respects debounce).
+
+:BackupNowForce                                    *:BackupNowForce*
+    Force backup immediately (bypasses debounce).
+
+:BackupRestore                                     *:BackupRestore*
+    Launch interactive restore wizard in terminal.
+
+:BackupCleanup                                     *:BackupCleanup*
+    Show cleanup preview in new split window.
+
+:BackupConfig                                      *:BackupConfig*
+    Open backup configuration file (.backup-config.sh).
+
+==============================================================================
+4. MAPPINGS                                        *backup-mappings*
+
+Default mappings (can be disabled with g:backup_no_mappings):
+
+<leader>bs                                         *<leader>bs*
+    Execute :BackupStatus
+
+<leader>bn                                         *<leader>bn*
+    Execute :BackupNow
+
+<leader>bf                                         *<leader>bf*
+    Execute :BackupNowForce
+
+<leader>br                                         *<leader>br*
+    Execute :BackupRestore
+
+<leader>bc                                         *<leader>bc*
+    Execute :BackupCleanup
+
+<leader>bC                                         *<leader>bC*
+    Execute :BackupConfig
+
+To disable default mappings: >
+    let g:backup_no_mappings = 1
+<
+
+To use a different prefix: >
+    let g:backup_key_prefix = '<localleader>'
+<
+
+==============================================================================
+5. CONFIGURATION                                   *backup-configuration*
+
+g:backup_auto_trigger                              *g:backup_auto_trigger*
+    Enable/disable automatic backup on file save.
+    Default: 1 (enabled)
+    Example: >
+        let g:backup_auto_trigger = 0
+<
+
+g:backup_trigger_delay                             *g:backup_trigger_delay*
+    Delay in milliseconds before auto-trigger fires.
+    Default: 1000 (1 second)
+    Example: >
+        let g:backup_trigger_delay = 2000
+<
+
+g:backup_key_prefix                                *g:backup_key_prefix*
+    Key prefix for backup mappings.
+    Default: '<leader>'
+    Example: >
+        let g:backup_key_prefix = '<localleader>'
+<
+
+g:backup_notifications                             *g:backup_notifications*
+    Enable/disable notifications.
+    Default: 1 (enabled)
+    Example: >
+        let g:backup_notifications = 0
+<
+
+g:backup_bin_path                                  *g:backup_bin_path*
+    Path to backup system bin directory.
+    Default: Auto-detected from $CLAUDECODE_BACKUP_ROOT
+    Example: >
+        let g:backup_bin_path = '/path/to/backup/bin'
+<
+
+g:backup_statusline_format                         *g:backup_statusline_format*
+    Status line display format.
+    Options: 'emoji', 'compact', 'verbose'
+    Default: 'compact'
+    Example: >
+        let g:backup_statusline_format = 'emoji'
+<
+
+g:backup_no_mappings                               *g:backup_no_mappings*
+    Disable default key mappings.
+    Default: 0 (mappings enabled)
+    Example: >
+        let g:backup_no_mappings = 1
+<
+
+==============================================================================
+6. STATUS LINE                                     *backup-statusline*
+
+The plugin automatically adds backup status to your status line.
+
+To manually configure status line placement: >
+    set statusline+=%{BackupStatusLine()}
+<
+
+Status formats:
+
+emoji:   ✅
+compact: ✅ 2h
+verbose: ✅ All backups current (2 projects, 2h ago)
+
+Integration with popular statusline plugins:
+
+vim-airline: >
+    let g:airline_section_x = airline#section#create_right(['%{BackupStatusLine()}'])
+<
+
+lightline.vim: >
+    let g:lightline = {
+      \ 'component_function': {
+      \   'backup': 'BackupStatusLine'
+      \ },
+      \ 'active': {
+      \   'right': [ [ 'backup' ], [ 'lineinfo' ], [ 'filetype' ] ]
+      \ }
+      \ }
+<
+
+==============================================================================
+7. AUTO-TRIGGER                                    *backup-auto-trigger*
+
+Auto-trigger backs up your files automatically after saving, with these
+features:
+
+- Debounced (won't spam backups on rapid saves)
+- Only triggers in git repositories
+- Runs asynchronously (non-blocking)
+- Configurable delay
+
+To disable auto-trigger: >
+    let g:backup_auto_trigger = 0
+<
+
+To adjust delay: >
+    let g:backup_trigger_delay = 2000  " 2 seconds
+<
+
+==============================================================================
+8. EXAMPLES                                        *backup-examples*
+
+Minimal configuration: >
+    " In ~/.vimrc or ~/.config/nvim/init.vim
+    let g:backup_bin_path = '/path/to/backup/bin'
+    let g:backup_auto_trigger = 1
+<
+
+Custom key prefix: >
+    let g:backup_key_prefix = '<localleader>'
+    " Now use: <localleader>bs, <localleader>bn, etc.
+<
+
+Disable auto-trigger, manual only: >
+    let g:backup_auto_trigger = 0
+    let g:backup_notifications = 1
+    " Manually trigger with: <leader>bn
+<
+
+Aggressive auto-backup: >
+    let g:backup_auto_trigger = 1
+    let g:backup_trigger_delay = 500  " 0.5 seconds
+<
+
+Quiet mode (no notifications): >
+    let g:backup_auto_trigger = 1
+    let g:backup_notifications = 0
+<
+
+==============================================================================
+9. TROUBLESHOOTING                                 *backup-troubleshooting*
+
+Commands not working:
+
+1. Check if backup bin directory exists: >
+    :echo g:backup_bin_path
+<
+
+2. Verify scripts are executable: >
+    :!ls -la $CLAUDECODE_BACKUP_ROOT/bin/backup-*.sh
+<
+
+3. Test script directly: >
+    :!$CLAUDECODE_BACKUP_ROOT/bin/backup-status.sh
+<
+
+Auto-trigger not firing:
+
+1. Check if enabled: >
+    :echo g:backup_auto_trigger
+<
+
+2. Check if in git repository: >
+    :!git rev-parse --is-inside-work-tree
+<
+
+3. Monitor trigger: >
+    :autocmd backup_auto_trigger
+<
+
+Status line not showing:
+
+1. Check statusline configuration: >
+    :set statusline?
+<
+
+2. Manually add to statusline: >
+    :set statusline+=%{BackupStatusLine()}
+<
+
+3. Test status function: >
+    :echo BackupStatusLine()
+<
+
+Error: "Backup bin directory not found":
+
+Set g:backup_bin_path explicitly in your .vimrc: >
+    let g:backup_bin_path = '/absolute/path/to/backup/bin'
+<
+
+Or set environment variable before starting Vim: >
+    export CLAUDECODE_BACKUP_ROOT="/path/to/backup/system"
+    vim
+<
+
+==============================================================================
+10. LICENSE                                        *backup-license*
+
+MIT License
+
+Copyright (c) 2025 Jon Rezin
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

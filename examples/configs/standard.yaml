@@ -1,0 +1,49 @@
+# ClaudeCode Project Backups - Standard Configuration
+# Recommended defaults for most projects
+
+project:
+  name: "MyApp"
+  directory: "/path/to/your/project"
+
+backup:
+  # Backup location
+  directory: "/path/to/your/project/backups"
+
+  # Scheduling
+  interval: 3600                    # 1 hour (in seconds)
+  session_idle_threshold: 600       # 10 minutes = new session
+
+  # Critical files (even if gitignored)
+  critical_files:
+    env_files: true                 # .env, .env.*
+    credentials: true               # *.pem, *.key, credentials.json, secrets.*
+    ide_settings: false             # .vscode/settings.json, .idea/workspace.xml
+    local_notes: false              # NOTES.md, *.private.md
+    local_databases: false          # *.db, *.sqlite (in addition to main DB)
+
+database:
+  enabled: true
+  type: "sqlite"                    # sqlite | postgresql | mysql | none
+  path: "/path/to/database.db"
+  compression: true                 # Compress database backups
+
+retention:
+  database_days: 30                 # Keep database backups 30 days
+  file_days: 60                     # Keep archived files 60 days
+  keep_minimum: 3                   # Always keep at least 3 backups
+
+drive:
+  verification_enabled: false       # Enable for external drives
+  marker_file: ""                   # Path to marker file (if verification enabled)
+  fallback_enabled: true            # Log to fallback location if drive missing
+
+git:
+  auto_commit: false                # Auto-commit to git after backup
+  commit_message: "Auto-backup: {timestamp}"
+  auto_push: false                  # Auto-push commits (use with caution)
+
+logging:
+  level: "info"                     # debug | info | warning | error
+  file: "/path/to/your/project/backups/backup.log"
+  max_size: "10MB"                  # Maximum log file size
+  rotate: true                      # Rotate logs when max_size reached

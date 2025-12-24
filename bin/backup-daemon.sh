@@ -1,5 +1,5 @@
 #!/bin/bash
-# ClaudeCode Project Backups - Main Backup Daemon
+# Checkpoint - Main Backup Daemon
 # Handles database backups, file backups, archiving, and cleanup
 # Can be triggered by: LaunchAgent (hourly), Claude Code hooks (on prompt), or manually
 
@@ -261,7 +261,7 @@ if check_drive; then
 fi
 
 log "═══════════════════════════════════════════════"
-log "🚀 ClaudeCode Project Backups - Starting"
+log "🚀 Checkpoint - Starting"
 log "📂 Project: $PROJECT_NAME"
 
 # Check if external drive is connected (if verification enabled)
@@ -274,6 +274,62 @@ if ! check_drive; then
 fi
 
 log "✅ Drive verification passed"
+
+# ==============================================================================
+# BACKUP EXECUTION WITH FILE LOCKING
+# ==============================================================================
+# Prevents duplicate backups when daemon and hook run simultaneously
+# Uses atomic mkdir for cross-platform compatibility (macOS + Linux)
+
+LOCK_DIR="${HOME}/.claudecode-backups/locks/${PROJECT_NAME}.lock"
+LOCK_PID_FILE="$LOCK_DIR/pid"
+
+# Try to acquire lock by creating directory (atomic operation)
+if mkdir "$LOCK_DIR" 2>/dev/null; then
+    # Successfully acquired lock
+    echo $$ > "$LOCK_PID_FILE"
+    trap 'rm -rf "$LOCK_DIR"' EXIT
+    log "🔒 Acquired backup lock (PID: $$)"
+else
+    # Lock exists - check if it's stale
+    if [ -f "$LOCK_PID_FILE" ]; then
+        LOCK_PID=$(cat "$LOCK_PID_FILE" 2>/dev/null)
+        if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
+            # Process is running - lock is valid
+            log "ℹ️  Another backup is currently running (PID: $LOCK_PID), skipping to avoid duplication"
+            log "═══════════════════════════════════════════════"
+            exit 0
+        else
+            # Process is dead - lock is stale, clean it up
+            log "⚠️  Removing stale lock (PID $LOCK_PID not running)"
+            rm -rf "$LOCK_DIR"
+            # Try to acquire lock again
+            if mkdir "$LOCK_DIR" 2>/dev/null; then
+                echo $$ > "$LOCK_PID_FILE"
+                trap 'rm -rf "$LOCK_DIR"' EXIT
+                log "🔒 Acquired backup lock after cleanup (PID: $$)"
+            else
+                # Race condition - another process got the lock
+                log "ℹ️  Another backup started simultaneously, skipping"
+                log "═══════════════════════════════════════════════"
+                exit 0
+            fi
+        fi
+    else
+        # Lock directory exists but no PID file - probably stale
+        log "⚠️  Removing incomplete lock directory"
+        rm -rf "$LOCK_DIR"
+        if mkdir "$LOCK_DIR" 2>/dev/null; then
+            echo $$ > "$LOCK_PID_FILE"
+            trap 'rm -rf "$LOCK_DIR"' EXIT
+            log "🔒 Acquired backup lock after cleanup (PID: $$)"
+        else
+            log "ℹ️  Another backup started simultaneously, skipping"
+            log "═══════════════════════════════════════════════"
+            exit 0
+        fi
+    fi
+fi
 
 # Check if backup already ran recently (coordination)
 mkdir -p "$(dirname "$BACKUP_TIME_STATE")"
@@ -308,4 +364,7 @@ archived_files=$(find "$ARCHIVED_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
 log "📊 Databases: $db_count snapshots"
 log "📊 Files: $current_files current, $archived_files archived versions"
 log "✅ Backup cycle complete"
+log "🔓 Released backup lock"
 log "═══════════════════════════════════════════════"
+
+# Lock is automatically removed by trap on exit (even on crash/kill)

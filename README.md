@@ -1,8 +1,8 @@
-# ClaudeCode Project Backups
+# Checkpoint
 
-**Automated, intelligent backup system for any project** — Built for Claude Code, works everywhere.
+**A code guardian for developing projects. A little peace of mind goes a long way.**
 
-Developed from real-world SUPERSTACK usage, battle-tested with 150+ files, database backups, and multi-computer workflows.
+Automated, intelligent backup system that works with any editor, any workflow. Battle-tested with 150+ files, database backups, and multi-computer workflows.
 
 ---
 
@@ -255,6 +255,223 @@ cd /path/to/your/project
 **Keeps:**
 - All backup data in `backups/` folder
 - Logs
+
+---
+
+## Command System
+
+ClaudeCode Project Backups v1.1.0+ includes a comprehensive command system for easy configuration and management.
+
+### Quick Start
+
+Configure your backups interactively:
+```bash
+/backup-config wizard
+```
+
+Check backup health:
+```bash
+/backup-status
+```
+
+Trigger backup manually:
+```bash
+/backup-now
+```
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `/backup-config` | Configure backup settings (interactive TUI) |
+| `/backup-status` | View backup health and statistics |
+| `/backup-now` | Trigger immediate backup |
+| `/backup-restore` | Restore from backups (wizard) |
+| `/backup-cleanup` | Manage disk space and retention |
+
+### Command Examples
+
+**Interactive Configuration:**
+```bash
+# Launch setup wizard
+/backup-config wizard
+
+# Edit configuration with TUI
+/backup-config
+
+# Get/set values programmatically
+/backup-config --get project.name
+/backup-config --set retention.database_days=90
+```
+
+**Health Monitoring:**
+```bash
+# View full dashboard
+/backup-status
+
+# JSON output for scripting
+/backup-status --json
+
+# Check specific component
+/backup-status --check daemon
+```
+
+**Manual Backup:**
+```bash
+# Normal backup
+/backup-now
+
+# Force backup (ignore change detection)
+/backup-now --force
+
+# Preview mode (dry-run)
+/backup-now --dry-run
+
+# Database only
+/backup-now --db-only
+```
+
+**Restore Operations:**
+```bash
+# Interactive restore wizard
+/backup-restore
+
+# Restore database directly
+/backup-restore --database latest
+
+# Restore specific file
+/backup-restore --file src/app.py
+```
+
+**Cleanup & Maintenance:**
+```bash
+# Preview cleanup
+/backup-cleanup
+
+# Execute cleanup
+/backup-cleanup --execute
+
+# Get recommendations
+/backup-cleanup --recommend
+```
+
+### YAML Configuration
+
+v1.1.0 introduces modern YAML configuration (`.backup-config.yaml`):
+
+```yaml
+project:
+  name: "MyApp"
+  directory: "/path/to/project"
+
+database:
+  enabled: true
+  type: "sqlite"
+  path: "/path/to/database.db"
+
+retention:
+  database_days: 30
+  file_days: 60
+
+drive:
+  verification_enabled: true
+  marker_file: "/path/to/.backup-drive-marker"
+```
+
+**Migration from v1.0:**
+```bash
+/backup-config --migrate
+```
+
+**Note:** Bash config (`.backup-config.sh`) still supported but deprecated.
+
+### Documentation
+
+See [Command Reference](docs/COMMANDS.md) for complete documentation.
+
+**Additional Resources:**
+- [Migration Guide](docs/MIGRATION.md) - Upgrading from v1.0.x
+- [Integrations Guide](docs/INTEGRATIONS.md) - Shell, Git, Tmux, VS Code, and more
+- [Development Guide](docs/DEVELOPMENT.md) - Contributing
+- [API Reference](docs/API.md) - Library functions
+
+---
+
+## Universal Integrations
+
+ClaudeCode Project Backups v1.2.0+ includes universal integrations that work across any CLI, editor, or environment—not just Claude Code.
+
+### Available Integrations
+
+| Integration | Description | Auto-Trigger | Visual Status | Keybindings |
+|-------------|-------------|--------------|---------------|-------------|
+| **[Shell](integrations/shell/)** | Bash/Zsh prompt + aliases | ✅ On `cd` | ✅ Prompt | ✅ Commands |
+| **[Git Hooks](integrations/git/)** | Pre-commit, post-commit, pre-push | ✅ Automatic | ✅ Messages | - |
+| **[Direnv](integrations/direnv/)** | Per-project auto-loading | ✅ On enter | - | - |
+| **[Tmux](integrations/tmux/)** | Status bar + popups | ⏱️ 60s refresh | ✅ Status bar | ✅ prefix+keys |
+| **[VS Code](integrations/vscode/)** | Tasks + keybindings | - | - | ✅ Ctrl+Shift+B |
+
+### Quick Install
+
+**Shell Integration** (prompt status + auto-backup):
+```bash
+./integrations/shell/install.sh
+source ~/.bashrc  # or ~/.zshrc
+```
+
+**Git Hooks** (auto-backup before commits):
+```bash
+cd /your/project
+/path/to/integrations/git/install-git-hooks.sh
+```
+
+**Tmux** (status bar + keybindings):
+```bash
+./integrations/tmux/install-tmux.sh
+```
+
+**VS Code** (tasks + keybindings):
+```bash
+cd /your/project
+/path/to/integrations/vscode/install-vscode.sh
+```
+
+### Features
+
+**Shell Integration:**
+- Shows backup status in prompt: `✅ user@host ~/project $`
+- Auto-triggers backup when you `cd` into git repos
+- Quick aliases: `bs` (status), `bn` (backup now), `bc` (config)
+- Unified `backup` command with subcommands
+
+**Git Hooks:**
+- `pre-commit`: Auto-backup before each commit
+- `post-commit`: Show backup status after commit
+- `pre-push`: Verify backups current before push
+
+**Direnv:**
+- Automatically loads backup commands when entering project
+- Per-project configuration via `.envrc`
+- Team-shareable setup
+
+**Tmux:**
+- Backup status in status bar with configurable formats
+- Keybindings: `prefix s` (status), `prefix n` (backup now)
+- Popup windows for commands (tmux 3.2+)
+
+**VS Code:**
+- Run backup commands from Command Palette
+- Keybindings: `Ctrl+Shift+B S` (status), `Ctrl+Shift+B N` (backup)
+- Tasks integration for custom workflows
+
+### Documentation
+
+Each integration includes comprehensive documentation:
+- **README.md** - Installation, usage, troubleshooting
+- **Examples** - Common use cases and configurations
+- **Configuration** - Customization options
+
+See [Integrations Guide](docs/INTEGRATIONS.md) for complete documentation.
 
 ---
 

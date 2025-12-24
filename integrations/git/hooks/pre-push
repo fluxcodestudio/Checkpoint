@@ -1,0 +1,76 @@
+#!/bin/bash
+# ClaudeCode Project Backups - Git Pre-Push Hook
+# Verifies backups are current before pushing
+# Version: 1.2.0
+
+# Find integration directory
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+INTEGRATION_DIR="$(cd "$HOOK_DIR/../.." && pwd)"
+
+# Load integration core
+if [[ -f "$INTEGRATION_DIR/lib/integration-core.sh" ]]; then
+    BACKUP_INTEGRATION_QUIET_LOAD=true
+    source "$INTEGRATION_DIR/lib/integration-core.sh"
+else
+    echo "❌ Error: integration-core.sh not found" >&2
+    exit 1
+fi
+
+# Initialize integration
+integration_init || exit 1
+
+# ==============================================================================
+# PRE-PUSH VERIFICATION
+# ==============================================================================
+
+# Check if we're in a git repository
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+    exit 0  # Not in a git repo, skip silently
+fi
+
+# Check if verification is disabled
+if [[ "${BACKUP_GIT_PRE_PUSH_DISABLED:-false}" == "true" ]]; then
+    exit 0  # Disabled, skip silently
+fi
+
+# Configuration: Max age for backup before push (default: 3600 seconds = 1 hour)
+MAX_BACKUP_AGE="${BACKUP_GIT_MAX_BACKUP_AGE:-3600}"
+
+# Get time since last backup
+elapsed=$(integration_time_since_trigger)
+
+# Check if backup is too old
+if [[ $elapsed -gt $MAX_BACKUP_AGE ]]; then
+    time_ago=$(integration_format_time_ago "$elapsed")
+
+    if [[ "${BACKUP_GIT_QUIET:-false}" != "true" ]]; then
+        echo "⚠️  Warning: Last backup was $time_ago" >&2
+        echo "   Creating fresh backup before push..." >&2
+    fi
+
+    # Create fresh backup
+    if integration_trigger_backup --force --quiet; then
+        if [[ "${BACKUP_GIT_QUIET:-false}" != "true" ]]; then
+            echo "   ✅ Backup created successfully" >&2
+        fi
+    else
+        echo "   ❌ Backup failed" >&2
+
+        # Check if user wants to block push on backup failure
+        if [[ "${BACKUP_GIT_BLOCK_PUSH_ON_FAILURE:-false}" == "true" ]]; then
+            echo "   Push blocked - fix backup issues first" >&2
+            echo "   Set BACKUP_GIT_BLOCK_PUSH_ON_FAILURE=false to allow push anyway" >&2
+            exit 1
+        else
+            echo "   ⚠️  Continuing with push anyway" >&2
+        fi
+    fi
+else
+    # Backup is recent enough
+    if [[ "${BACKUP_GIT_QUIET:-false}" != "true" ]]; then
+        time_ago=$(integration_format_time_ago "$elapsed")
+        echo "✅ Backup is current ($time_ago)"
+    fi
+fi
+
+exit 0

@@ -1,0 +1,150 @@
+# ClaudeCode Project Backups - YAML Configuration Template
+# Copy this to your project root as .backup-config.yaml and customize
+#
+# This is the new YAML format (v1.1.0+). For backward compatibility,
+# the system still supports .backup-config.sh
+
+# ==============================================================================
+# BACKUP LOCATIONS
+# ==============================================================================
+
+locations:
+  # Main backup directory (relative to project root or absolute path)
+  backup_dir: "backups/"
+
+  # Database backups subdirectory
+  database_dir: "backups/databases"
+
+  # Current file backups subdirectory
+  files_dir: "backups/files"
+
+  # Archived file versions subdirectory
+  archived_dir: "backups/archived"
+
+  # Drive verification marker file (null to disable drive verification)
+  # Create an empty file at this location to verify correct drive
+  # Example: "/Volumes/MyDrive/MyProject/.backup-drive-marker"
+  drive_marker: null
+
+# ==============================================================================
+# BACKUP SCHEDULE
+# ==============================================================================
+
+schedule:
+  # Backup interval in seconds (3600 = 1 hour)
+  interval: 3600
+
+  # Enable daemon-triggered backups (hourly LaunchAgent)
+  daemon_enabled: true
+
+  # Enable hook-triggered backups (on Claude Code prompts)
+  hooks_enabled: true
+
+  # Session idle threshold in seconds (600 = 10 minutes)
+  # Time of inactivity before considering it a new session
+  session_idle_threshold: 600
+
+# ==============================================================================
+# RETENTION POLICIES
+# ==============================================================================
+
+retention:
+  # Database backup retention
+  database:
+    # Delete backups older than N days (null to disable)
+    time_based: 30
+
+    # Keep only N most recent backups (null to disable)
+    count_based: null
+
+    # Delete when total size exceeds N MB (null to disable)
+    size_based: null
+
+    # Never delete database backups (overrides all other policies)
+    never_delete: false
+
+  # File backup retention
+  files:
+    # Delete archived files older than N days (null to disable)
+    time_based: 60
+
+    # Keep only N most recent versions per file (null to disable)
+    count_based: null
+
+    # Delete when total size exceeds N MB (null to disable)
+    size_based: null
+
+    # Never delete archived files (overrides all other policies)
+    never_delete: false
+
+# ==============================================================================
+# DATABASE CONFIGURATION
+# ==============================================================================
+
+database:
+  # Path to database file (null or empty if no database)
+  # Can use environment variables: "$HOME/.myapp/data/app.db"
+  path: null
+
+  # Database type: "none", "sqlite"
+  # Future: "postgres", "mysql"
+  type: "none"
+
+# ==============================================================================
+# BACKUP PATTERNS
+# ==============================================================================
+
+patterns:
+  # Files to include (even if gitignored)
+  include:
+    # Backup .env files (.env, .env.local, etc.)
+    env_files: true
+
+    # Backup credentials (*.pem, *.key, credentials.json, etc.)
+    credentials: true
+
+    # Backup IDE settings (.vscode/, .idea/, etc.)
+    ide_settings: true
+
+    # Backup local notes (NOTES.md, *.private.md, etc.)
+    local_notes: true
+
+    # Backup local databases (*.db, *.sqlite, excluding main DB)
+    local_databases: true
+
+  # Files to exclude (glob patterns)
+  # Example: ["*.log", "tmp/*", "cache/*"]
+  exclude: []
+
+# ==============================================================================
+# GIT INTEGRATION
+# ==============================================================================
+
+git:
+  # Auto-commit backups to git after successful backup
+  auto_commit: false
+
+  # Git commit message template
+  # Can use date command: $(date '+%Y-%m-%d %H:%M')
+  commit_message: "Auto-backup: $(date '+%Y-%m-%d %H:%M')"
+
+# ==============================================================================
+# ADVANCED SETTINGS
+# ==============================================================================
+
+advanced:
+  # Use parallel compression (faster on multi-core systems)
+  parallel_compression: true
+
+  # Compression level (1-9, where 9 is maximum compression)
+  # Higher = smaller files but slower
+  compression_level: 6
+
+  # How to handle symbolic links: "follow", "preserve", "skip"
+  # - follow: Follow links and backup target files
+  # - preserve: Backup the symlink itself
+  # - skip: Don't backup symlinks
+  symlink_handling: "follow"
+
+  # Preserve file permissions in backups
+  permissions_preserve: true

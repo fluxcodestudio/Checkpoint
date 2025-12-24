@@ -374,6 +374,86 @@ else
 fi
 
 # ==============================================================================
+# COMMAND SYSTEM SMOKE TESTS (v1.1.0+)
+# ==============================================================================
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Command System Smoke Tests (v1.1.0+)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+test_start "Command directory exists"
+if [ -d "$PACKAGE_DIR/commands" ]; then
+    test_pass
+else
+    echo -e "${YELLOW}SKIP${NC} (v1.1.0 commands not implemented yet)"
+fi
+
+test_start "Foundation library exists"
+if [ -f "$PACKAGE_DIR/lib/backup-lib.sh" ]; then
+    test_pass
+else
+    echo -e "${YELLOW}SKIP${NC} (v1.1.0 library not implemented yet)"
+fi
+
+test_start "YAML config template exists"
+if [ -f "$PACKAGE_DIR/templates/backup-config.yaml" ] || \
+   [ -f "$PACKAGE_DIR/examples/configs/standard.yaml" ]; then
+    test_pass
+else
+    echo -e "${YELLOW}SKIP${NC} (YAML templates not created yet)"
+fi
+
+test_start "/backup-config command exists"
+if [ -f "$PACKAGE_DIR/commands/backup-config.sh" ]; then
+    test_pass
+else
+    echo -e "${YELLOW}SKIP${NC} (command not implemented yet)"
+fi
+
+test_start "/backup-status command exists"
+if [ -f "$PACKAGE_DIR/commands/backup-status.sh" ]; then
+    test_pass
+else
+    echo -e "${YELLOW}SKIP${NC} (command not implemented yet)"
+fi
+
+test_start "/backup-now command exists"
+if [ -f "$PACKAGE_DIR/commands/backup-now.sh" ]; then
+    test_pass
+else
+    echo -e "${YELLOW}SKIP${NC} (command not implemented yet)"
+fi
+
+test_start "/backup-restore command exists"
+if [ -f "$PACKAGE_DIR/commands/backup-restore.sh" ]; then
+    test_pass
+else
+    echo -e "${YELLOW}SKIP${NC} (command not implemented yet)"
+fi
+
+test_start "/backup-cleanup command exists"
+if [ -f "$PACKAGE_DIR/commands/backup-cleanup.sh" ]; then
+    test_pass
+else
+    echo -e "${YELLOW}SKIP${NC} (command not implemented yet)"
+fi
+
+test_start "Documentation for commands exists"
+if [ -f "$PACKAGE_DIR/docs/COMMANDS.md" ]; then
+    test_pass
+else
+    test_fail "COMMANDS.md not found"
+fi
+
+test_start "Migration guide exists"
+if [ -f "$PACKAGE_DIR/docs/MIGRATION.md" ]; then
+    test_pass
+else
+    test_fail "MIGRATION.md not found"
+fi
+
+# ==============================================================================
 # SUMMARY
 # ==============================================================================
 
@@ -388,6 +468,9 @@ echo ""
 
 if [ $TESTS_FAILED -eq 0 ]; then
     echo -e "${GREEN}✅ All tests passed!${NC}"
+    echo ""
+    echo "Note: Some v1.1.0 command tests were SKIPPED."
+    echo "This is expected during development phase."
     exit 0
 else
     echo -e "${RED}❌ Some tests failed${NC}"

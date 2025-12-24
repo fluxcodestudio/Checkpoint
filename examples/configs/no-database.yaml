@@ -1,0 +1,60 @@
+# ClaudeCode Project Backups - No Database Configuration
+# For projects without databases (files-only backup)
+
+project:
+  name: "StaticSite"
+  directory: "/path/to/static/project"
+
+backup:
+  directory: "/path/to/static/project/backups"
+
+  interval: 3600
+  session_idle_threshold: 600
+
+  critical_files:
+    env_files: true                 # Still backup .env files
+    credentials: true               # Still backup credentials
+    ide_settings: false
+    local_notes: false
+    local_databases: false          # No local databases
+
+# Database disabled
+database:
+  enabled: false
+  type: "none"
+  path: ""
+
+retention:
+  database_days: 0                  # Not applicable (no database)
+  file_days: 60                     # Keep archived files 60 days
+  keep_minimum: 3
+
+drive:
+  verification_enabled: false
+
+git:
+  auto_commit: false
+
+logging:
+  level: "info"
+  file: "/path/to/static/project/backups/backup.log"
+  max_size: "10MB"
+  rotate: true
+
+# Use Cases:
+# - Static websites (HTML/CSS/JS)
+# - Documentation projects
+# - Configuration repositories
+# - Frontend-only applications
+# - Content sites without CMS database
+#
+# What gets backed up:
+# - All tracked files (git)
+# - Modified/staged files
+# - Untracked files (not in .gitignore)
+# - Critical files (.env, credentials, etc.)
+#
+# What doesn't get backed up:
+# - No database snapshots
+# - Files in .gitignore (unless critical)
+# - Backup directory itself
