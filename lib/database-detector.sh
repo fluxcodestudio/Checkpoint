@@ -79,14 +79,9 @@ detect_postgresql() {
         fi
     done
 
-    # Check for local PostgreSQL server running
-    if command -v pg_isready &>/dev/null; then
-        if pg_isready -q 2>/dev/null; then
-            # Local server is running, try to detect default database
-            local default_user="${USER}"
-            databases+=("postgresql|localhost|5432|${default_user}|${default_user}|true")
-        fi
-    fi
+    # Note: We do NOT auto-detect PostgreSQL just because it's running
+    # Only detect if explicitly configured in .env files (above)
+    # This prevents backing up system/user databases for projects without databases
 
     # Output results (one per line)
     printf '%s\n' "${databases[@]}" | sort -u
@@ -160,10 +155,9 @@ detect_mysql() {
         fi
     done
 
-    # Check for local MySQL server running
-    if pgrep -x mysqld &>/dev/null || pgrep -x mariadbd &>/dev/null; then
-        databases+=("mysql|localhost|3306|mysql|root|true")
-    fi
+    # Note: We do NOT auto-detect MySQL just because it's running
+    # Only detect if explicitly configured in .env files (above)
+    # This prevents backing up system 'mysql' database for projects without databases
 
     # Output results (one per line)
     printf '%s\n' "${databases[@]}" | sort -u
@@ -222,10 +216,9 @@ detect_mongodb() {
         fi
     done
 
-    # Check for local MongoDB server running
-    if pgrep -x mongod &>/dev/null; then
-        databases+=("mongodb|localhost|27017|admin||true")
-    fi
+    # Note: We do NOT auto-detect MongoDB just because it's running
+    # Only detect if explicitly configured in .env files (above)
+    # This prevents backing up system 'admin' database for projects without databases
 
     # Output results (one per line)
     printf '%s\n' "${databases[@]}" | sort -u
