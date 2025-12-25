@@ -51,13 +51,13 @@ Guide for upgrading from Checkpoint v1.0.x to v1.1.0.
 **Before (v1.0.x):**
 ```bash
 # Check status
-/path/to/ClaudeCode-Project-Backups/bin/status.sh
+/path/to/Checkpoint/bin/status.sh
 
 # Trigger backup
 ./.claude/backup-daemon.sh
 
 # Restore
-/path/to/ClaudeCode-Project-Backups/bin/restore.sh
+/path/to/Checkpoint/bin/restore.sh
 ```
 
 **After (v1.1.0):**
@@ -381,7 +381,7 @@ git:
 
 **v1.0.x:**
 ```bash
-/path/to/ClaudeCode-Project-Backups/bin/status.sh
+/path/to/Checkpoint/bin/status.sh
 ```
 
 **v1.1.0:**
@@ -416,7 +416,7 @@ cd /path/to/project
 
 **v1.0.x:**
 ```bash
-/path/to/ClaudeCode-Project-Backups/bin/restore.sh
+/path/to/Checkpoint/bin/restore.sh
 # (Interactive menu)
 ```
 
@@ -483,12 +483,12 @@ rm .backup-config.yaml
 
 ```bash
 # Checkout v1.0.x
-cd /path/to/ClaudeCode-Project-Backups
+cd /path/to/Checkpoint
 git checkout v1.0.1
 
 # Reinstall
 cd /path/to/your/project
-/path/to/ClaudeCode-Project-Backups/bin/install.sh
+/path/to/Checkpoint/bin/install.sh
 ```
 
 **Note:** Your backup data is unchanged and compatible with all versions.

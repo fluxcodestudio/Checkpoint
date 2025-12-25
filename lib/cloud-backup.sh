@@ -1,30 +1,52 @@
 #!/bin/bash
-# Cloud Backup Library
-# Handles cloud storage uploads via rclone
+# ==============================================================================
+# Checkpoint - Cloud Backup Library
+# ==============================================================================
+# Version: 2.1.0
+# Description: Cloud storage integration via rclone for off-site backup
+#              protection. Supports Dropbox, Google Drive, OneDrive, and iCloud.
+#
+# Usage:
+#   source "$PROJECT_ROOT/lib/cloud-backup.sh"
+#   validate_cloud_config
+#   cloud_upload
+#
+# Features:
+#   - Automatic cloud uploads via rclone
+#   - Support for 40+ cloud providers
+#   - Background uploads (non-blocking)
+#   - Smart upload strategy (databases + critical files only)
+#   - Free tier optimization
+# ==============================================================================
 
 # ==============================================================================
 # RCLONE DETECTION & INSTALLATION
 # ==============================================================================
 
+# Check if rclone is installed
+# Returns: 0 if installed, 1 if not found
 check_rclone_installed() {
     command -v rclone &>/dev/null
 }
 
+# Install rclone via Homebrew (macOS) or curl script (Linux)
+# Returns: 0 on success, 1 on failure
 install_rclone() {
     echo "Installing rclone..."
 
     if [[ "$(uname -s)" == "Darwin" ]]; then
-        # macOS
+        # macOS - try Homebrew first, fall back to curl
         if command -v brew &>/dev/null; then
             brew install rclone
         else
             curl https://rclone.org/install.sh | bash
         fi
     else
-        # Linux
+        # Linux - use official install script
         curl https://rclone.org/install.sh | bash
     fi
 
+    # Verify installation succeeded
     if check_rclone_installed; then
         echo "✓ rclone installed successfully"
         return 0
@@ -38,10 +60,16 @@ install_rclone() {
 # RCLONE CONFIGURATION
 # ==============================================================================
 
+# List all configured rclone remotes (without trailing colons)
+# Returns: List of remote names, one per line
 list_rclone_remotes() {
     rclone listremotes 2>/dev/null | sed 's/:$//'
 }
 
+# Launch interactive rclone configuration wizard
+# Args:
+#   $1 - Provider name (dropbox, gdrive, onedrive, icloud)
+# Note: Opens browser for OAuth authentication
 setup_rclone_remote() {
     local provider="$1"
 
@@ -50,9 +78,14 @@ setup_rclone_remote() {
     echo "This will open a browser window for authentication."
     echo ""
 
+    # Launch interactive rclone config
     rclone config
 }
 
+# Test connection to cloud remote by listing root directory
+# Args:
+#   $1 - Remote name (e.g., "mydropbox")
+# Returns: 0 if connection succeeds, 1 if fails
 test_rclone_connection() {
     local remote_name="$1"
 
@@ -61,7 +94,7 @@ test_rclone_connection() {
         return 1
     fi
 
-    # Test by listing root directory
+    # Test by listing root directory (lsd = list directories)
     if rclone lsd "$remote_name:" &>/dev/null; then
         echo "✓ Connection to $remote_name successful"
         return 0
@@ -71,8 +104,13 @@ test_rclone_connection() {
     fi
 }
 
+# Get the type of an rclone remote (dropbox, drive, onedrive, etc.)
+# Args:
+#   $1 - Remote name
+# Returns: Remote type string (e.g., "dropbox", "drive")
 get_remote_type() {
     local remote_name="$1"
+    # rclone listremotes --long shows: "remotename: type"
     rclone listremotes --long 2>/dev/null | grep "^$remote_name:" | awk '{print $2}'
 }
 
@@ -80,16 +118,26 @@ get_remote_type() {
 # CLOUD UPLOAD FUNCTIONS
 # ==============================================================================
 
+# Upload compressed database backups to cloud storage
+# Args:
+#   $1 - Local backup directory
+#   $2 - Cloud remote name
+#   $3 - Cloud destination path
+# Returns: 0 on success, non-zero on failure
 cloud_upload_databases() {
     local local_dir="$1"
     local cloud_remote="$2"
     local cloud_path="$3"
 
+    # Skip if no databases directory exists
     if [[ ! -d "$local_dir/databases" ]]; then
         return 0
     fi
 
     echo "Uploading database backups..."
+    # Copy only compressed database files
+    # --transfers 4: Upload 4 files in parallel
+    # --checkers 8: Use 8 threads for checking
     rclone copy "$local_dir/databases/" "$cloud_remote:$cloud_path/databases/" \
         --include "*.db.gz" \
         --transfers 4 \
@@ -98,16 +146,24 @@ cloud_upload_databases() {
         --log-level INFO
 }
 
+# Upload critical files (.env, credentials, keys) to cloud storage
+# Args:
+#   $1 - Local backup directory
+#   $2 - Cloud remote name
+#   $3 - Cloud destination path
+# Returns: 0 on success, non-zero on failure
 cloud_upload_critical() {
     local local_dir="$1"
     local cloud_remote="$2"
     local cloud_path="$3"
 
+    # Skip if no files directory exists
     if [[ ! -d "$local_dir/files" ]]; then
         return 0
     fi
 
     echo "Uploading critical files..."
+    # Upload only sensitive files that shouldn't be in Git
     rclone copy "$local_dir/files/" "$cloud_remote:$cloud_path/files/" \
         --include ".env*" \
         --include "credentials.*" \
@@ -119,16 +175,25 @@ cloud_upload_critical() {
         --log-level INFO
 }
 
+# Upload all project files to cloud storage
+# Args:
+#   $1 - Local backup directory
+#   $2 - Cloud remote name
+#   $3 - Cloud destination path
+# Returns: 0 on success, non-zero on failure
+# Note: Excludes large/unnecessary directories (node_modules, .git, logs)
 cloud_upload_files() {
     local local_dir="$1"
     local cloud_remote="$2"
     local cloud_path="$3"
 
+    # Skip if no files directory exists
     if [[ ! -d "$local_dir/files" ]]; then
         return 0
     fi
 
     echo "Uploading all project files..."
+    # Upload all files except large/unnecessary directories
     rclone copy "$local_dir/files/" "$cloud_remote:$cloud_path/files/" \
         --exclude "node_modules/**" \
         --exclude ".git/**" \
@@ -139,46 +204,60 @@ cloud_upload_files() {
         --log-level INFO
 }
 
+# Main cloud upload function
+# Uploads based on configuration environment variables:
+#   - LOCAL_BACKUP_DIR or BACKUP_DIR: Local backup directory
+#   - CLOUD_REMOTE_NAME: rclone remote name
+#   - CLOUD_BACKUP_PATH: Cloud destination path
+#   - CLOUD_SYNC_DATABASES: Upload databases (true/false)
+#   - CLOUD_SYNC_CRITICAL: Upload critical files (true/false)
+#   - CLOUD_SYNC_FILES: Upload all files (true/false)
+# Returns: 0 on success, 1 on failure
 cloud_upload() {
     local local_dir="${LOCAL_BACKUP_DIR:-$BACKUP_DIR}"
     local cloud_remote="${CLOUD_REMOTE_NAME}"
     local cloud_path="${CLOUD_BACKUP_PATH}"
 
-    # Validate configuration
+    # Validate required configuration
     if [[ -z "$cloud_remote" ]] || [[ -z "$cloud_path" ]]; then
         echo "✗ Cloud configuration missing"
         return 1
     fi
 
-    # Check rclone installed
+    # Check rclone is installed
     if ! check_rclone_installed; then
         echo "✗ rclone not installed"
         return 1
     fi
 
-    # Test connection
+    # Test connection before attempting upload
     if ! test_rclone_connection "$cloud_remote" 2>&1 | grep -q "successful"; then
         echo "✗ Cannot connect to cloud storage"
         return 1
     fi
 
-    # Upload based on configuration
+    # Track if any upload failed
     local upload_failed=0
 
+    # Upload databases if configured (recommended)
     if [[ "${CLOUD_SYNC_DATABASES:-true}" == "true" ]]; then
         cloud_upload_databases "$local_dir" "$cloud_remote" "$cloud_path" || upload_failed=1
     fi
 
+    # Upload critical files if configured (recommended)
     if [[ "${CLOUD_SYNC_CRITICAL:-true}" == "true" ]]; then
         cloud_upload_critical "$local_dir" "$cloud_remote" "$cloud_path" || upload_failed=1
     fi
 
+    # Upload all files if configured (optional, can be large)
     if [[ "${CLOUD_SYNC_FILES:-false}" == "true" ]]; then
         cloud_upload_files "$local_dir" "$cloud_remote" "$cloud_path" || upload_failed=1
     fi
 
+    # Report results and update status file
     if [[ $upload_failed -eq 0 ]]; then
         echo "✓ Cloud upload complete"
+        # Record successful upload time (Unix timestamp)
         echo "$(date +%s)" > "${STATE_DIR:-$HOME/.claudecode-backups/state}/.last-cloud-upload"
         return 0
     else
@@ -187,6 +266,9 @@ cloud_upload() {
     fi
 }
 
+# Run cloud upload in background (non-blocking)
+# Usage: cloud_upload_background
+# Note: Output is discarded, runs in subshell
 cloud_upload_background() {
     (cloud_upload > /dev/null 2>&1 &)
 }
@@ -195,32 +277,49 @@ cloud_upload_background() {
 # CLOUD STATUS
 # ==============================================================================
 
+# Get time since last successful cloud upload
+# Returns: Human-readable time string ("never", "5 minutes ago", etc.)
+# Uses: STATE_DIR/.last-cloud-upload file (Unix timestamp)
 get_cloud_status() {
     local cloud_remote="${CLOUD_REMOTE_NAME}"
     local last_upload_file="${STATE_DIR:-$HOME/.claudecode-backups/state}/.last-cloud-upload"
 
+    # Return "never" if no upload has occurred
     if [[ ! -f "$last_upload_file" ]]; then
         echo "never"
         return
     fi
 
+    # Calculate time difference
     local last_upload=$(cat "$last_upload_file")
     local current_time=$(date +%s)
     local time_diff=$((current_time - last_upload))
 
+    # Format as human-readable time
     if [[ $time_diff -lt 3600 ]]; then
+        # Less than 1 hour: show minutes
         echo "$(( time_diff / 60 )) minutes ago"
     elif [[ $time_diff -lt 86400 ]]; then
+        # Less than 1 day: show hours
         echo "$(( time_diff / 3600 )) hours ago"
     else
+        # 1+ days: show days
         echo "$(( time_diff / 86400 )) days ago"
     fi
 }
 
+# Validate cloud backup configuration
+# Checks:
+#   - CLOUD_ENABLED setting
+#   - rclone installation
+#   - Remote name configured
+#   - Remote exists in rclone config
+#   - Backup path configured
+# Returns: 0 if valid (or cloud disabled), error count otherwise
 validate_cloud_config() {
     local errors=0
 
-    # Check if cloud enabled
+    # Skip validation if cloud backup is disabled
     if [[ "${CLOUD_ENABLED:-false}" != "true" ]]; then
         return 0
     fi
@@ -231,13 +330,13 @@ validate_cloud_config() {
         errors=1
     fi
 
-    # Check remote name set
+    # Check remote name is set
     if [[ -z "${CLOUD_REMOTE_NAME:-}" ]]; then
         echo "⚠ Cloud remote name not configured"
         errors=1
     fi
 
-    # Check remote exists
+    # Check remote exists in rclone config
     if [[ -n "${CLOUD_REMOTE_NAME:-}" ]]; then
         if ! list_rclone_remotes | grep -q "^${CLOUD_REMOTE_NAME}$"; then
             echo "⚠ Cloud remote '$CLOUD_REMOTE_NAME' not found in rclone config"
@@ -245,7 +344,7 @@ validate_cloud_config() {
         fi
     fi
 
-    # Check backup path set
+    # Check backup path is set
     if [[ -z "${CLOUD_BACKUP_PATH:-}" ]]; then
         echo "⚠ Cloud backup path not configured"
         errors=1

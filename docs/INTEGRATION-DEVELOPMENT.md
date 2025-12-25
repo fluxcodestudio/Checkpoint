@@ -100,7 +100,7 @@ integrations/
 
 ```bash
 # Clone/navigate to project
-cd /path/to/ClaudeCode-Project-Backups
+cd /path/to/Checkpoint
 
 # Create integration directory
 mkdir -p integrations/myintegration

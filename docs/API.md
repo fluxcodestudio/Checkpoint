@@ -1227,5 +1227,339 @@ exit $EXIT_SUCCESS
 
 ---
 
-**Version:** 1.1.0
+## lib/cloud-backup.sh
+
+Cloud storage integration via rclone (v2.1.0+).
+
+### Rclone Detection Functions
+
+#### `check_rclone_installed()`
+
+Check if rclone is installed on the system.
+
+**Signature:**
+```bash
+check_rclone_installed
+```
+
+**Returns:**
+- `0` - rclone is installed
+- `1` - rclone not found
+
+**Example:**
+```bash
+if check_rclone_installed; then
+    log_info "rclone is available"
+else
+    log_error "rclone not installed"
+    install_rclone
+fi
+```
+
+#### `install_rclone()`
+
+Install rclone via Homebrew (macOS) or curl script (Linux).
+
+**Signature:**
+```bash
+install_rclone
+```
+
+**Returns:**
+- `0` - Installation successful
+- `1` - Installation failed
+
+**Example:**
+```bash
+if ! check_rclone_installed; then
+    install_rclone || log_fatal "Failed to install rclone"
+fi
+```
+
+### Remote Management Functions
+
+#### `list_rclone_remotes()`
+
+List all configured rclone remotes (without colons).
+
+**Signature:**
+```bash
+list_rclone_remotes
+```
+
+**Returns:**
+- Outputs list of remote names (one per line)
+- Exit code 0 on success
+
+**Example:**
+```bash
+remotes=$(list_rclone_remotes)
+for remote in $remotes; do
+    echo "Found remote: $remote"
+done
+```
+
+#### `setup_rclone_remote(provider)`
+
+Launch interactive rclone configuration for a provider.
+
+**Signature:**
+```bash
+setup_rclone_remote provider_name
+```
+
+**Parameters:**
+- `provider_name` - Cloud provider (dropbox, gdrive, onedrive, icloud)
+
+**Example:**
+```bash
+setup_rclone_remote "dropbox"
+# Opens interactive rclone config wizard
+```
+
+#### `test_rclone_connection(remote_name)`
+
+Test connection to a cloud remote by listing root directory.
+
+**Signature:**
+```bash
+test_rclone_connection remote_name
+```
+
+**Parameters:**
+- `remote_name` - Name of rclone remote to test
+
+**Returns:**
+- `0` - Connection successful
+- `1` - Connection failed
+
+**Example:**
+```bash
+if test_rclone_connection "mydropbox"; then
+    log_success "Connected to Dropbox"
+else
+    log_error "Cannot connect to Dropbox"
+fi
+```
+
+#### `get_remote_type(remote_name)`
+
+Get the type of an rclone remote (dropbox, drive, onedrive, etc.).
+
+**Signature:**
+```bash
+get_remote_type remote_name
+```
+
+**Parameters:**
+- `remote_name` - Name of rclone remote
+
+**Returns:**
+- Outputs remote type string
+
+**Example:**
+```bash
+remote_type=$(get_remote_type "mydropbox")
+echo "Remote type: $remote_type"  # "dropbox"
+```
+
+### Upload Functions
+
+#### `cloud_upload_databases(local_dir, cloud_remote, cloud_path)`
+
+Upload compressed database backups to cloud storage.
+
+**Signature:**
+```bash
+cloud_upload_databases local_dir cloud_remote cloud_path
+```
+
+**Parameters:**
+- `local_dir` - Local backup directory
+- `cloud_remote` - rclone remote name
+- `cloud_path` - Destination path on cloud storage
+
+**Returns:**
+- `0` - Upload successful
+- Non-zero - Upload failed
+
+**Example:**
+```bash
+cloud_upload_databases "/path/to/backups" "mydropbox" "/Backups/MyProject"
+```
+
+#### `cloud_upload_critical(local_dir, cloud_remote, cloud_path)`
+
+Upload critical files (.env, credentials, keys) to cloud storage.
+
+**Signature:**
+```bash
+cloud_upload_critical local_dir cloud_remote cloud_path
+```
+
+**Parameters:**
+- `local_dir` - Local backup directory
+- `cloud_remote` - rclone remote name
+- `cloud_path` - Destination path on cloud storage
+
+**Returns:**
+- `0` - Upload successful
+- Non-zero - Upload failed
+
+**Example:**
+```bash
+cloud_upload_critical "/path/to/backups" "mydropbox" "/Backups/MyProject"
+```
+
+#### `cloud_upload_files(local_dir, cloud_remote, cloud_path)`
+
+Upload all project files to cloud storage (excluding node_modules, .git, logs).
+
+**Signature:**
+```bash
+cloud_upload_files local_dir cloud_remote cloud_path
+```
+
+**Parameters:**
+- `local_dir` - Local backup directory
+- `cloud_remote` - rclone remote name
+- `cloud_path` - Destination path on cloud storage
+
+**Returns:**
+- `0` - Upload successful
+- Non-zero - Upload failed
+
+**Example:**
+```bash
+cloud_upload_files "/path/to/backups" "mydropbox" "/Backups/MyProject"
+```
+
+#### `cloud_upload()`
+
+Main cloud upload function. Uploads based on configuration variables.
+
+**Signature:**
+```bash
+cloud_upload
+```
+
+**Required Environment Variables:**
+- `LOCAL_BACKUP_DIR` or `BACKUP_DIR` - Local backup directory
+- `CLOUD_REMOTE_NAME` - rclone remote name
+- `CLOUD_BACKUP_PATH` - Cloud destination path
+- `CLOUD_SYNC_DATABASES` - Upload databases (true/false)
+- `CLOUD_SYNC_CRITICAL` - Upload critical files (true/false)
+- `CLOUD_SYNC_FILES` - Upload all files (true/false)
+
+**Returns:**
+- `0` - Upload successful
+- `1` - Upload failed or configuration error
+
+**Example:**
+```bash
+# Set configuration
+CLOUD_REMOTE_NAME="mydropbox"
+CLOUD_BACKUP_PATH="/Backups/MyProject"
+CLOUD_SYNC_DATABASES=true
+CLOUD_SYNC_CRITICAL=true
+CLOUD_SYNC_FILES=false
+
+# Upload
+if cloud_upload; then
+    log_success "Cloud backup complete"
+else
+    log_error "Cloud backup failed"
+fi
+```
+
+#### `cloud_upload_background()`
+
+Run cloud upload in background (non-blocking).
+
+**Signature:**
+```bash
+cloud_upload_background
+```
+
+**Example:**
+```bash
+# Trigger background upload
+cloud_upload_background
+
+# Continue with other tasks immediately
+log_info "Cloud upload running in background"
+```
+
+### Status Functions
+
+#### `get_cloud_status()`
+
+Get time since last successful cloud upload.
+
+**Signature:**
+```bash
+get_cloud_status
+```
+
+**Returns:**
+- Outputs human-readable time string ("never", "5 minutes ago", "2 hours ago", "3 days ago")
+
+**Uses:**
+- `STATE_DIR/.last-cloud-upload` file to track upload time
+
+**Example:**
+```bash
+status=$(get_cloud_status)
+echo "Last cloud upload: $status"
+```
+
+#### `validate_cloud_config()`
+
+Validate cloud backup configuration.
+
+**Signature:**
+```bash
+validate_cloud_config
+```
+
+**Checks:**
+- `CLOUD_ENABLED` setting
+- rclone installation
+- Remote name configured
+- Remote exists in rclone config
+- Backup path configured
+
+**Returns:**
+- `0` - Configuration valid (or cloud disabled)
+- Non-zero - Configuration invalid (error count)
+
+**Example:**
+```bash
+if ! validate_cloud_config; then
+    log_error "Cloud configuration is invalid"
+    log_info "Run: ./bin/backup-cloud-config.sh"
+    exit 1
+fi
+```
+
+### Configuration Variables
+
+Cloud backup uses these environment variables:
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `CLOUD_ENABLED` | boolean | `false` | Enable cloud backups |
+| `CLOUD_PROVIDER` | string | - | Provider name (dropbox, gdrive, onedrive, icloud) |
+| `CLOUD_REMOTE_NAME` | string | - | rclone remote name |
+| `CLOUD_BACKUP_PATH` | string | - | Destination path on cloud |
+| `CLOUD_SYNC_DATABASES` | boolean | `true` | Upload database backups |
+| `CLOUD_SYNC_CRITICAL` | boolean | `true` | Upload critical files |
+| `CLOUD_SYNC_FILES` | boolean | `false` | Upload all project files |
+| `BACKUP_LOCATION` | string | `local` | `local`, `cloud`, or `both` |
+| `LOCAL_BACKUP_DIR` | string | `$BACKUP_DIR` | Local backup directory |
+| `STATE_DIR` | string | `~/.claudecode-backups/state` | State directory |
+
+---
+
+**Version:** 2.1.0
 **Last Updated:** 2025-12-24

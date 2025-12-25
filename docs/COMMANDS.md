@@ -1064,7 +1064,7 @@ Automatic migration:
 which backup-config
 
 # Reinstall if needed
-cd /path/to/ClaudeCode-Project-Backups
+cd /path/to/Checkpoint
 ./bin/install.sh
 ```
 

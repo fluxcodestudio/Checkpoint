@@ -46,7 +46,13 @@ Developer documentation for Checkpoint.
 ┌────────▼──────────────────────────────────┐
 │          Core Backup Engine               │
 │         (backup-daemon.sh)                │
-└────────┬──────────────────────────────────┘
+└────────┬──────────────┬────────────────────┘
+         │              │
+         │              │
+┌────────▼──────────┐   │   ┌────────────────┐
+│  Local Storage   │   │   │  Cloud Backup  │
+│  (backups/)      │   └──►│  (rclone)      │
+└──────────────────┘       └────────────────┘
          │
          │
 ┌────────▼──────────────────────────────────┐
@@ -84,17 +90,21 @@ Developer documentation for Checkpoint.
 ## Project Structure
 
 ```
-ClaudeCode-Project-Backups/
+Checkpoint/
 ├── bin/                           # Executable scripts
 │   ├── backup-daemon.sh           # Core backup engine
-│   ├── smart-backup-trigger.sh    # Claude Code hook
+│   ├── backup-status.sh           # Status monitoring
+│   ├── backup-now.sh              # Manual backup trigger
+│   ├── backup-config.sh           # Configuration management
+│   ├── backup-restore.sh          # Restore utility
+│   ├── backup-cleanup.sh          # Cleanup management
+│   ├── backup-cloud-config.sh     # Cloud setup wizard (v2.1.0+)
 │   ├── install.sh                 # Installation wizard
-│   ├── uninstall.sh               # Uninstaller
-│   ├── status.sh                  # Status checker (legacy)
-│   └── restore.sh                 # Restore utility (legacy)
+│   └── uninstall.sh               # Uninstaller
 │
-├── lib/                           # Foundation library (v1.1.0+)
+├── lib/                           # Foundation library (v2.1.0+)
 │   ├── backup-lib.sh              # Core functions
+│   ├── cloud-backup.sh            # Cloud storage via rclone (v2.1.0+)
 │   ├── yaml-parser.sh             # YAML parsing
 │   ├── config-validator.sh        # Configuration validation
 │   └── ui-helpers.sh              # TUI components
@@ -154,10 +164,12 @@ ClaudeCode-Project-Backups/
 |------|---------|---------------|
 | `bin/backup-daemon.sh` | Core backup logic | `backup_database()`, `backup_changed_files()` |
 | `lib/backup-lib.sh` | Shared utilities | `load_config()`, `log_message()`, `validate_paths()` |
+| `lib/cloud-backup.sh` | Cloud storage (v2.1.0+) | `cloud_upload()`, `validate_cloud_config()`, `check_rclone_installed()` |
 | `lib/yaml-parser.sh` | YAML parsing | `parse_yaml()`, `get_yaml_value()`, `set_yaml_value()` |
 | `lib/config-validator.sh` | Config validation | `validate_config()`, `check_required_fields()` |
-| `commands/backup-config.sh` | Config management | `wizard_mode()`, `tui_editor()`, `migrate_config()` |
-| `commands/backup-status.sh` | Health monitoring | `check_components()`, `generate_dashboard()` |
+| `bin/backup-config.sh` | Config management | `wizard_mode()`, `tui_editor()`, `migrate_config()` |
+| `bin/backup-status.sh` | Health monitoring | `check_components()`, `generate_dashboard()` |
+| `bin/backup-cloud-config.sh` | Cloud setup (v2.1.0+) | `wizard()`, `setup_rclone_remote()`, `save_config()` |
 
 ---
 
@@ -170,8 +182,8 @@ ClaudeCode-Project-Backups/
 brew install bash git sqlite3 shellcheck shfmt
 
 # Clone repository
-git clone https://github.com/your-org/ClaudeCode-Project-Backups.git
-cd ClaudeCode-Project-Backups
+git clone https://github.com/nizernoj/Checkpoint.git
+cd Checkpoint
 
 # Install pre-commit hooks
 cp .git-hooks/pre-commit .git/hooks/pre-commit
@@ -912,5 +924,5 @@ yq eval '.' .backup-config.yaml
 
 ---
 
-**Version:** 1.1.0
+**Version:** 2.1.0
 **Last Updated:** 2025-12-24

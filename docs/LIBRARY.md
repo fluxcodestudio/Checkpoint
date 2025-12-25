@@ -1,12 +1,14 @@
-# ClaudeCode Project Backups - Core Library Documentation
+# Checkpoint - Core Library Documentation
 
 ## Overview
 
-`lib/backup-lib.sh` is the foundation library that provides configuration management, YAML parsing, validation, and utilities for the entire backup system.
+Checkpoint provides two core libraries:
+- `lib/backup-lib.sh` - Foundation library for configuration, YAML parsing, validation, and utilities
+- `lib/cloud-backup.sh` - Cloud storage integration via rclone (v2.1.0+)
 
 ## Version
 
-- **Current Version**: 1.1.0
+- **Current Version**: 2.1.0
 - **Compatibility**: 1.0.0+
 
 ## Key Features
@@ -311,7 +313,7 @@ backup_lib_selftest
 Expected output:
 ```
 === Backup Library Self-Test ===
-Version: 1.1.0
+Version: 2.1.0
 
 Test 1: Schema initialization... PASS (40 defaults loaded)
 Test 2: Validation functions... PASS
@@ -391,15 +393,100 @@ Platform support:
    export BACKUP_LOG_LEVEL=DEBUG
    ```
 
-## Future Enhancements
+## Cloud Backup Library (v2.1.0+)
 
-Planned features for v1.2.0:
-- JSON configuration support
-- Configuration encryption
-- Remote configuration sources
-- Schema versioning and migrations
-- Configuration templates
-- Interactive configuration wizard
+The `lib/cloud-backup.sh` library provides cloud storage integration via rclone.
+
+### Key Functions
+
+#### `check_rclone_installed()`
+Check if rclone is installed.
+```bash
+if check_rclone_installed; then
+    log_info "rclone is available"
+fi
+```
+
+#### `install_rclone()`
+Install rclone via Homebrew (macOS) or curl script (Linux).
+```bash
+install_rclone || log_error "Failed to install rclone"
+```
+
+#### `list_rclone_remotes()`
+List all configured rclone remotes.
+```bash
+remotes=$(list_rclone_remotes)
+echo "$remotes"
+```
+
+#### `test_rclone_connection(remote_name)`
+Test connection to a cloud remote.
+```bash
+if test_rclone_connection "mydropbox"; then
+    log_success "Connected to cloud storage"
+fi
+```
+
+#### `cloud_upload()`
+Upload backups to cloud storage based on configuration.
+```bash
+# Configuration required:
+# CLOUD_ENABLED=true
+# CLOUD_REMOTE_NAME="mydropbox"
+# CLOUD_BACKUP_PATH="/Backups/MyProject"
+# CLOUD_SYNC_DATABASES=true
+# CLOUD_SYNC_CRITICAL=true
+
+cloud_upload || log_error "Cloud upload failed"
+```
+
+#### `cloud_upload_background()`
+Run cloud upload in background (non-blocking).
+```bash
+cloud_upload_background
+# Continues immediately, upload runs async
+```
+
+#### `validate_cloud_config()`
+Validate cloud backup configuration.
+```bash
+if ! validate_cloud_config; then
+    log_error "Cloud configuration invalid"
+fi
+```
+
+#### `get_cloud_status()`
+Get time since last successful cloud upload.
+```bash
+status=$(get_cloud_status)
+echo "Last upload: $status"  # e.g., "2 hours ago"
+```
+
+### Cloud Configuration
+
+Add to `.backup-config.sh`:
+```bash
+# Cloud Backup
+BACKUP_LOCATION="both"              # local | cloud | both
+CLOUD_ENABLED=true
+CLOUD_PROVIDER="dropbox"            # dropbox | gdrive | onedrive | icloud
+CLOUD_REMOTE_NAME="mydropbox"       # rclone remote name
+CLOUD_BACKUP_PATH="/Backups/MyProject"
+CLOUD_SYNC_DATABASES=true           # Upload compressed DBs
+CLOUD_SYNC_CRITICAL=true            # Upload .env, credentials
+CLOUD_SYNC_FILES=false              # Skip large project files
+```
+
+### Cloud Providers
+
+Supported providers via rclone:
+- **Dropbox** - 2GB free
+- **Google Drive** - 15GB free (most generous)
+- **OneDrive** - 5GB free
+- **iCloud Drive** - 5GB free (macOS)
+
+See [CLOUD-BACKUP.md](CLOUD-BACKUP.md) for complete setup guide.
 
 ## Support
 

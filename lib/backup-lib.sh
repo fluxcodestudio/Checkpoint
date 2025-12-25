@@ -1,8 +1,8 @@
 #!/bin/bash
 # ==============================================================================
-# ClaudeCode Project Backups - Core Library
+# Checkpoint - Core Library
 # ==============================================================================
-# Version: 1.1.0
+# Version: 2.1.0
 # Description: Foundation library providing configuration management, YAML
 #              parsing, validation, and safe file operations for all backup
 #              commands.

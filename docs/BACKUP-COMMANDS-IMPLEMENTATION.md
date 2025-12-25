@@ -32,7 +32,7 @@ All scripts source this library for consistent behavior.
 ### Script Structure
 
 ```
-ClaudeCode-Project-Backups/
+Checkpoint/
 ├── lib/
 │   └── backup-lib.sh          # Foundation library (NEW)
 ├── bin/
@@ -56,7 +56,7 @@ ClaudeCode-Project-Backups/
 Run the installation script to set up Claude Code skills:
 
 ```bash
-cd /path/to/ClaudeCode-Project-Backups
+cd /path/to/Checkpoint
 chmod +x bin/install-skills.sh
 ./bin/install-skills.sh
 ```
