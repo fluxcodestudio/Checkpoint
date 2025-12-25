@@ -152,7 +152,7 @@ source "$PACKAGE_DIR/lib/database-detector.sh" 2>/dev/null || true
 
 # === Question 1: Database Backups ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  1/4: Auto-Detecting Databases"
+echo "  1/5: Auto-Detecting Databases"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 detected_dbs=$(detect_databases "$PROJECT_DIR" 2>/dev/null || echo "")
@@ -205,7 +205,7 @@ echo ""
 
 # === Question 2: Cloud Backup ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  2/4: Cloud Backup (Optional)"
+echo "  2/5: Cloud Backup (Optional)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Enable cloud backup? (y/N): " wants_cloud
 wants_cloud=${wants_cloud:-n}
@@ -213,7 +213,7 @@ echo ""
 
 # === Question 3: Automated Hourly Backups ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  3/4: Automated Hourly Backups (macOS only)"
+echo "  3/5: Automated Hourly Backups (macOS only)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Install hourly backup schedule? (Y/n): " install_daemon
 install_daemon=${install_daemon:-y}
@@ -221,13 +221,16 @@ echo ""
 
 # === Question 4: Claude Code Integration ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  4/4: Claude Code Integration (Optional)"
+echo "  4/5: Claude Code Integration (Optional)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Add backup trigger to Claude Code? (Y/n): " install_hook
 install_hook=${install_hook:-y}
 echo ""
 
 # === Question 5: Initial Backup ===
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  5/5: Initial Backup"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Run initial backup after installation? (Y/n): " run_initial
 run_initial=${run_initial:-y}
 echo ""
