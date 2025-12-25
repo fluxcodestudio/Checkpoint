@@ -93,12 +93,16 @@ create_symlink() {
     echo "  ✅ $command → $LIB_DIR/bin/$script"
 }
 
+create_symlink "checkpoint.sh" "checkpoint"
 create_symlink "backup-now.sh" "backup-now"
 create_symlink "backup-status.sh" "backup-status"
 create_symlink "backup-restore.sh" "backup-restore"
 create_symlink "backup-cleanup.sh" "backup-cleanup"
 create_symlink "backup-cloud-config.sh" "backup-cloud-config"
 create_symlink "backup-daemon.sh" "backup-daemon"
+create_symlink "backup-update.sh" "backup-update"
+create_symlink "backup-pause.sh" "backup-pause"
+create_symlink "configure-project.sh" "configure-project"
 
 echo ""
 echo "═══════════════════════════════════════════════"

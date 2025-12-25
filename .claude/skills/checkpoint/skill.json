@@ -1,7 +1,7 @@
 {
   "name": "checkpoint",
   "version": "2.2.0",
-  "description": "Checkpoint Control Panel - Check status, update system, manage backups, and configure settings. Your one-stop command for all Checkpoint operations",
+  "description": "Checkpoint Command Center - Interactive menu for managing global settings (all projects) and per-project settings. Check status, configure backups, manage cloud sync, and update system. Your one-stop control panel for all Checkpoint operations",
   "author": "Checkpoint",
   "category": "control",
   "tags": ["checkpoint", "control-panel", "status", "update", "manage"],
