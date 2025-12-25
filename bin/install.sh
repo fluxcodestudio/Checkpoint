@@ -119,11 +119,23 @@ echo "✅ All required dependencies found"
 echo ""
 
 # ==============================================================================
-# CHECK FOR DIALOG (for best dashboard experience)
+# CHECK BASH VERSION (for TUI dashboard features)
 # ==============================================================================
 
 # Load dependency manager
 source "$PACKAGE_DIR/lib/dependency-manager.sh"
+
+if ! check_bash_version; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    # Offer to upgrade bash (non-blocking)
+    require_bash || true  # Continue even if user declines
+    echo ""
+fi
+
+# ==============================================================================
+# CHECK FOR DIALOG (for best dashboard experience)
+# ==============================================================================
 
 if ! check_dialog; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

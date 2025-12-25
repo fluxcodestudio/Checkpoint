@@ -21,6 +21,21 @@ echo "This will install Checkpoint system-wide."
 echo "Commands will be available in all projects."
 echo ""
 
+# Load dependency manager
+source "$PACKAGE_DIR/lib/dependency-manager.sh"
+
+# ==============================================================================
+# CHECK BASH VERSION (for TUI dashboard features)
+# ==============================================================================
+
+if ! check_bash_version; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    # Offer to upgrade bash (non-blocking)
+    require_bash || true  # Continue even if user declines
+    echo ""
+fi
+
 # ==============================================================================
 # CHECK FOR DIALOG (for best dashboard experience)
 # ==============================================================================
@@ -118,6 +133,7 @@ create_symlink "backup-daemon.sh" "backup-daemon"
 create_symlink "backup-update.sh" "backup-update"
 create_symlink "backup-pause.sh" "backup-pause"
 create_symlink "configure-project.sh" "configure-project"
+create_symlink "uninstall-global.sh" "backup-uninstall"
 
 echo ""
 echo "═══════════════════════════════════════════════"
@@ -129,11 +145,14 @@ echo "  Binaries: $BIN_DIR"
 echo "  Libraries: $LIB_DIR"
 echo ""
 echo "Available commands (system-wide):"
+echo "  checkpoint              Interactive command center"
 echo "  backup-now              Run backup immediately"
 echo "  backup-status           View backup status"
 echo "  backup-restore          Restore from backup"
 echo "  backup-cleanup          Clean old backups"
 echo "  backup-cloud-config     Configure cloud storage"
+echo "  backup-update           Update to latest version"
+echo "  backup-uninstall        Uninstall Checkpoint globally"
 echo ""
 
 # ==============================================================================
@@ -178,7 +197,10 @@ else
 fi
 
 echo "To uninstall:"
+echo "  backup-uninstall"
+echo ""
+echo "Or manually:"
 echo "  rm -rf $LIB_DIR"
-echo "  rm -f $BIN_DIR/backup-*"
+echo "  rm -f $BIN_DIR/{backup-*,checkpoint,configure-project}"
 echo ""
 echo "═══════════════════════════════════════════════"

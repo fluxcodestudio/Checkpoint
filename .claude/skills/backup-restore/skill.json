@@ -1,9 +1,0 @@
-{
-  "name": "backup-restore",
-  "version": "1.1.0",
-  "description": "Interactive restore wizard for recovering databases and files from backups with safety features",
-  "author": "ClaudeCode Project Backups",
-  "category": "backup",
-  "tags": ["backup", "restore", "recovery", "wizard"],
-  "command": "./run.sh"
-}

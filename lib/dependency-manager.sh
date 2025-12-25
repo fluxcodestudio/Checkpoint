@@ -13,6 +13,110 @@
 # ==============================================================================
 
 # ==============================================================================
+# BASH VERSION CHECK (for TUI features)
+# ==============================================================================
+
+# Check if bash version is 4.0 or higher
+# Returns: 0 if >= 4.0, 1 if < 4.0
+check_bash_version() {
+    local bash_version
+    bash_version=$(bash --version | head -1 | grep -oE '[0-9]+\.[0-9]+' | head -1)
+    local major_version="${bash_version%%.*}"
+
+    [[ "$major_version" -ge 4 ]]
+}
+
+# Get current bash version
+get_bash_version() {
+    bash --version | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1
+}
+
+# Install modern bash with user consent
+# Returns: 0 if installed successfully, 1 if failed or user declined
+install_bash() {
+    local current_version
+    current_version=$(get_bash_version)
+
+    echo ""
+    echo "═══════════════════════════════════════════════"
+    echo "Bash Upgrade Recommended"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+    echo "Current bash version: $current_version (macOS default)"
+    echo "Recommended: bash 4.0+ for full TUI dashboard features"
+    echo ""
+    echo "Upgrading bash will:"
+    echo "  • Enable interactive TUI menus with dialog"
+    echo "  • Provide enhanced command center experience"
+    echo "  • Install bash 5.2+ via Homebrew"
+    echo "  • Size: ~2MB"
+    echo ""
+    echo "Note: The dashboard still works with bash 3.2 using text menus"
+    echo ""
+
+    read -p "Upgrade bash now? (y/N) [N]: " install_choice
+    install_choice=${install_choice:-n}
+
+    if [[ ! "$install_choice" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "⊘ Bash upgrade skipped"
+        echo "  Dashboard will use text-based menus (fully functional)"
+        echo ""
+        echo "To upgrade manually later:"
+        echo "  brew install bash"
+        echo "  sudo bash -c 'echo /usr/local/bin/bash >> /etc/shells'"
+        echo "  chsh -s /usr/local/bin/bash"
+        echo ""
+        return 1
+    fi
+
+    echo ""
+    echo "Installing bash..."
+
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        if command -v brew &>/dev/null; then
+            echo "Using Homebrew..."
+            if brew install bash; then
+                echo "✅ bash installed successfully"
+                echo ""
+                echo "To make it your default shell:"
+                echo "  sudo bash -c 'echo /usr/local/bin/bash >> /etc/shells'"
+                echo "  chsh -s /usr/local/bin/bash"
+                echo "  # Then restart your terminal"
+                echo ""
+                return 0
+            else
+                echo "❌ Installation failed"
+                return 1
+            fi
+        else
+            echo "❌ Homebrew required for bash installation"
+            echo "Install Homebrew: https://brew.sh"
+            return 1
+        fi
+    else
+        echo "Bash upgrade on Linux:"
+        if command -v apt-get &>/dev/null; then
+            sudo apt-get install -y bash
+        elif command -v yum &>/dev/null; then
+            sudo yum install -y bash
+        fi
+        return $?
+    fi
+}
+
+# Require bash 4.0+ (check, prompt to upgrade if missing)
+# Returns: 0 if >= 4.0 or user declined (non-blocking), 1 only on critical error
+require_bash() {
+    if check_bash_version; then
+        return 0
+    fi
+
+    # Offer upgrade but don't block installation
+    install_bash || return 0  # Return success even if user declines
+}
+
+# ==============================================================================
 # DIALOG/WHIPTAIL (for TUI dashboard)
 # ==============================================================================
 
