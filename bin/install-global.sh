@@ -10,6 +10,9 @@ set -euo pipefail
 
 PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Load dependency manager
+source "$PACKAGE_DIR/lib/dependency-manager.sh"
+
 echo "═══════════════════════════════════════════════"
 echo "Checkpoint - Global Installation"
 echo "═══════════════════════════════════════════════"
@@ -17,6 +20,18 @@ echo ""
 echo "This will install Checkpoint system-wide."
 echo "Commands will be available in all projects."
 echo ""
+
+# ==============================================================================
+# CHECK FOR DIALOG (for best dashboard experience)
+# ==============================================================================
+
+if ! check_dialog; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    # Offer to install dialog (non-blocking)
+    require_dialog || true  # Continue even if user declines
+    echo ""
+fi
 
 # Determine installation prefix
 if [[ -w "/usr/local/bin" ]]; then

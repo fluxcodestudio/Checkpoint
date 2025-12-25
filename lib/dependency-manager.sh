@@ -9,6 +9,106 @@
 #   source lib/dependency-manager.sh
 #   require_rclone || exit 1
 #   require_postgres_tools || exit 1
+#   require_dialog || exit 1
+# ==============================================================================
+
+# ==============================================================================
+# DIALOG/WHIPTAIL (for TUI dashboard)
+# ==============================================================================
+
+# Check if dialog or whiptail is installed
+# Returns: 0 if installed, 1 if not
+check_dialog() {
+    command -v dialog &>/dev/null || command -v whiptail &>/dev/null
+}
+
+# Install dialog with user consent
+# Returns: 0 if installed successfully, 1 if failed or user declined
+install_dialog() {
+    echo ""
+    echo "═══════════════════════════════════════════════"
+    echo "Enhanced Dashboard Experience"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+    echo "For the best dashboard experience, install dialog:"
+    echo "  • Creates beautiful TUI menus (like Superstack)"
+    echo "  • Free, open-source tool"
+    echo "  • Size: ~500KB"
+    echo "  • Optional: Dashboard works without it"
+    echo ""
+
+    read -p "Install dialog for better UX? (Y/n) [Y]: " install_choice
+    install_choice=${install_choice:-y}
+
+    if [[ ! "$install_choice" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "⊘ dialog installation skipped"
+        echo "  Dashboard will use simple text menus (still fully functional)"
+        echo ""
+        return 1
+    fi
+
+    echo ""
+    echo "Installing dialog..."
+
+    # Detect platform and install
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        # macOS
+        if command -v brew &>/dev/null; then
+            if brew install dialog 2>/dev/null; then
+                echo "✓ dialog installed successfully"
+                return 0
+            else
+                echo "✗ Failed to install dialog via Homebrew"
+                return 1
+            fi
+        else
+            echo "✗ Homebrew not found. Install dialog manually:"
+            echo "  1. Install Homebrew: https://brew.sh"
+            echo "  2. Run: brew install dialog"
+            return 1
+        fi
+    elif [[ "$(uname -s)" == "Linux" ]]; then
+        # Linux
+        if command -v apt-get &>/dev/null; then
+            if sudo apt-get install -y dialog 2>/dev/null; then
+                echo "✓ dialog installed successfully"
+                return 0
+            fi
+        elif command -v yum &>/dev/null; then
+            if sudo yum install -y dialog 2>/dev/null; then
+                echo "✓ dialog installed successfully"
+                return 0
+            fi
+        elif command -v dnf &>/dev/null; then
+            if sudo dnf install -y dialog 2>/dev/null; then
+                echo "✓ dialog installed successfully"
+                return 0
+            fi
+        fi
+
+        echo "✗ Could not install dialog automatically"
+        echo "  Install manually: sudo apt-get install dialog"
+        return 1
+    else
+        echo "✗ Unsupported platform for automatic installation"
+        return 1
+    fi
+}
+
+# Require dialog (check and install if needed)
+# Returns: 0 if available, 1 if not available and installation failed/declined
+require_dialog() {
+    if check_dialog; then
+        return 0
+    fi
+
+    install_dialog
+    return $?
+}
+
+# ==============================================================================
+# RCLONE (for cloud backup)
 # ==============================================================================
 
 # Check if rclone is installed

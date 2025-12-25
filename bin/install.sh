@@ -119,6 +119,21 @@ echo "✅ All required dependencies found"
 echo ""
 
 # ==============================================================================
+# CHECK FOR DIALOG (for best dashboard experience)
+# ==============================================================================
+
+# Load dependency manager
+source "$PACKAGE_DIR/lib/dependency-manager.sh"
+
+if ! check_dialog; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    # Offer to install dialog (non-blocking)
+    require_dialog || true  # Continue even if user declines
+    echo ""
+fi
+
+# ==============================================================================
 # PHASE 1: GATHER ALL CONFIGURATION (No installation yet!)
 # ==============================================================================
 
