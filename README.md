@@ -56,27 +56,54 @@ backups/
 git clone https://github.com/nizernoj/Checkpoint.git
 cd Checkpoint
 
-# Navigate to YOUR project
-cd /path/to/your/project
-
 # Run installer
-/path/to/Checkpoint/bin/install.sh
+./bin/install.sh
 ```
+
+**Choose Installation Mode:**
+
+**1. Global (Recommended)**
+- Install once, use everywhere
+- Commands available system-wide: `backup-now`, `backup-status`, etc.
+- Easy updates: `git pull && ./bin/install.sh`
+- Installs to: `/usr/local` or `~/.local`
+
+**2. Per-Project**
+- Self-contained in project directory
+- Portable (copy project = copy backup system)
+- No system modifications
+- Good for: shared systems, containers
 
 The installer will:
-1. Configure backup settings (project name, database, retention)
-2. Create `.backup-config.sh` in your project
-3. Set up automated backups
-4. Run initial backup
+1. Ask which installation mode you prefer
+2. Check dependencies (bash, git, gzip)
+3. **Ask if you want cloud backup** (optional)
+   - If yes → Auto-installs rclone (with your permission)
+   - If no → You can enable it later
+4. Configure backup settings (project name, database, retention)
+5. Set up automated backups
+6. Run initial backup
 
-### Cloud Backup Setup (Optional)
+### Cloud Backup Setup
 
+**During Installation:**
+- Installer asks: "Do you want cloud backup?"
+- If yes → Auto-installs rclone → Configure provider
+
+**After Installation:**
 ```bash
-# Run cloud configuration wizard
-./bin/backup-cloud-config.sh
+# Enable cloud backup later
+backup-cloud-config  # (global mode)
+# or
+./bin/backup-cloud-config.sh  # (per-project mode)
 ```
 
-Choose provider (Dropbox/GDrive/OneDrive/iCloud), configure rclone, done!
+**What Happens:**
+- Checks for rclone, auto-installs if missing (with permission)
+- Choose provider: Dropbox, Google Drive, OneDrive, iCloud
+- OAuth authentication via browser
+- Configure backup path
+- Done!
 
 ### Verification
 
@@ -93,18 +120,18 @@ ls -la backups/files/
 
 ## Commands
 
-All commands available in `bin/` directory:
+**Global Mode:** Commands available system-wide
+**Per-Project Mode:** Run from `bin/` directory
 
-| Command | Description |
-|---------|-------------|
-| `backup-status.sh` | View backup health, statistics, cloud status |
-| `backup-now.sh` | Trigger immediate backup |
-| `backup-config.sh` | Configure backup settings |
-| `backup-restore.sh` | Restore from backups |
-| `backup-cleanup.sh` | Manage old backups and disk space |
-| `backup-cloud-config.sh` | Configure cloud backup |
-| `install.sh` | Install Checkpoint in project |
-| `uninstall.sh` | Uninstall Checkpoint |
+| Command | Global | Per-Project | Description |
+|---------|--------|-------------|-------------|
+| `backup-status` | ✓ | `./bin/backup-status.sh` | View backup health, statistics, cloud status |
+| `backup-now` | ✓ | `./bin/backup-now.sh` | Trigger immediate backup |
+| `backup-restore` | ✓ | `./bin/backup-restore.sh` | Restore from backups |
+| `backup-cleanup` | ✓ | `./bin/backup-cleanup.sh` | Manage old backups and disk space |
+| `backup-cloud-config` | ✓ | `./bin/backup-cloud-config.sh` | Configure cloud backup |
+| `install.sh` | N/A | `./bin/install.sh` | Install Checkpoint |
+| `uninstall.sh` | N/A | `./bin/uninstall.sh` | Uninstall Checkpoint |
 
 ### Command Examples
 
@@ -322,8 +349,10 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for all integrations.
 | `git` | ✅ Yes | Change detection | `brew install git` |
 | `sqlite3` | Conditional | Database backups | `brew install sqlite3` |
 | `gzip` | ✅ Yes | Compression | Pre-installed |
-| `rclone` | Optional | Cloud backups | `brew install rclone` |
+| `rclone` | Optional | Cloud backups | **Auto-installed** when you enable cloud backup |
 | `launchctl` | macOS only | Scheduling | Pre-installed on macOS |
+
+**Note:** rclone is automatically installed (with your permission) when you choose cloud backup during installation or run `backup-cloud-config`.
 
 ---
 
