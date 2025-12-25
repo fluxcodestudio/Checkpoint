@@ -391,6 +391,12 @@ main_menu() {
     done
 }
 
+# Find dashboard script
+DASHBOARD_SCRIPT=""
+if [[ -x "$CHECKPOINT_LIB/bin/checkpoint-dashboard.sh" ]]; then
+    DASHBOARD_SCRIPT="$CHECKPOINT_LIB/bin/checkpoint-dashboard.sh"
+fi
+
 # Handle command-line arguments
 case "${1:-}" in
     --status|--info)
@@ -423,13 +429,27 @@ case "${1:-}" in
         echo "  --global            Edit global settings"
         echo "  --project           Edit/configure project settings"
         echo "  --update            Check for updates"
+        echo "  --dashboard         Launch interactive TUI dashboard"
         echo "  --help, -h          Show this help"
         echo ""
-        echo "No options:           Show interactive menu"
+        echo "No options:           Launch interactive TUI dashboard"
         exit 0
         ;;
+    --dashboard)
+        # Launch TUI dashboard if available
+        if [[ -n "$DASHBOARD_SCRIPT" ]]; then
+            exec "$DASHBOARD_SCRIPT"
+        else
+            main_menu
+        fi
+        ;;
     "")
-        main_menu
+        # Default: Launch TUI dashboard if available, otherwise fallback to simple menu
+        if [[ -n "$DASHBOARD_SCRIPT" ]]; then
+            exec "$DASHBOARD_SCRIPT"
+        else
+            main_menu
+        fi
         ;;
     *)
         echo "Unknown option: $1"
