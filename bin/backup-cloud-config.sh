@@ -10,6 +10,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Load libraries
 source "$PROJECT_ROOT/lib/backup-lib.sh"
 source "$PROJECT_ROOT/lib/cloud-backup.sh"
+source "$PROJECT_ROOT/lib/dependency-manager.sh"
 
 # ==============================================================================
 # CLOUD CONFIGURATION WIZARD
@@ -20,6 +21,19 @@ wizard() {
     echo "═══════════════════════════════════════════════════════════"
     echo "  Checkpoint - Cloud Backup Configuration"
     echo "═══════════════════════════════════════════════════════════"
+    echo ""
+
+    # Check and install rclone if needed
+    if ! require_rclone; then
+        echo ""
+        echo "❌ Cloud backup requires rclone"
+        echo "   Configuration cancelled"
+        echo ""
+        exit 1
+    fi
+
+    echo ""
+    echo "✅ rclone ready"
     echo ""
 
     # Step 1: Backup Location

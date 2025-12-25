@@ -11,6 +11,40 @@ echo "════════════════════════�
 echo "Checkpoint - Installation"
 echo "═══════════════════════════════════════════════"
 echo ""
+
+# ==============================================================================
+# INSTALLATION MODE SELECTION
+# ==============================================================================
+
+echo "Choose installation mode:"
+echo ""
+echo "  [1] Global (recommended)"
+echo "      • Install once, use in all projects"
+echo "      • Commands available system-wide (backup-now, backup-status, etc.)"
+echo "      • Easy updates (git pull, reinstall)"
+echo "      • Requires: write access to /usr/local/bin or ~/.local/bin"
+echo ""
+echo "  [2] Per-Project"
+echo "      • Self-contained in this project only"
+echo "      • No system modifications needed"
+echo "      • Portable (copy project = copy backup system)"
+echo "      • Good for: shared systems, containers"
+echo ""
+read -p "Choose mode (1/2) [1]: " install_mode
+install_mode=${install_mode:-1}
+
+if [[ "$install_mode" == "1" ]]; then
+    echo ""
+    echo "Launching global installer..."
+    exec "$PACKAGE_DIR/bin/install-global.sh"
+fi
+
+# Continue with per-project installation
+echo ""
+echo "═══════════════════════════════════════════════"
+echo "Per-Project Installation"
+echo "═══════════════════════════════════════════════"
+echo ""
 echo "Package location: $PACKAGE_DIR"
 echo "Project location: $PROJECT_DIR"
 echo ""
@@ -167,6 +201,38 @@ backup_notes=${backup_notes:-y}
 
 read -p "  - Local databases? (y/n) [y]: " backup_dbs
 backup_dbs=${backup_dbs:-y}
+
+# Cloud backup
+echo ""
+read -p "Do you want cloud backup? (Dropbox, Google Drive, etc.) (y/n) [n]: " wants_cloud
+wants_cloud=${wants_cloud:-n}
+
+CLOUD_ENABLED=false
+CLOUD_CONFIGURED=false
+
+if [[ "$wants_cloud" =~ ^[Yy]$ ]]; then
+    # Load dependency manager to handle rclone installation
+    source "$PACKAGE_DIR/lib/dependency-manager.sh"
+
+    echo ""
+    echo "Cloud backup will be configured..."
+
+    # Check/install rclone
+    if require_rclone; then
+        CLOUD_ENABLED=true
+        CLOUD_CONFIGURED=true
+        echo ""
+        echo "✅ rclone ready for cloud configuration"
+    else
+        echo ""
+        echo "⚠️  Cloud backup skipped (rclone not installed)"
+        echo "   You can enable it later with: backup-cloud-config"
+    fi
+else
+    echo ""
+    echo "  ↳ Cloud backup skipped"
+    echo "   You can enable it later with: backup-cloud-config"
+fi
 
 # ==============================================================================
 # CREATE CONFIGURATION FILE
@@ -442,14 +508,23 @@ echo "  Backups: $PROJECT_DIR/backups/"
 echo "  Retention: ${db_retention}d (DB), ${file_retention}d (files)"
 echo ""
 echo "Next steps:"
-echo "  1. Backups run automatically every hour"
-echo "  2. Backups trigger on first Claude Code prompt in new session"
-echo "  3. Check backups: ls -la $PROJECT_DIR/backups/"
-echo "  4. View logs: tail -f $PROJECT_DIR/backups/backup.log"
+if [[ "$CLOUD_CONFIGURED" == "true" ]]; then
+    echo "  1. Configure cloud storage: $PACKAGE_DIR/bin/backup-cloud-config.sh"
+    echo "  2. Backups run automatically every hour"
+    echo "  3. Check backups: ls -la $PROJECT_DIR/backups/"
+else
+    echo "  1. Backups run automatically every hour"
+    echo "  2. Backups trigger on first Claude Code prompt in new session"
+    echo "  3. Check backups: ls -la $PROJECT_DIR/backups/"
+    echo "  4. View logs: tail -f $PROJECT_DIR/backups/backup.log"
+fi
 echo ""
 echo "Utilities:"
 echo "  - Restore files: $PACKAGE_DIR/bin/restore.sh"
 echo "  - Check status: $PACKAGE_DIR/bin/status.sh"
+if [[ "$CLOUD_CONFIGURED" != "true" ]]; then
+    echo "  - Setup cloud: $PACKAGE_DIR/bin/backup-cloud-config.sh"
+fi
 echo "  - Uninstall: $PACKAGE_DIR/bin/uninstall.sh"
 echo ""
 echo "═══════════════════════════════════════════════"
