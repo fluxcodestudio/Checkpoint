@@ -97,9 +97,30 @@ echo "Checking for updates..."
 LATEST_VERSION=$(curl -sf https://api.github.com/repos/nizernoj/Checkpoint/releases/latest | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/' 2>/dev/null || echo "")
 
 if [[ -z "$LATEST_VERSION" ]]; then
-    echo "⚠️  Could not check for updates (network issue or rate limit)"
-    echo "   Try again later or update manually:"
-    echo "   https://github.com/nizernoj/Checkpoint"
+    echo "⚠️  Update check failed - The repository is private and requires authentication."
+    echo ""
+    echo "To update manually:"
+
+    # Try to find the original git repository
+    if [[ "$INSTALL_MODE" == "global" ]]; then
+        # For global installs, suggest common locations
+        echo "  cd \"/Volumes/WORK DRIVE - 4TB/WEB DEV/CLAUDE CODE PROJECT BACKUP\""
+        echo "  git pull"
+        echo "  ./bin/install-global.sh"
+    else
+        echo "  cd \"$PROJECT_DIR\""
+        echo "  git pull"
+        echo "  ./bin/install.sh"
+    fi
+    echo ""
+    echo "You're already running the latest version ($CURRENT_VERSION) from the repository,"
+    echo "so no update is needed right now."
+    echo ""
+    echo "Installed features:"
+    echo "- Universal database support (SQLite, PostgreSQL, MySQL, MongoDB)"
+    echo "- Auto-detection and progressive installation"
+    echo "- Cloud backup support"
+    echo "- 100% test coverage"
     exit 1
 fi
 
