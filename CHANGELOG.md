@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.0] - 2025-12-25
 
+### Fixed
+
+**CRITICAL: Database Auto-Detection** - Only detect project-specific databases
+
+- **Fixed:** Database detector was backing up system databases (mysql, postgres user db, mongodb admin) for projects without databases
+- **Root Cause:** Automatic fallback detection triggered when PostgreSQL/MySQL/MongoDB servers were running
+- **Solution:** Removed automatic fallback detection. Now ONLY detects:
+  - SQLite files in project directory
+  - Databases explicitly configured in .env files (DATABASE_URL, MYSQL_*, etc.)
+- **Impact:** Projects without databases will no longer incorrectly backup system databases
+
 ### Added
 
 **Universal Database Support** - Auto-detect and backup PostgreSQL, MySQL, MongoDB
