@@ -1,0 +1,63 @@
+{
+  "name": "checkpoint",
+  "version": "2.2.0",
+  "description": "Checkpoint Control Panel - Check status, update system, manage backups, and configure settings. Your one-stop command for all Checkpoint operations",
+  "author": "Checkpoint",
+  "category": "control",
+  "tags": ["checkpoint", "control-panel", "status", "update", "manage"],
+  "command": "./run.sh",
+  "arguments": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "update": {
+          "type": "boolean",
+          "default": false,
+          "description": "Check for and install updates"
+        },
+        "status": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show status dashboard (default)"
+        },
+        "check-update": {
+          "type": "boolean",
+          "default": false,
+          "description": "Check if updates available (don't install)"
+        },
+        "info": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show detailed system information (mode, config location, disk usage)"
+        },
+        "help": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show help message"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "description": "Open control panel (status, updates, commands)",
+      "command": "/checkpoint"
+    },
+    {
+      "description": "Show installation mode and system details",
+      "command": "/checkpoint --info"
+    },
+    {
+      "description": "Check and install updates",
+      "command": "/checkpoint --update"
+    },
+    {
+      "description": "Check if updates available (don't install)",
+      "command": "/checkpoint --check-update"
+    },
+    {
+      "description": "Show help message",
+      "command": "/checkpoint --help"
+    }
+  ]
+}

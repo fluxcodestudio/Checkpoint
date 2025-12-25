@@ -2,12 +2,13 @@
 # ==============================================================================
 # Checkpoint - Dependency Manager
 # ==============================================================================
-# Version: 2.1.0
+# Version: 2.2.0
 # Description: Progressive dependency installation with user consent
 #
 # Usage:
 #   source lib/dependency-manager.sh
 #   require_rclone || exit 1
+#   require_postgres_tools || exit 1
 # ==============================================================================
 
 # Check if rclone is installed
@@ -105,6 +106,283 @@ require_rclone() {
         fi
     else
         # User declined or installation failed
+        return 1
+    fi
+}
+
+# ==============================================================================
+# POSTGRESQL TOOLS
+# ==============================================================================
+
+# Check if PostgreSQL client tools are installed
+# Returns: 0 if installed, 1 if not
+check_postgres_tools() {
+    command -v pg_dump &>/dev/null && command -v pg_restore &>/dev/null
+}
+
+# Install PostgreSQL client tools with user consent
+# Returns: 0 if installed successfully, 1 if failed or user declined
+install_postgres_tools() {
+    echo ""
+    echo "═══════════════════════════════════════════════"
+    echo "PostgreSQL Tools Installation Required"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+    echo "PostgreSQL backup requires pg_dump:"
+    echo "  • Part of PostgreSQL client tools"
+    echo "  • Free, open-source (PostgreSQL license)"
+    echo "  • Size: ~5MB"
+    echo ""
+
+    read -p "Install PostgreSQL tools now? (y/n) [y]: " install_choice
+    install_choice=${install_choice:-y}
+
+    if [[ ! "$install_choice" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "⊘ PostgreSQL tools installation skipped"
+        echo ""
+        echo "To install manually:"
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+            echo "  brew install libpq"
+        else
+            echo "  sudo apt-get install postgresql-client  # Debian/Ubuntu"
+            echo "  sudo yum install postgresql  # RedHat/CentOS"
+        fi
+        echo ""
+        return 1
+    fi
+
+    echo ""
+    echo "Installing PostgreSQL tools..."
+
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        if command -v brew &>/dev/null; then
+            echo "Using Homebrew..."
+            if brew install libpq && brew link --force libpq; then
+                echo "✅ PostgreSQL tools installed"
+                return 0
+            else
+                echo "❌ Installation failed"
+                return 1
+            fi
+        else
+            echo "❌ Homebrew required for macOS installation"
+            return 1
+        fi
+    else
+        # Try apt-get first (Debian/Ubuntu)
+        if command -v apt-get &>/dev/null; then
+            if sudo apt-get install -y postgresql-client; then
+                echo "✅ PostgreSQL tools installed"
+                return 0
+            fi
+        # Try yum (RedHat/CentOS)
+        elif command -v yum &>/dev/null; then
+            if sudo yum install -y postgresql; then
+                echo "✅ PostgreSQL tools installed"
+                return 0
+            fi
+        fi
+        echo "❌ Installation failed"
+        return 1
+    fi
+}
+
+# Require PostgreSQL tools (check, prompt to install if missing)
+# Returns: 0 if available, 1 if not available
+require_postgres_tools() {
+    if check_postgres_tools; then
+        return 0
+    fi
+
+    if install_postgres_tools; then
+        if check_postgres_tools; then
+            return 0
+        else
+            echo "❌ PostgreSQL tools installation verification failed"
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
+# ==============================================================================
+# MYSQL TOOLS
+# ==============================================================================
+
+# Check if MySQL client tools are installed
+# Returns: 0 if installed, 1 if not
+check_mysql_tools() {
+    command -v mysqldump &>/dev/null
+}
+
+# Install MySQL client tools with user consent
+# Returns: 0 if installed successfully, 1 if failed or user declined
+install_mysql_tools() {
+    echo ""
+    echo "═══════════════════════════════════════════════"
+    echo "MySQL Tools Installation Required"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+    echo "MySQL backup requires mysqldump:"
+    echo "  • Part of MySQL client tools"
+    echo "  • Free, open-source (GPL license)"
+    echo "  • Size: ~10MB"
+    echo ""
+
+    read -p "Install MySQL tools now? (y/n) [y]: " install_choice
+    install_choice=${install_choice:-y}
+
+    if [[ ! "$install_choice" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "⊘ MySQL tools installation skipped"
+        echo ""
+        echo "To install manually:"
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+            echo "  brew install mysql-client"
+        else
+            echo "  sudo apt-get install mysql-client  # Debian/Ubuntu"
+            echo "  sudo yum install mysql  # RedHat/CentOS"
+        fi
+        echo ""
+        return 1
+    fi
+
+    echo ""
+    echo "Installing MySQL tools..."
+
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        if command -v brew &>/dev/null; then
+            echo "Using Homebrew..."
+            if brew install mysql-client && brew link --force mysql-client; then
+                echo "✅ MySQL tools installed"
+                return 0
+            else
+                echo "❌ Installation failed"
+                return 1
+            fi
+        else
+            echo "❌ Homebrew required for macOS installation"
+            return 1
+        fi
+    else
+        if command -v apt-get &>/dev/null; then
+            if sudo apt-get install -y mysql-client; then
+                echo "✅ MySQL tools installed"
+                return 0
+            fi
+        elif command -v yum &>/dev/null; then
+            if sudo yum install -y mysql; then
+                echo "✅ MySQL tools installed"
+                return 0
+            fi
+        fi
+        echo "❌ Installation failed"
+        return 1
+    fi
+}
+
+# Require MySQL tools (check, prompt to install if missing)
+# Returns: 0 if available, 1 if not available
+require_mysql_tools() {
+    if check_mysql_tools; then
+        return 0
+    fi
+
+    if install_mysql_tools; then
+        if check_mysql_tools; then
+            return 0
+        else
+            echo "❌ MySQL tools installation verification failed"
+            return 1
+        fi
+    else
+        return 1
+    fi
+}
+
+# ==============================================================================
+# MONGODB TOOLS
+# ==============================================================================
+
+# Check if MongoDB tools are installed
+# Returns: 0 if installed, 1 if not
+check_mongodb_tools() {
+    command -v mongodump &>/dev/null && command -v mongorestore &>/dev/null
+}
+
+# Install MongoDB tools with user consent
+# Returns: 0 if installed successfully, 1 if failed or user declined
+install_mongodb_tools() {
+    echo ""
+    echo "═══════════════════════════════════════════════"
+    echo "MongoDB Tools Installation Required"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+    echo "MongoDB backup requires mongodump:"
+    echo "  • Part of MongoDB Database Tools"
+    echo "  • Free, open-source (Apache 2.0 license)"
+    echo "  • Size: ~30MB"
+    echo ""
+
+    read -p "Install MongoDB tools now? (y/n) [y]: " install_choice
+    install_choice=${install_choice:-y}
+
+    if [[ ! "$install_choice" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "⊘ MongoDB tools installation skipped"
+        echo ""
+        echo "To install manually:"
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+            echo "  brew tap mongodb/brew"
+            echo "  brew install mongodb-database-tools"
+        else
+            echo "  Visit: https://www.mongodb.com/try/download/database-tools"
+        fi
+        echo ""
+        return 1
+    fi
+
+    echo ""
+    echo "Installing MongoDB tools..."
+
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        if command -v brew &>/dev/null; then
+            echo "Using Homebrew..."
+            if brew tap mongodb/brew && brew install mongodb-database-tools; then
+                echo "✅ MongoDB tools installed"
+                return 0
+            else
+                echo "❌ Installation failed"
+                return 1
+            fi
+        else
+            echo "❌ Homebrew required for macOS installation"
+            return 1
+        fi
+    else
+        echo "❌ Automatic installation not available for Linux"
+        echo "Please visit: https://www.mongodb.com/try/download/database-tools"
+        return 1
+    fi
+}
+
+# Require MongoDB tools (check, prompt to install if missing)
+# Returns: 0 if available, 1 if not available
+require_mongodb_tools() {
+    if check_mongodb_tools; then
+        return 0
+    fi
+
+    if install_mongodb_tools; then
+        if check_mongodb_tools; then
+            return 0
+        else
+            echo "❌ MongoDB tools installation verification failed"
+            return 1
+        fi
+    else
         return 1
     fi
 }

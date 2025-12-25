@@ -8,11 +8,15 @@ Complete reference for Checkpoint command system.
 
 - [Overview](#overview)
 - [Command Index](#command-index)
+- [`/checkpoint` - Control Panel](#checkpoint---control-panel)
 - [`/backup-config` - Configuration Management](#backup-config---configuration-management)
 - [`/backup-status` - Health Monitoring](#backup-status---health-monitoring)
 - [`/backup-now` - Manual Backup](#backup-now---manual-backup)
 - [`/backup-restore` - Restore Wizard](#backup-restore---restore-wizard)
 - [`/backup-cleanup` - Space Management](#backup-cleanup---space-management)
+- [`/backup-update` - System Updates](#backup-update---system-updates)
+- [`/backup-pause` - Pause/Resume](#backup-pause---pauseresume)
+- [`/uninstall` - Uninstall Checkpoint](#uninstall---uninstall-checkpoint)
 - [Configuration Schema](#configuration-schema)
 - [Use Case Examples](#use-case-examples)
 - [Troubleshooting](#troubleshooting)
@@ -21,11 +25,14 @@ Complete reference for Checkpoint command system.
 
 ## Overview
 
-Checkpoint v1.1.0 introduces a comprehensive command system for managing backups through an intuitive CLI. All commands support both interactive (TUI) and programmatic modes.
+Checkpoint v2.2.0 introduces a comprehensive command system for managing backups through an intuitive CLI. All commands support both interactive (TUI) and programmatic modes.
 
 ### Quick Start
 
 ```bash
+# Control panel (status, updates, help)
+/checkpoint
+
 # Interactive configuration wizard
 /backup-config wizard
 
@@ -40,6 +47,9 @@ Checkpoint v1.1.0 introduces a comprehensive command system for managing backups
 
 # Clean up old backups
 /backup-cleanup
+
+# Update Checkpoint
+/checkpoint --update
 ```
 
 ### Installation Location
@@ -54,11 +64,96 @@ Commands are installed to:
 
 | Command | Description | Interactive Mode | Flags |
 |---------|-------------|------------------|-------|
+| `/checkpoint` | Control panel & status | ✅ Dashboard | `--update`, `--status`, `--check-update` |
 | `/backup-config` | Manage configuration | ✅ Wizard & TUI | `--get`, `--set`, `--validate`, `--migrate` |
 | `/backup-status` | View system health | ✅ Dashboard | `--json`, `--verbose`, `--check` |
 | `/backup-now` | Trigger manual backup | ❌ No | `--force`, `--dry-run`, `--db-only`, `--files-only` |
 | `/backup-restore` | Restore files/database | ✅ Wizard | `--database`, `--file`, `--list` |
 | `/backup-cleanup` | Manage disk space | ✅ Preview mode | `--preview`, `--force`, `--recommend` |
+| `/backup-update` | Update from GitHub | ❌ No | `--check-only`, `--force` |
+| `/backup-pause` | Pause/resume backups | ❌ No | `--resume`, `--status` |
+| `/uninstall` | Uninstall Checkpoint | ✅ Confirmation | `--keep-backups`, `--force` |
+
+---
+
+## `/checkpoint` - Control Panel
+
+### Synopsis
+
+```bash
+/checkpoint [OPTIONS]
+```
+
+### Description
+
+Main control panel for Checkpoint. Displays system status, checks for updates, and provides quick access to all commands.
+
+### Default Output
+
+```bash
+/checkpoint
+```
+
+**Output:**
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Checkpoint Status
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Version: v2.2.0
+✓ You're running the latest version: v2.2.0
+
+Status: ✅ ACTIVE
+
+Backups are running normally.
+Last backup: 45 minutes ago
+Next backup: 15 minutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Available Commands:
+  /checkpoint --update       Check and install updates
+  /backup-now              Create backup immediately
+  /backup-pause            Pause automatic backups
+  /backup-restore          Restore from backup
+  /backup-cleanup          Clean old backups
+```
+
+### Options
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--update` | Check and install updates | `/checkpoint --update` |
+| `--status` | Show status (same as default) | `/checkpoint --status` |
+| `--check-update` | Check for updates only | `/checkpoint --check-update` |
+
+### Examples
+
+**Example 1: Check status**
+```bash
+/checkpoint
+```
+
+**Example 2: Update Checkpoint**
+```bash
+/checkpoint --update
+```
+
+**Output:**
+```
+ℹ  Update available: v2.2.0 → v2.3.0
+
+ℹ  Starting update...
+✓ Downloaded v2.3.0
+✓ Extracted update
+✓ Updated successfully
+```
+
+**Example 3: Check for updates without installing**
+```bash
+/checkpoint --check-update
+```
 
 ---
 
@@ -831,6 +926,297 @@ Recommendations
 
 ---
 
+## `/backup-update` - System Updates
+
+### Synopsis
+
+```bash
+/backup-update [OPTIONS]
+```
+
+### Description
+
+Check for and install Checkpoint updates from GitHub releases. Supports both global and per-project installations.
+
+### Default Behavior
+
+```bash
+/backup-update
+```
+
+**Output:**
+```
+🔍 Checking for updates...
+
+Current version: v2.2.0
+Latest version: v2.3.0
+
+ℹ  Update available!
+
+Changelog:
+  - Universal database support (PostgreSQL, MySQL, MongoDB)
+  - Streamlined installation wizard
+  - Auto-update notifications
+
+📥 Downloading update...
+✓ Downloaded Checkpoint-v2.3.0.tar.gz (2.3 MB)
+
+📦 Installing update...
+✓ Extracted files
+✓ Updated binaries
+✓ Reloaded LaunchAgent
+
+✅ Successfully updated to v2.3.0
+
+To verify: /checkpoint --status
+```
+
+### Options
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--check-only` | Check without installing | `--check-only` |
+| `--force` | Skip confirmation prompts | `--force` |
+
+### Examples
+
+**Example 1: Check for updates**
+```bash
+/backup-update --check-only
+```
+
+**Output:**
+```
+✓ You're running the latest version: v2.2.0
+```
+
+**Example 2: Force update without prompts**
+```bash
+/backup-update --force
+```
+
+### Update Process
+
+1. Checks GitHub for latest release
+2. Compares with current version
+3. Downloads release archive
+4. Backs up current installation
+5. Extracts and installs update
+6. Reloads LaunchAgent if needed
+7. Verifies installation
+
+---
+
+## `/backup-pause` - Pause/Resume
+
+### Synopsis
+
+```bash
+/backup-pause [OPTIONS]
+```
+
+### Description
+
+Temporarily pause or resume automatic backups. Manual backups with `/backup-now` still work when paused.
+
+### Default Behavior (Pause)
+
+```bash
+/backup-pause
+```
+
+**Output:**
+```
+⏸️  Pausing automatic backups...
+
+✓ LaunchAgent unloaded
+✓ Pause state saved
+
+Automatic backups are now paused.
+Manual backups still available: /backup-now
+
+To resume: /backup-pause --resume
+```
+
+### Resume Backups
+
+```bash
+/backup-pause --resume
+```
+
+**Output:**
+```
+▶️  Resuming automatic backups...
+
+✓ LaunchAgent loaded
+✓ Pause state cleared
+
+Automatic backups resumed.
+Next backup: in ~5 minutes
+```
+
+### Check Status
+
+```bash
+/backup-pause --status
+```
+
+**Output:**
+```
+Status: ⏸️  PAUSED
+
+Automatic backups paused since: 2025-12-25 14:30
+Paused for: 2 hours 15 minutes
+
+To resume: /backup-pause --resume
+```
+
+### Options
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--resume` | Resume automatic backups | `/backup-pause --resume` |
+| `--status` | Show current pause status | `/backup-pause --status` |
+
+### Examples
+
+**Example 1: Pause during heavy work**
+```bash
+/backup-pause
+# Do intensive work without hourly backups...
+/backup-pause --resume
+```
+
+**Example 2: Check if paused**
+```bash
+/backup-pause --status
+```
+
+---
+
+## `/uninstall` - Uninstall Checkpoint
+
+### Synopsis
+
+```bash
+/uninstall [OPTIONS]
+```
+
+### Description
+
+Safely uninstall Checkpoint from your system. Removes binaries, LaunchAgents, and optionally backup files.
+
+### Default Behavior
+
+```bash
+/uninstall
+```
+
+**Session:**
+```
+⚠️  This will uninstall Checkpoint
+
+The following will be removed:
+  - LaunchAgent (~/Library/LaunchAgents/com.checkpoint.backup.plist)
+  - Global commands (/usr/local/bin/backup-*)
+  - Skills (.claude/skills/*)
+
+The following will be kept:
+  - Backup files (backups/)
+  - Configuration (.backup-config.yaml)
+
+Proceed? [y/N]: y
+
+🗑️  Uninstalling Checkpoint...
+
+[1/3] Stopping LaunchAgent...
+  ✓ Unloaded com.checkpoint.backup
+
+[2/3] Removing binaries...
+  ✓ Removed /usr/local/bin/backup-config
+  ✓ Removed /usr/local/bin/backup-status
+  ✓ Removed /usr/local/bin/backup-now
+  ... (8 more)
+
+[3/3] Removing skills...
+  ✓ Removed .claude/skills/checkpoint
+  ✓ Removed .claude/skills/backup-*
+  ... (10 more)
+
+✅ Checkpoint uninstalled successfully
+
+Your backups are preserved in: backups/
+To reinstall: ./bin/install.sh
+```
+
+### Complete Removal (Including Backups)
+
+```bash
+/uninstall --no-keep-backups
+```
+
+**Warning:**
+```
+⚠️  WARNING: This will DELETE all backup files!
+
+The following will be PERMANENTLY DELETED:
+  - backups/ (2.5 GB, 156 files)
+  - .backup-config.yaml
+
+This action CANNOT be undone!
+
+Type 'DELETE' to confirm: DELETE
+
+🗑️  Removing everything...
+[continues...]
+```
+
+### Options
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--keep-backups` | Keep backup files (default) | `--keep-backups` |
+| `--no-keep-backups` | Delete all backups | `--no-keep-backups` |
+| `--force` | Skip confirmation prompts | `--force` |
+
+### Examples
+
+**Example 1: Uninstall but keep backups**
+```bash
+/uninstall
+```
+
+**Example 2: Complete removal**
+```bash
+/uninstall --no-keep-backups
+```
+
+**Example 3: Force uninstall (scripting)**
+```bash
+/uninstall --force
+```
+
+### What Gets Removed
+
+**Always Removed:**
+- LaunchAgent plist files
+- Global commands in /usr/local/bin
+- Claude Code skills
+- Shell integrations
+
+**Kept by Default:**
+- Backup files (backups/)
+- Configuration files (.backup-config.yaml)
+- Database snapshots
+
+**Removed with `--no-keep-backups`:**
+- All backup files
+- All configuration files
+- Database snapshots
+- Archived files
+
+---
+
 ## Configuration Schema
 
 ### YAML Structure
@@ -1238,5 +1624,5 @@ Include in bug report:
 
 ---
 
-**Version:** 1.1.0
-**Last Updated:** 2025-12-24
+**Version:** 2.2.0
+**Last Updated:** 2025-12-25

@@ -1,0 +1,40 @@
+{
+  "name": "uninstall",
+  "version": "1.0.0",
+  "description": "Safely uninstall Checkpoint from your system. Removes all installed files, LaunchAgents, and optionally backup files. Supports both global and per-project installations",
+  "author": "Checkpoint",
+  "category": "maintenance",
+  "tags": ["uninstall", "remove", "cleanup", "delete"],
+  "command": "./run.sh",
+  "arguments": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "keep-backups": {
+          "type": "boolean",
+          "default": true,
+          "description": "Keep backup files (only remove Checkpoint)"
+        },
+        "force": {
+          "type": "boolean",
+          "default": false,
+          "description": "Skip confirmation prompts"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "description": "Uninstall Checkpoint (keeps backups)",
+      "command": "/uninstall"
+    },
+    {
+      "description": "Uninstall and delete all backups",
+      "command": "/uninstall --no-keep-backups"
+    },
+    {
+      "description": "Force uninstall without confirmation",
+      "command": "/uninstall --force"
+    }
+  ]
+}

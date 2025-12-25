@@ -1,0 +1,40 @@
+{
+  "name": "backup-pause",
+  "version": "1.0.0",
+  "description": "Pause or resume automatic backups. Temporarily disables hourly backups while keeping manual backups available. Includes status checking",
+  "author": "Checkpoint",
+  "category": "control",
+  "tags": ["pause", "resume", "disable", "control", "status"],
+  "command": "./run.sh",
+  "arguments": {
+    "schema": {
+      "type": "object",
+      "properties": {
+        "resume": {
+          "type": "boolean",
+          "default": false,
+          "description": "Resume automatic backups"
+        },
+        "status": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show current pause status"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "description": "Pause automatic backups",
+      "command": "/backup-pause"
+    },
+    {
+      "description": "Resume automatic backups",
+      "command": "/backup-pause --resume"
+    },
+    {
+      "description": "Check pause status",
+      "command": "/backup-pause --status"
+    }
+  ]
+}

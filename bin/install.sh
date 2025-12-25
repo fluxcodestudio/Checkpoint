@@ -119,127 +119,212 @@ echo "✅ All required dependencies found"
 echo ""
 
 # ==============================================================================
-# INTERACTIVE CONFIGURATION
+# PHASE 1: GATHER ALL CONFIGURATION (No installation yet!)
 # ==============================================================================
 
-echo "Let's configure backups for your project..."
+echo "══════════════════════════════════════════════════════════"
+echo "  Checkpoint Setup - Quick Configuration"
+echo "══════════════════════════════════════════════════════════"
 echo ""
 
-# Project name
-read -p "Project name (for backup filenames): " PROJECT_NAME
-[ -z "$PROJECT_NAME" ] && PROJECT_NAME=$(basename "$PROJECT_DIR")
-
-# Database configuration
+# Project name (auto-detected)
+PROJECT_NAME=$(basename "$PROJECT_DIR")
+echo "Project: $PROJECT_NAME"
 echo ""
-echo "Database Configuration:"
-echo "1) SQLite database"
-echo "2) No database"
-read -p "Select option [1-2]: " db_option
 
-DB_PATH=""
-DB_TYPE="none"
+# Load database detector
+source "$PACKAGE_DIR/lib/database-detector.sh" 2>/dev/null || true
 
-if [ "$db_option" = "1" ]; then
-    read -p "Path to SQLite database file: " DB_PATH
-    DB_TYPE="sqlite"
-    # Expand ~ to home directory
-    DB_PATH="${DB_PATH/#\~/$HOME}"
+# === Question 1: Database Backups ===
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  1/4: Auto-Detecting Databases"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+detected_dbs=$(detect_databases "$PROJECT_DIR" 2>/dev/null || echo "")
+
+if [ -n "$detected_dbs" ]; then
+    echo "$detected_dbs" | while IFS='|' read -r db_type rest; do
+        case "$db_type" in
+            sqlite)
+                db_name=$(basename "$rest")
+                echo "  ✓ SQLite: $db_name"
+                ;;
+            postgresql)
+                IFS='|' read -r host port database user is_local <<< "$rest"
+                if [[ "$is_local" == "true" ]]; then
+                    echo "  ✓ PostgreSQL: $database (local)"
+                else
+                    echo "  ⊘ PostgreSQL: $database (remote)"
+                fi
+                ;;
+            mysql)
+                IFS='|' read -r host port database user is_local <<< "$rest"
+                if [[ "$is_local" == "true" ]]; then
+                    echo "  ✓ MySQL: $database (local)"
+                else
+                    echo "  ⊘ MySQL: $database (remote)"
+                fi
+                ;;
+            mongodb)
+                IFS='|' read -r host port database user is_local <<< "$rest"
+                if [[ "$is_local" == "true" ]]; then
+                    echo "  ✓ MongoDB: $database (local)"
+                else
+                    echo "  ⊘ MongoDB: $database (remote)"
+                fi
+                ;;
+        esac
+    done
+    echo ""
+    read -p "  Back up local databases? (Y/n): " backup_dbs_choice
+    backup_dbs_choice=${backup_dbs_choice:-y}
+    ENABLE_DATABASE_BACKUP=true
+    if [[ ! "$backup_dbs_choice" =~ ^[Yy]?$ ]]; then
+        ENABLE_DATABASE_BACKUP=false
+    fi
+else
+    echo "  No databases detected"
+    ENABLE_DATABASE_BACKUP=false
+fi
+echo ""
+
+# === Question 2: Cloud Backup ===
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  2/4: Cloud Backup (Optional)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+read -p "  Enable cloud backup? (y/N): " wants_cloud
+wants_cloud=${wants_cloud:-n}
+echo ""
+
+# === Question 3: Automated Hourly Backups ===
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  3/4: Automated Hourly Backups (macOS only)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+read -p "  Install hourly backup schedule? (Y/n): " install_daemon
+install_daemon=${install_daemon:-y}
+echo ""
+
+# === Question 4: Claude Code Integration ===
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  4/4: Claude Code Integration (Optional)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+read -p "  Add backup trigger to Claude Code? (Y/n): " install_hook
+install_hook=${install_hook:-y}
+echo ""
+
+# === Question 5: Initial Backup ===
+read -p "  Run initial backup after installation? (Y/n): " run_initial
+run_initial=${run_initial:-y}
+echo ""
+
+# ==============================================================================
+# DEPENDENCY CHECK & CONSOLIDATED APPROVAL
+# ==============================================================================
+
+# Load dependency manager
+source "$PACKAGE_DIR/lib/dependency-manager.sh"
+
+# Check what dependencies are needed
+needed_tools=()
+
+if [[ "$wants_cloud" =~ ^[Yy]$ ]] && ! check_rclone; then
+    needed_tools+=("rclone (cloud backup)")
 fi
 
-# Retention policies
-echo ""
-read -p "Database backup retention (days) [30]: " db_retention
-db_retention=${db_retention:-30}
-
-read -p "Archived file retention (days) [60]: " file_retention
-file_retention=${file_retention:-60}
-
-# Drive verification
-echo ""
-read -p "Enable external drive verification? (y/n) [n]: " drive_verify
-drive_verify=${drive_verify:-n}
-
-DRIVE_VERIFICATION_ENABLED=false
-DRIVE_MARKER_FILE="$PROJECT_DIR/.backup-drive-marker"
-
-if [[ "$drive_verify" =~ ^[Yy] ]]; then
-    DRIVE_VERIFICATION_ENABLED=true
-    read -p "Drive marker file path [$DRIVE_MARKER_FILE]: " marker_input
-    [ -n "$marker_input" ] && DRIVE_MARKER_FILE="$marker_input"
-
-    # Create marker file if it doesn't exist
-    if [ ! -f "$DRIVE_MARKER_FILE" ]; then
-        touch "$DRIVE_MARKER_FILE"
-        echo "✅ Created drive marker file: $DRIVE_MARKER_FILE"
+# Check database tools if databases detected
+if [ -n "$detected_dbs" ] && [[ "$ENABLE_DATABASE_BACKUP" == "true" ]]; then
+    if echo "$detected_dbs" | grep -q "^postgresql|" && ! check_postgres_tools; then
+        needed_tools+=("pg_dump (PostgreSQL backup)")
+    fi
+    if echo "$detected_dbs" | grep -q "^mysql|" && ! check_mysql_tools; then
+        needed_tools+=("mysqldump (MySQL backup)")
+    fi
+    if echo "$detected_dbs" | grep -q "^mongodb|" && ! check_mongodb_tools; then
+        needed_tools+=("mongodump (MongoDB backup)")
     fi
 fi
 
-# Optional features
-echo ""
-read -p "Enable auto-commit to git after backup? (y/n) [n]: " auto_commit
-auto_commit=${auto_commit:-n}
+# If tools are needed, ask for blanket permission ONCE
+if [ ${#needed_tools[@]} -gt 0 ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Additional Tools Needed"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  The following tools will be installed:"
+    echo ""
+    for tool in "${needed_tools[@]}"; do
+        echo "    • $tool"
+    done
+    echo ""
+    read -p "  Install these tools automatically? (Y/n): " install_tools
+    install_tools=${install_tools:-y}
+    echo ""
 
-AUTO_COMMIT_ENABLED=false
-if [[ "$auto_commit" =~ ^[Yy] ]]; then
-    AUTO_COMMIT_ENABLED=true
+    if [[ ! "$install_tools" =~ ^[Yy]?$ ]]; then
+        echo "⚠️  Installation cancelled - required tools not approved"
+        exit 1
+    fi
 fi
 
-# Critical file backups
+# ==============================================================================
+# PHASE 2: INSTALLATION (No more questions!)
+# ==============================================================================
+
+echo "══════════════════════════════════════════════════════════"
+echo "  Installing Checkpoint..."
+echo "══════════════════════════════════════════════════════════"
 echo ""
-echo "Backup gitignored files locally (not to GitHub):"
-read -p "  - .env files? (y/n) [y]: " backup_env
-backup_env=${backup_env:-y}
 
-read -p "  - Credentials (*.pem, *.key, etc.)? (y/n) [y]: " backup_creds
-backup_creds=${backup_creds:-y}
+# Smart defaults
+db_retention=30
+file_retention=60
+DRIVE_VERIFICATION_ENABLED=false
+DRIVE_MARKER_FILE="$PROJECT_DIR/.backup-drive-marker"
+AUTO_COMMIT_ENABLED=false
+backup_env=y
+backup_creds=y
+backup_ide=y
+backup_notes=y
+backup_dbs=y
+DB_PATH=""
+DB_TYPE="none"
 
-read -p "  - IDE settings? (y/n) [y]: " backup_ide
-backup_ide=${backup_ide:-y}
-
-read -p "  - Local notes? (y/n) [y]: " backup_notes
-backup_notes=${backup_notes:-y}
-
-read -p "  - Local databases? (y/n) [y]: " backup_dbs
-backup_dbs=${backup_dbs:-y}
-
-# Cloud backup
-echo ""
-read -p "Do you want cloud backup? (Dropbox, Google Drive, etc.) (y/n) [n]: " wants_cloud
-wants_cloud=${wants_cloud:-n}
-
+# Install dependencies silently (user already approved above)
 CLOUD_ENABLED=false
 CLOUD_CONFIGURED=false
 
 if [[ "$wants_cloud" =~ ^[Yy]$ ]]; then
-    # Load dependency manager to handle rclone installation
-    source "$PACKAGE_DIR/lib/dependency-manager.sh"
-
-    echo ""
-    echo "Cloud backup will be configured..."
-
-    # Check/install rclone
-    if require_rclone; then
+    if ! check_rclone; then
+        echo "  → Installing rclone..."
+        install_rclone >/dev/null 2>&1
+    fi
+    if check_rclone; then
         CLOUD_ENABLED=true
         CLOUD_CONFIGURED=true
-        echo ""
-        echo "✅ rclone ready for cloud configuration"
-    else
-        echo ""
-        echo "⚠️  Cloud backup skipped (rclone not installed)"
-        echo "   You can enable it later with: backup-cloud-config"
     fi
-else
-    echo ""
-    echo "  ↳ Cloud backup skipped"
-    echo "   You can enable it later with: backup-cloud-config"
 fi
+
+# Install database tools silently if needed
+if [ -n "$detected_dbs" ] && [[ "$ENABLE_DATABASE_BACKUP" == "true" ]]; then
+    if echo "$detected_dbs" | grep -q "^postgresql|" && ! check_postgres_tools; then
+        echo "  → Installing PostgreSQL tools..."
+        install_postgres_tools >/dev/null 2>&1
+    fi
+    if echo "$detected_dbs" | grep -q "^mysql|" && ! check_mysql_tools; then
+        echo "  → Installing MySQL tools..."
+        install_mysql_tools >/dev/null 2>&1
+    fi
+    if echo "$detected_dbs" | grep -q "^mongodb|" && ! check_mongodb_tools; then
+        echo "  → Installing MongoDB tools..."
+        install_mongodb_tools >/dev/null 2>&1
+    fi
+fi
+echo ""
 
 # ==============================================================================
 # CREATE CONFIGURATION FILE
 # ==============================================================================
 
-echo ""
-echo "Creating configuration file..."
+echo "  [1/5] Creating configuration..."
 
 CONFIG_FILE="$PROJECT_DIR/.backup-config.sh"
 
@@ -327,43 +412,48 @@ DB_STATE_FILE="\$BACKUP_DIR/.backup-state"
 EOF
 
 chmod +x "$CONFIG_FILE"
-echo "✅ Configuration saved: $CONFIG_FILE"
+echo "        ✓ Configuration created"
 
 # ==============================================================================
 # CREATE .CLAUDE DIRECTORY
 # ==============================================================================
 
-mkdir -p "$PROJECT_DIR/.claude/hooks"
-echo "✅ Created .claude directory"
+mkdir -p "$PROJECT_DIR/.claude/hooks" >/dev/null 2>&1
 
 # ==============================================================================
 # COPY SCRIPTS
 # ==============================================================================
 
-echo ""
-echo "Copying backup scripts..."
+echo "  [2/5] Installing scripts..."
 
-cp "$PACKAGE_DIR/bin/backup-daemon.sh" "$PROJECT_DIR/.claude/backup-daemon.sh"
-chmod +x "$PROJECT_DIR/.claude/backup-daemon.sh"
-echo "✅ Installed backup-daemon.sh"
+# Create bin/ directory for easy access to commands
+mkdir -p "$PROJECT_DIR/bin"
 
+# Copy all command scripts to bin/
+cp "$PACKAGE_DIR/bin/backup-now.sh" "$PROJECT_DIR/bin/"
+cp "$PACKAGE_DIR/bin/backup-status.sh" "$PROJECT_DIR/bin/"
+cp "$PACKAGE_DIR/bin/backup-restore.sh" "$PROJECT_DIR/bin/"
+cp "$PACKAGE_DIR/bin/backup-cleanup.sh" "$PROJECT_DIR/bin/"
+cp "$PACKAGE_DIR/bin/backup-cloud-config.sh" "$PROJECT_DIR/bin/"
+cp "$PACKAGE_DIR/bin/backup-daemon.sh" "$PROJECT_DIR/.claude/"
 cp "$PACKAGE_DIR/bin/smart-backup-trigger.sh" "$PROJECT_DIR/.claude/hooks/backup-trigger.sh"
-chmod +x "$PROJECT_DIR/.claude/hooks/backup-trigger.sh"
-echo "✅ Installed backup-trigger.sh"
 
-# Database safety hook (if database configured)
-if [ "$DB_TYPE" != "none" ]; then
-    cp "$PACKAGE_DIR/templates/pre-database.sh" "$PROJECT_DIR/.claude/hooks/pre-database.sh"
-    chmod +x "$PROJECT_DIR/.claude/hooks/pre-database.sh"
-    echo "✅ Installed pre-database.sh safety hook"
-fi
+# Make all scripts executable
+chmod +x "$PROJECT_DIR/bin/"*.sh
+chmod +x "$PROJECT_DIR/.claude/backup-daemon.sh"
+chmod +x "$PROJECT_DIR/.claude/hooks/backup-trigger.sh"
+
+# Copy library files
+mkdir -p "$PROJECT_DIR/.claude/lib"
+cp -r "$PACKAGE_DIR/lib/"* "$PROJECT_DIR/.claude/lib/"
+
+echo "        ✓ Scripts installed"
 
 # ==============================================================================
 # UPDATE .GITIGNORE
 # ==============================================================================
 
-echo ""
-echo "Updating .gitignore..."
+echo "  [3/5] Configuring .gitignore..."
 
 GITIGNORE="$PROJECT_DIR/.gitignore"
 [ ! -f "$GITIGNORE" ] && touch "$GITIGNORE"
@@ -374,7 +464,6 @@ if ! grep -q "^backups/$" "$GITIGNORE" 2>/dev/null; then
     echo "# Checkpoint" >> "$GITIGNORE"
     echo "backups/" >> "$GITIGNORE"
     echo ".backup-config.sh" >> "$GITIGNORE"
-    echo "✅ Added backups/ to .gitignore"
 fi
 
 # Add critical files if backup enabled
@@ -390,17 +479,14 @@ if [ "$backup_creds" = "y" ] && ! grep -q "^\*\.pem$" "$GITIGNORE" 2>/dev/null; 
     echo "secrets.*" >> "$GITIGNORE"
 fi
 
-echo "✅ Updated .gitignore"
+echo "        ✓ .gitignore updated"
 
 # ==============================================================================
 # INSTALL LAUNCHAGENT (macOS only)
 # ==============================================================================
 
-echo ""
-read -p "Install LaunchAgent for hourly backups? (y/n) [y]: " install_daemon
-install_daemon=${install_daemon:-y}
-
 if [[ "$install_daemon" =~ ^[Yy] ]]; then
+    echo "  [4/5] Installing automation..."
     PLIST_FILE="$HOME/Library/LaunchAgents/com.claudecode.backup.${PROJECT_NAME}.plist"
     DAEMON_SCRIPT="$PROJECT_DIR/.claude/backup-daemon.sh"
 
@@ -433,20 +519,16 @@ if [[ "$install_daemon" =~ ^[Yy] ]]; then
 EOF
 
     launchctl unload "$PLIST_FILE" 2>/dev/null || true
-    launchctl load "$PLIST_FILE"
-    echo "✅ LaunchAgent installed and loaded"
-    echo "   Log: $HOME/.claudecode-backups/logs/${PROJECT_NAME}-daemon.log"
+    launchctl load "$PLIST_FILE" 2>&1 >/dev/null
+    echo "        ✓ Hourly backups enabled"
 fi
 
 # ==============================================================================
 # CONFIGURE CLAUDE CODE HOOKS
 # ==============================================================================
 
-echo ""
-read -p "Add backup trigger to Claude Code settings? (y/n) [y]: " install_hook
-install_hook=${install_hook:-y}
-
 if [[ "$install_hook" =~ ^[Yy] ]]; then
+    echo "  [5/5] Configuring Claude Code integration..."
     SETTINGS_FILE="$HOME/.config/claude/settings.json"
 
     if [ -f "$SETTINGS_FILE" ]; then
@@ -474,7 +556,7 @@ if [[ "$install_hook" =~ ^[Yy] ]]; then
   }
 }
 EOF
-        echo "✅ Claude Code settings.json created"
+        echo "        ✓ Claude Code integration enabled"
     fi
 fi
 
@@ -482,14 +564,9 @@ fi
 # INITIAL BACKUP
 # ==============================================================================
 
-echo ""
-read -p "Run initial backup now? (y/n) [y]: " run_initial
-run_initial=${run_initial:-y}
-
 if [[ "$run_initial" =~ ^[Yy] ]]; then
-    echo ""
-    echo "Running initial backup..."
-    "$PROJECT_DIR/.claude/backup-daemon.sh"
+    echo "  → Running initial backup..."
+    "$PROJECT_DIR/bin/backup-now.sh" >/dev/null 2>&1 && echo "        ✓ Initial backup complete" || echo "        ⚠ Backup completed with warnings"
 fi
 
 # ==============================================================================
@@ -497,19 +574,18 @@ fi
 # ==============================================================================
 
 echo ""
-echo "═══════════════════════════════════════════════"
-echo "✅ Installation Complete!"
-echo "═══════════════════════════════════════════════"
+echo "══════════════════════════════════════════════════════════"
+echo "  ✅ Checkpoint Installed Successfully!"
+echo "══════════════════════════════════════════════════════════"
 echo ""
-echo "Configuration:"
-echo "  Project: $PROJECT_NAME"
-echo "  Database: ${DB_PATH:-None}"
-echo "  Backups: $PROJECT_DIR/backups/"
-echo "  Retention: ${db_retention}d (DB), ${file_retention}d (files)"
+echo "  Commands:"
+echo "    ./bin/backup-now.sh         Run backup now"
+echo "    ./bin/backup-status.sh      View backup status"
+echo "    ./bin/backup-restore.sh     Restore from backup"
 echo ""
-echo "Next steps:"
 if [[ "$CLOUD_CONFIGURED" == "true" ]]; then
-    echo "  1. Configure cloud storage: $PACKAGE_DIR/bin/backup-cloud-config.sh"
+    echo "  Next: Configure cloud storage"
+    echo "    ./bin/backup-cloud-config.sh"
     echo "  2. Backups run automatically every hour"
     echo "  3. Check backups: ls -la $PROJECT_DIR/backups/"
 else

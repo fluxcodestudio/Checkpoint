@@ -5,6 +5,104 @@ All notable changes to Checkpoint will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2025-12-25
+
+### Added
+
+**Universal Database Support** - Auto-detect and backup PostgreSQL, MySQL, MongoDB
+
+- **Multi-Database Detection:** Auto-detects SQLite, PostgreSQL, MySQL, MongoDB from:
+  - File patterns (*.db, *.sqlite, *.sqlite3)
+  - Environment variables (DATABASE_URL, POSTGRES_URL, MYSQL_*, MONGODB_URL)
+  - Running processes (postgres, mysqld, mongod)
+  - Configuration files (.env, .env.local, .env.development)
+- **Local vs Remote Detection:** Automatically distinguishes local databases from remote (Neon, Supabase, PlanetScale)
+  - Local databases: Backed up automatically
+  - Remote databases: Skipped (displayed in detection but not backed up)
+- **Progressive Tool Installation:** Database tools installed only when needed:
+  - `pg_dump` / `pg_restore` for PostgreSQL
+  - `mysqldump` for MySQL/MariaDB
+  - `mongodump` / `mongorestore` for MongoDB
+  - One consolidated approval for all tools
+- **Smart Backup Functions:**
+  - SQLite: File copy + gzip compression
+  - PostgreSQL: pg_dump with schema + data
+  - MySQL: mysqldump with complete schema
+  - MongoDB: mongodump with BSON export
+
+**New Files:**
+- `lib/database-detector.sh` - Universal database detection (450+ lines)
+- `lib/dependency-manager.sh` - Enhanced with database tool installers
+
+**Streamlined Installation UX** - Lightning-fast wizard (~20 seconds)
+
+- **Reduced Questions:** 15+ questions → 5 questions
+  - 1/4: Back up detected databases? (Y/n)
+  - 2/4: Enable cloud backup? (y/N)
+  - 3/4: Install hourly backups? (Y/n)
+  - 4/4: Claude Code integration? (Y/n)
+  - Final: Run initial backup? (Y/n)
+- **Consolidated Dependency Approval:** One approval for all tools instead of multiple interruptions
+- **Clear Progress Indicators:** [1/5] [2/5] [3/5] [4/5] [5/5] ✓
+- **Silent Installation:** Minimal output, redirected noise to /dev/null
+- **Smart Defaults:** No retention prompts, no drive verification prompts (can enable later)
+
+**Per-Project Mode Improvements**
+
+- **Complete Command Suite:** All commands now available in `./bin/`
+  - `./bin/backup-now.sh`
+  - `./bin/backup-status.sh`
+  - `./bin/backup-restore.sh`
+  - `./bin/backup-cleanup.sh`
+  - `./bin/backup-cloud-config.sh`
+- **Library Files Included:** All libraries copied to `.claude/lib/`
+- **Fully Self-Contained:** No external dependencies after installation
+
+### Changed
+
+**Installation Flow** - All questions upfront, uninterrupted installation
+
+- **Phase 1: Configuration** (all questions asked first)
+- **Phase 2: Installation** (no more prompts, smooth progress)
+- **Transparent Dependency Installation:** Shows what will be installed before approval
+- **Better Error Messages:** Clear feedback if installation fails
+
+**Backup Process** - Universal database backup
+
+- `backup-now.sh` now uses `backup_detected_databases()` from database-detector.sh
+- Automatic fallback to legacy SQLite backup if detector unavailable
+- Database backup section now shows "Auto-detecting..." instead of manual config
+
+### Fixed
+
+**Installation Issues**
+
+- Fixed unbound variable `DRIVE_MARKER_FILE` in install.sh
+- Fixed missing `bin/` directory in per-project installations
+- Fixed library files not being copied to per-project installations
+
+**Database Detection Regex**
+
+- Fixed regex compilation errors in MongoDB URL parsing
+- Fixed `+srv` URL parsing with proper escaping
+- Fixed PostgreSQL/MySQL URL pattern matching
+
+**Security & Privacy**
+
+- Sanitized MANUAL-TEST-GUIDE.md (removed personal usernames)
+- Added SECURITY.md with vulnerability reporting guidelines
+- Created GitHub issue templates (bug report, feature request)
+- Created Pull Request template with comprehensive checklist
+
+**Documentation**
+
+- README.md updated for v2.2.0 features
+- Added "What's New in v2.2.0" section
+- Updated Quick Start with new installation flow
+- Updated database support documentation
+
+---
+
 ## [2.1.0] - 2025-12-24
 
 ### Added

@@ -19,6 +19,16 @@ else
     exit 1
 fi
 
+# Source database detector
+if [ -f "$LIB_DIR/database-detector.sh" ]; then
+    source "$LIB_DIR/database-detector.sh"
+fi
+
+# Source dependency manager
+if [ -f "$LIB_DIR/dependency-manager.sh" ]; then
+    source "$LIB_DIR/dependency-manager.sh"
+fi
+
 # ==============================================================================
 # COMMAND LINE OPTIONS
 # ==============================================================================
@@ -317,22 +327,29 @@ log_info "📦 Backup in progress..."
 log_info ""
 
 # ==============================================================================
-# DATABASE BACKUP
+# DATABASE BACKUP (Universal Auto-Detection)
 # ==============================================================================
 
 if [ "$FILES_ONLY" = false ]; then
-    if [ -n "$DB_PATH" ] && [ -f "$DB_PATH" ]; then
-        # Check if database changed
-        current_state=$(stat -f%z "$DB_PATH" 2>/dev/null)
-        last_state=$(cat "$DB_STATE_FILE" 2>/dev/null || echo "")
+    log_info "   ▸ Databases: Auto-detecting..."
 
-        if [ "$current_state" != "$last_state" ] || [ "$FORCE_BACKUP" = true ]; then
-            log_info "   ▸ Database: Backing up..."
+    # Use universal database detector
+    if command -v backup_detected_databases &>/dev/null; then
+        if backup_detected_databases "$PROJECT_DIR" "$BACKUP_DIR"; then
+            log_success "   ▸ Databases: ✅ Backup complete"
+        else
+            log_info "   ▸ Databases: Some backups failed (see above)"
+            ((backup_errors++))
+        fi
+    else
+        # Fallback to legacy SQLite-only backup if detector not available
+        if [ -n "${DB_PATH:-}" ] && [ -f "$DB_PATH" ]; then
+            log_info "   ▸ Database: Backing up (legacy SQLite)..."
 
             timestamp=$(date '+%m.%d.%y - %H:%M')
             backup_file="$DATABASE_DIR/${PROJECT_NAME} - ${timestamp}.db.gz"
 
-            if [ "$DB_TYPE" = "sqlite" ]; then
+            if [ "${DB_TYPE:-sqlite}" = "sqlite" ]; then
                 if sqlite3 "$DB_PATH" ".backup /tmp/${PROJECT_NAME}_temp.db" && \
                    gzip -c "/tmp/${PROJECT_NAME}_temp.db" > "$backup_file" && \
                    rm "/tmp/${PROJECT_NAME}_temp.db"; then
@@ -340,22 +357,17 @@ if [ "$FILES_ONLY" = false ]; then
                     backup_size=$(stat -f%z "$backup_file")
                     backup_size_human=$(format_bytes $backup_size)
                     log_success "   ▸ Database: ✅ Done ($backup_size_human compressed)"
-
-                    # Update state
-                    echo "$current_state" > "$DB_STATE_FILE"
                 else
                     log_error "   ▸ Database: ❌ Failed"
                     ((backup_errors++))
                 fi
             else
-                log_error "   ▸ Database: ❌ Unsupported type: $DB_TYPE"
+                log_error "   ▸ Database: ❌ Unsupported type: ${DB_TYPE}"
                 ((backup_errors++))
             fi
         else
-            log_info "   ▸ Database: No changes detected"
+            log_verbose "   ▸ Database: No databases detected"
         fi
-    else
-        log_verbose "   ▸ Database: Not configured"
     fi
 fi
 

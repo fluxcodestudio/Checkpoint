@@ -1,12 +1,39 @@
+<div align="center">
+
+<img src=".github/assets/checkpoint-logo.png" alt="Checkpoint Logo" width="200"/>
+
 # Checkpoint
 
 **A code guardian for developing projects. A little peace of mind goes a long way.**
 
 Automated, intelligent backup system for any development environment. Battle-tested with comprehensive test coverage, cloud backup support, and multi-platform integrations.
 
-**Version:** 2.1.0
+**Version:** 2.2.0
 **Test Coverage:** 164/164 (100%)
-**License:** MIT
+**License:** GPL v3
+
+</div>
+
+---
+
+## What's New in v2.2.0
+
+🚀 **Universal Database Support**
+- Auto-detects PostgreSQL, MySQL, MongoDB (in addition to SQLite)
+- Distinguishes local vs remote databases
+- Progressive installation of database tools (pg_dump, mysqldump, mongodump)
+
+⚡ **Lightning-Fast Installation**
+- Streamlined wizard: 5 questions, ~20 seconds
+- All questions upfront → uninterrupted installation
+- Clear progress indicators: [1/5] [2/5] [3/5] [4/5] [5/5]
+- One consolidated approval for all dependencies
+
+🎯 **Improved UX**
+- Clean, minimal output
+- Smart defaults (no more 15+ questions)
+- Per-project mode now includes all commands in `./bin/`
+- Better error messages and progress feedback
 
 ---
 
@@ -15,7 +42,8 @@ Automated, intelligent backup system for any development environment. Battle-tes
 ### Core Capabilities
 - **Organized Backup Structure** — Databases, current files, and archived versions in separate folders
 - **Smart Change Detection** — Only backs up modified files
-- **Database Snapshots** — Compressed timestamped backups (SQLite supported)
+- **Universal Database Detection** — Auto-detects and backs up SQLite, PostgreSQL, MySQL, MongoDB (local only)
+- **Database Snapshots** — Compressed timestamped backups with proper tools (sqlite3, pg_dump, mysqldump, mongodump)
 - **Version Archiving** — Old versions preserved when files change (not deleted)
 - **Critical File Coverage** — Backs up .env, credentials, IDE settings, notes (kept out of Git)
 - **Cloud Backup** — Off-site protection via rclone (Dropbox, Google Drive, OneDrive, iCloud)
@@ -74,15 +102,29 @@ cd Checkpoint
 - No system modifications
 - Good for: shared systems, containers
 
-The installer will:
-1. Ask which installation mode you prefer
-2. Check dependencies (bash, git, gzip)
-3. **Ask if you want cloud backup** (optional)
-   - If yes → Auto-installs rclone (with your permission)
-   - If no → You can enable it later
-4. Configure backup settings (project name, database, retention)
-5. Set up automated backups
-6. Run initial backup
+**The installer is fast and streamlined (5 questions, ~20 seconds):**
+
+1. **Auto-detects databases** (SQLite, PostgreSQL, MySQL, MongoDB)
+   - Shows what was found
+   - "Back up these databases? (Y/n)"
+
+2. **Cloud backup?** (optional)
+   - One-time approval to install rclone if needed
+
+3. **Hourly backups?** (macOS LaunchAgent)
+
+4. **Claude Code integration?** (optional)
+
+5. **Run initial backup?**
+
+Then installs without interruption:
+```
+[1/5] Creating configuration... ✓
+[2/5] Installing scripts... ✓
+[3/5] Configuring .gitignore... ✓
+→ Running initial backup... ✓
+✅ Done!
+```
 
 ### Cloud Backup Setup
 
@@ -122,6 +164,18 @@ ls -la backups/files/
 
 **Global Mode:** Commands available system-wide
 **Per-Project Mode:** Run from `bin/` directory
+**Claude Code:** All commands available as slash commands (`/checkpoint`, `/backup-now`, etc.)
+
+### Main Control Panel
+
+Use `/checkpoint` (Claude Code) or `backup-status` for quick overview:
+
+```bash
+/checkpoint              # Control panel with status and updates
+backup-status            # Detailed system health
+```
+
+### All Commands
 
 | Command | Global | Per-Project | Description |
 |---------|--------|-------------|-------------|
@@ -129,11 +183,20 @@ ls -la backups/files/
 | `backup-now` | ✓ | `./bin/backup-now.sh` | Trigger immediate backup |
 | `backup-restore` | ✓ | `./bin/backup-restore.sh` | Restore from backups |
 | `backup-cleanup` | ✓ | `./bin/backup-cleanup.sh` | Manage old backups and disk space |
+| `backup-update` | ✓ | `./bin/backup-update.sh` | Update Checkpoint from GitHub |
+| `backup-pause` | ✓ | `./bin/backup-pause.sh` | Pause/resume automatic backups |
 | `backup-cloud-config` | ✓ | `./bin/backup-cloud-config.sh` | Configure cloud backup |
 | `install.sh` | N/A | `./bin/install.sh` | Install Checkpoint |
-| `uninstall.sh` | N/A | `./bin/uninstall.sh` | Uninstall Checkpoint |
+| `uninstall.sh` | ✓ | `./bin/uninstall.sh` | Uninstall Checkpoint |
 
 ### Command Examples
+
+**Control Panel (Claude Code):**
+```bash
+/checkpoint                          # Status, updates, help
+/checkpoint --update                 # Update Checkpoint
+/checkpoint --check-update           # Check for updates
+```
 
 **Check Status:**
 ```bash
@@ -146,6 +209,19 @@ ls -la backups/files/
 ./bin/backup-now.sh
 ./bin/backup-now.sh --force          # Ignore change detection
 ./bin/backup-now.sh --local-only     # Skip cloud upload
+```
+
+**Update System:**
+```bash
+./bin/backup-update.sh               # Update from GitHub
+./bin/backup-update.sh --check-only  # Check without installing
+```
+
+**Pause/Resume:**
+```bash
+./bin/backup-pause.sh                # Pause automatic backups
+./bin/backup-pause.sh --resume       # Resume backups
+./bin/backup-pause.sh --status       # Check if paused
 ```
 
 **Configure Cloud:**
@@ -474,7 +550,19 @@ A: Run `./bin/backup-restore.sh`, choose file, select version.
 A: Yes. Edit `.backup-config.sh`, change `DB_RETENTION_DAYS` and `FILE_RETENTION_DAYS`.
 
 **Q: What databases are supported?**
-A: Currently SQLite. PostgreSQL/MySQL would need dump commands (PRs welcome!).
+A: SQLite, PostgreSQL, MySQL, and MongoDB! v2.2.0 auto-detects all databases and installs required tools (pg_dump, mysqldump, mongodump) progressively.
+
+**Q: How do I update Checkpoint?**
+A: Use `/checkpoint --update` (Claude Code) or `./bin/backup-update.sh`. Updates automatically from GitHub.
+
+**Q: Can I pause backups temporarily?**
+A: Yes! Use `/backup-pause` to pause automatic backups (manual backups still work). Resume with `/backup-pause --resume`.
+
+**Q: What's the `/checkpoint` command?**
+A: Control panel showing version, status, updates, and all available commands. Use `/checkpoint --info` to see installation mode (Global vs Per-Project).
+
+**Q: How do I uninstall?**
+A: Use `/uninstall` (keeps backups by default) or `./bin/uninstall.sh`. Add `--no-keep-backups` to remove everything.
 
 ---
 
@@ -486,7 +574,8 @@ A: Currently SQLite. PostgreSQL/MySQL would need dump commands (PRs welcome!).
 - **[API Reference](docs/API.md)** - Library functions for developers
 - **[Development Guide](docs/DEVELOPMENT.md)** - Contributing guidelines
 - **[Migration Guide](docs/MIGRATION.md)** - Upgrading from older versions
-- **[Testing Guide](docs/TESTING.md)** - Running tests (164/164 passing)
+- **[Testing Guide](docs/TESTING.md)** - Running tests (164/164 passing + 115 v2.2.0)
+- **[Testing Report](TESTING-REPORT.md)** - Comprehensive v2.2.0 validation results
 
 ---
 
@@ -502,19 +591,29 @@ Checkpoint/
 │   ├── backup-config.sh
 │   ├── backup-restore.sh
 │   ├── backup-cleanup.sh
+│   ├── backup-update.sh          # Update from GitHub (v2.2.0)
+│   ├── backup-pause.sh           # Pause/resume (v2.2.0)
 │   ├── backup-cloud-config.sh    # Cloud setup
 │   ├── backup-daemon.sh
 │   ├── install.sh
 │   └── uninstall.sh
 ├── lib/                          # Core libraries
 │   ├── backup-lib.sh
-│   └── cloud-backup.sh           # Cloud functions
+│   ├── cloud-backup.sh           # Cloud functions
+│   ├── database-detector.sh      # Universal DB detection (v2.2.0)
+│   └── dependency-manager.sh     # Progressive installs (v2.2.0)
 ├── integrations/                 # Universal integrations
 │   ├── shell/
 │   ├── git/
 │   ├── vim/
 │   ├── vscode/
 │   └── tmux/
+├── .claude/skills/              # Claude Code commands (v2.2.0)
+│   ├── checkpoint/              # Control panel
+│   ├── backup-update/           # Update command
+│   ├── backup-pause/            # Pause/resume
+│   ├── uninstall/               # Safe uninstall
+│   └── [8 more skills]
 ├── docs/                         # Documentation
 ├── tests/                        # Test suite (164 tests)
 ├── templates/
@@ -538,7 +637,7 @@ your-project/
 
 ## Testing
 
-**Test Coverage: 100% (164/164 tests passing)**
+**Test Coverage: 100% (164/164 tests passing + 115 v2.2.0 tests)**
 
 ```bash
 # Run all tests
@@ -562,7 +661,7 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 
 **Author:** Jon Rezin
 **Repository:** https://github.com/nizernoj/Checkpoint
-**License:** MIT
+**License:** GPL v3
 
 Built from real-world usage with comprehensive testing and cloud backup support.
 
@@ -570,4 +669,6 @@ Built from real-world usage with comprehensive testing and cloud backup support.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) file for details.
+GPL v3 License — see [LICENSE](LICENSE) file for details.
+
+This ensures Checkpoint remains free and open-source for the community forever.

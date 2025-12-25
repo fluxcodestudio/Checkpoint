@@ -152,12 +152,13 @@ Fixes #123
 ```
 checkpoint/
 ├── bin/            # Executable scripts
+├── .claude/skills/ # Claude Code slash commands (v2.2.0)
 ├── docs/           # Documentation
 ├── examples/       # Usage examples
 ├── integrations/   # Platform integrations
 ├── lib/            # Core libraries
 ├── templates/      # Config templates
-└── tests/          # Test suite
+└── tests/          # Test suite (164 + 115 v2.2.0 tests)
 ```
 
 See [docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md) for details.
@@ -179,6 +180,14 @@ See [docs/PROJECT-STRUCTURE.md](docs/PROJECT-STRUCTURE.md) for details.
 4. Add tests: `tests/integration/test-platform-integrations.sh`
 5. Document in `docs/INTEGRATIONS.md`
 
+### Adding a Claude Code Skill (v2.2.0+)
+1. Create `.claude/skills/my-skill/`
+2. Add `skill.json` with metadata and argument schema
+3. Create `run.sh` wrapper script
+4. Make executable: `chmod +x .claude/skills/my-skill/run.sh`
+5. Test with `/my-skill` in Claude Code
+6. Document in `docs/COMMANDS.md`
+
 ### Fixing a Bug
 1. Write a failing test that reproduces the bug
 2. Fix the bug
@@ -192,9 +201,12 @@ Only maintainers can create releases:
 
 1. Update `VERSION` file
 2. Update `CHANGELOG.md` with release notes
-3. Run full test suite: `./tests/run-all-tests.sh`
-4. Create git tag: `git tag v1.X.Y`
-5. Push with tags: `git push --tags`
+3. Run pre-release validation: `./tests/pre-release-validation.sh`
+4. Run full test suite: `./tests/run-all-tests.sh`
+5. Review test report: `TESTING-REPORT.md`
+6. Create git tag: `git tag v1.X.Y`
+7. Push with tags: `git push origin main --tags`
+8. Create GitHub release with changelog
 
 ## Getting Help
 
@@ -214,7 +226,7 @@ All submissions require review. We look for:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the GNU General Public License v3.0.
 
 ## Recognition
 
