@@ -135,6 +135,25 @@ create_symlink "backup-pause.sh" "backup-pause"
 create_symlink "configure-project.sh" "configure-project"
 create_symlink "uninstall-global.sh" "backup-uninstall"
 
+# ==============================================================================
+# INSTALL CLAUDE CODE SKILL
+# ==============================================================================
+
+echo ""
+echo "Installing Claude Code skill..."
+
+# Install /checkpoint skill to user's skills directory
+USER_SKILLS_DIR="$HOME/.claude/skills"
+mkdir -p "$USER_SKILLS_DIR"
+
+if [[ -d "$PACKAGE_DIR/.claude/skills/checkpoint" ]]; then
+    cp -r "$PACKAGE_DIR/.claude/skills/checkpoint" "$USER_SKILLS_DIR/"
+    chmod +x "$USER_SKILLS_DIR/checkpoint/run.sh"
+    echo "  ✅ /checkpoint skill installed to ~/.claude/skills/"
+else
+    echo "  ⚠️  Checkpoint skill not found in package"
+fi
+
 echo ""
 echo "═══════════════════════════════════════════════"
 echo "✅ Global Installation Complete!"

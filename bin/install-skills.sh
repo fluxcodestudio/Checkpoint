@@ -6,9 +6,28 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
+USER_SKILLS_DIR="$HOME/.claude/skills"
+PROJECT_SKILLS_DIR="$PROJECT_ROOT/.claude/skills"
 
 echo "Installing Checkpoint skill for Claude Code..."
+echo ""
+echo "Choose installation location:"
+echo "  [1] User (~/.claude/skills) - Available globally in all projects"
+echo "  [2] Project (.claude/skills) - Only available in this project"
+echo ""
+read -p "Install where? (1/2) [1]: " install_choice
+install_choice=${install_choice:-1}
+
+if [[ "$install_choice" == "1" ]]; then
+    SKILLS_DIR="$USER_SKILLS_DIR"
+    INSTALL_SCOPE="globally (all projects)"
+else
+    SKILLS_DIR="$PROJECT_SKILLS_DIR"
+    INSTALL_SCOPE="in this project only"
+fi
+
+echo ""
+echo "Installing $INSTALL_SCOPE..."
 echo ""
 
 # Create skills directory
