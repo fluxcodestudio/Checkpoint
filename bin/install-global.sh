@@ -116,11 +116,48 @@ echo "  backup-restore          Restore from backup"
 echo "  backup-cleanup          Clean old backups"
 echo "  backup-cloud-config     Configure cloud storage"
 echo ""
-echo "Next steps:"
-echo "  1. Navigate to any project directory"
-echo "  2. Run: backup-cloud-config (to set up per-project)"
-echo "  3. Or create .backup-config.sh manually"
+
+# ==============================================================================
+# OPTIONAL: CONFIGURE CURRENT PROJECT
+# ==============================================================================
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
+read -p "Configure a project now? (Y/n): " configure_now
+configure_now=${configure_now:-y}
+echo ""
+
+if [[ "$configure_now" =~ ^[Yy]$ ]]; then
+    # Ask for project directory
+    read -p "Project directory [current: $PWD]: " project_path
+    project_path=${project_path:-$PWD}
+
+    # Expand ~ to home directory
+    project_path="${project_path/#\~/$HOME}"
+
+    # Convert to absolute path
+    project_path=$(cd "$project_path" 2>/dev/null && pwd || echo "$project_path")
+
+    if [[ ! -d "$project_path" ]]; then
+        echo "❌ Directory not found: $project_path"
+        echo "   You can configure projects later by running:"
+        echo "   cd /your/project && backup-now"
+        echo ""
+    else
+        echo "Configuring: $project_path"
+        echo ""
+
+        # Run project configuration wizard
+        "$LIB_DIR/bin/configure-project.sh" "$project_path"
+    fi
+else
+    echo "Next steps:"
+    echo "  1. Navigate to any project directory"
+    echo "  2. Run: backup-now"
+    echo "  3. Follow the configuration wizard"
+    echo ""
+fi
+
 echo "To uninstall:"
 echo "  rm -rf $LIB_DIR"
 echo "  rm -f $BIN_DIR/backup-*"
