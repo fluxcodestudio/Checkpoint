@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Integration Wizard Installer
 # Version: 1.2.0
 # Detects available platforms and installs selected integrations

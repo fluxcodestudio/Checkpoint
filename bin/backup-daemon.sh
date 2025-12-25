@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Main Backup Daemon
 # Handles database backups, file backups, archiving, and cleanup
 # Can be triggered by: LaunchAgent (hourly), Claude Code hooks (on prompt), or manually

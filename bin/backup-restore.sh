@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Restore Wizard
 # Interactive restore with multiple modes and safety features
 

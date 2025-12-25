@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Smart Backup Trigger
 # Runs on every user prompt via Claude Code UserPromptSubmit hook
 # Triggers backup on first prompt of new session, then coordinates with daemon

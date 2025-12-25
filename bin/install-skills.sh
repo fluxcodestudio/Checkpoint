@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Install Skills
 # Sets up /checkpoint skill for Claude Code
 

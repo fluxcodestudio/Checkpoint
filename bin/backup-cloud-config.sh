@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Cloud Backup Configuration Wizard
 # Configure cloud storage for backups via rclone
 

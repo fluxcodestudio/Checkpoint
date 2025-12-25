@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Uninstaller
 # Removes backup system from a project (keeps backup data)
 

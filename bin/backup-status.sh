@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Enhanced Status Dashboard
 # Comprehensive health monitoring and statistics display
 

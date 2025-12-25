@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Manual Backup Trigger
 # Force an immediate backup with progress reporting
 

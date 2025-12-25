@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Cleanup Utility
 # Smart cleanup with recommendations and safety features
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # ==============================================================================
 # Checkpoint - Project Configuration Wizard
 # ==============================================================================
@@ -162,7 +162,7 @@ BACKUP_DIR="$PROJECT_DIR/backups"
 
 # Create .backup-config.sh
 cat > "$PROJECT_DIR/.backup-config.sh" << EOF
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint Configuration
 # Auto-generated on $(date)
 
@@ -287,7 +287,7 @@ if [[ "$install_hook" =~ ^[Yy]$ ]] && [[ -d "$HOME/.claude" ]]; then
 
     if [[ -n "${BACKUP_CMD:-}" ]]; then
         cat > "$HOME/.claude/hooks/user-prompt-submit.sh" << HOOK
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Auto-backup on Claude Code session start
 if [[ -f "\$PWD/.backup-config.sh" ]]; then
     $BACKUP_CMD --quiet 2>/dev/null || true

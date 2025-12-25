@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Checkpoint - Configuration Manager
 # Interactive and command-line configuration tool
 #
