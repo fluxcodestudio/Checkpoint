@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2025-12-26
+
+### Fixed
+
+**Dashboard Bash 3.2 Compatibility (macOS)** - Fix checkpoint command failing on macOS
+
+- **Issue:** Dashboard uses associative arrays (`declare -A`) requiring Bash 4.0+
+- **Problem:** macOS ships with Bash 3.2, causing error: "declare: -A: invalid option"
+- **Solution:** Added version check that auto-detects and relaunches with Homebrew Bash 5+ if available
+- **Fallback:** Shows clear error and falls back to simple menu mode if no newer bash found
+- **Tested:** Works with Homebrew Bash 5.3.9 at `/opt/homebrew/bin/bash`
+- **Impact:** Dashboard now works on macOS out of the box
+
+## [2.2.0] - 2025-12-25
+
 ### Added
 
 **Instant Failure Notifications** - Never miss a backup failure again
@@ -45,8 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixed:** Conditional logging caused exits
   - Changed from `[ "$VERBOSE" = true ] && log_verbose "..."` to proper if statements
 - **Impact:** Backup would only process first file then exit, now processes all files correctly
-
-## [2.2.0] - 2025-12-25
 
 ### Fixed
 
