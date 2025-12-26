@@ -187,7 +187,7 @@ if [ "$DRIVE_VERIFICATION_ENABLED" = "true" ]; then
         log_verbose "   ✓ Drive connected"
     else
         log_error "   ✗ Drive not connected: $DRIVE_MARKER_FILE"
-        ((preflight_errors++))
+        preflight_errors=$((preflight_errors + 1))
     fi
 fi
 
@@ -196,7 +196,7 @@ if check_config_status; then
     log_verbose "   ✓ Configuration valid"
 else
     log_error "   ✗ Configuration invalid"
-    ((preflight_errors++))
+    preflight_errors=$((preflight_errors + 1))
 fi
 
 # Check for running backup
@@ -413,7 +413,7 @@ if [ "$FILES_ONLY" = false ]; then
             log_success "   ▸ Databases: ✅ Backup complete"
         else
             log_info "   ▸ Databases: Some backups failed (see above)"
-            ((backup_errors++))
+            backup_errors=$((backup_errors + 1))
         fi
     else
         # Fallback to legacy SQLite-only backup if detector not available
@@ -433,11 +433,11 @@ if [ "$FILES_ONLY" = false ]; then
                     log_success "   ▸ Database: ✅ Done ($backup_size_human compressed)"
                 else
                     log_error "   ▸ Database: ❌ Failed"
-                    ((backup_errors++))
+                    backup_errors=$((backup_errors + 1))
                 fi
             else
                 log_error "   ▸ Database: ❌ Unsupported type: ${DB_TYPE}"
-                ((backup_errors++))
+                backup_errors=$((backup_errors + 1))
             fi
         else
             log_verbose "   ▸ Database: No databases detected"
