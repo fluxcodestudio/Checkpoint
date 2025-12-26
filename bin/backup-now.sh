@@ -274,6 +274,57 @@ if [ "$DRY_RUN" = true ]; then
             find . -maxdepth 3 -type f \( -name ".env" -o -name ".env.*" \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
         fi
 
+        if [ "$BACKUP_CREDENTIALS" = true ]; then
+            find . -maxdepth 3 -type f \( \
+                -name "*.pem" -o -name "*.key" -o \
+                -name "credentials.json" -o -name "secrets.*" -o \
+                -name "*.p12" -o -name "*.pfx" \
+            \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+            # Cloud provider configs
+            [ -f ".aws/credentials" ] && echo ".aws/credentials" >> "$changed_files"
+            [ -f ".aws/config" ] && echo ".aws/config" >> "$changed_files"
+            find . -maxdepth 2 -type f -path "*/.gcp/*.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+            # Terraform secrets
+            find . -maxdepth 3 -type f -name "terraform.tfvars" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+            find . -maxdepth 3 -type f -name "*.tfvars" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+            # Firebase configs
+            find . -maxdepth 2 -type f -path "*/.firebase/*.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+            # Local config overrides
+            find . -maxdepth 3 -type f -name "*.local.*" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+            find . -maxdepth 3 -type f -name "local.settings.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+            find . -maxdepth 3 -type f -name "appsettings.*.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+            # Docker overrides
+            [ -f "docker-compose.override.yml" ] && echo "docker-compose.override.yml" >> "$changed_files"
+        fi
+
+        if [ "$BACKUP_IDE_SETTINGS" = true ]; then
+            [ -f ".vscode/settings.json" ] && echo ".vscode/settings.json" >> "$changed_files"
+            [ -f ".vscode/launch.json" ] && echo ".vscode/launch.json" >> "$changed_files"
+            [ -f ".vscode/extensions.json" ] && echo ".vscode/extensions.json" >> "$changed_files"
+            [ -f ".idea/workspace.xml" ] && echo ".idea/workspace.xml" >> "$changed_files"
+            if [ -d ".idea/codeStyles" ]; then
+                find .idea/codeStyles -type f 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+            fi
+        fi
+
+        if [ "$BACKUP_LOCAL_NOTES" = true ]; then
+            find . -maxdepth 2 -type f \( \
+                -name "NOTES.md" -o -name "NOTES.txt" -o \
+                -name "TODO.local.md" -o -name "*.private.md" \
+            \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        fi
+
+        if [ "$BACKUP_LOCAL_DATABASES" = true ]; then
+            main_db_name=$(basename "$DB_PATH" 2>/dev/null || echo "")
+            find . -maxdepth 3 -type f \( -name "*.db" -o -name "*.sqlite" -o -name "*.sql" \) \
+                ! -name "$main_db_name" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        fi
+
         if [ ! -s "$changed_files" ]; then
             log_info "📁 Files: No changes detected"
         else
@@ -411,12 +462,36 @@ if [ "$DATABASE_ONLY" = false ]; then
             -name "credentials.json" -o -name "secrets.*" -o \
             -name "*.p12" -o -name "*.pfx" \
         \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+        # Cloud provider configs
+        [ -f ".aws/credentials" ] && echo ".aws/credentials" >> "$changed_files"
+        [ -f ".aws/config" ] && echo ".aws/config" >> "$changed_files"
+        find . -maxdepth 2 -type f -path "*/.gcp/*.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+        # Terraform secrets
+        find . -maxdepth 3 -type f -name "terraform.tfvars" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        find . -maxdepth 3 -type f -name "*.tfvars" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+        # Firebase configs
+        find . -maxdepth 2 -type f -path "*/.firebase/*.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+        # Local config overrides
+        find . -maxdepth 3 -type f -name "*.local.*" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        find . -maxdepth 3 -type f -name "local.settings.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        find . -maxdepth 3 -type f -name "appsettings.*.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+        # Docker overrides
+        [ -f "docker-compose.override.yml" ] && echo "docker-compose.override.yml" >> "$changed_files"
     fi
 
     if [ "$BACKUP_IDE_SETTINGS" = true ]; then
         [ -f ".vscode/settings.json" ] && echo ".vscode/settings.json" >> "$changed_files"
         [ -f ".vscode/launch.json" ] && echo ".vscode/launch.json" >> "$changed_files"
+        [ -f ".vscode/extensions.json" ] && echo ".vscode/extensions.json" >> "$changed_files"
         [ -f ".idea/workspace.xml" ] && echo ".idea/workspace.xml" >> "$changed_files"
+        if [ -d ".idea/codeStyles" ]; then
+            find .idea/codeStyles -type f 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        fi
     fi
 
     if [ "$BACKUP_LOCAL_NOTES" = true ]; then
@@ -449,9 +524,9 @@ if [ "$DATABASE_ONLY" = false ]; then
         fi
 
         while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            [ ! -f "$file" ] && continue
-            [[ "$file" == backups/* ]] && continue
+            if [ -z "$file" ]; then continue; fi
+            if [ ! -f "$file" ]; then continue; fi
+            if [[ "$file" == backups/* ]]; then continue; fi
 
             current_file="$FILES_DIR/$file"
             current_dir=$(dirname "$current_file")
@@ -465,17 +540,21 @@ if [ "$DATABASE_ONLY" = false ]; then
                 if ! cmp -s "$file" "$current_file"; then
                     mkdir -p "$archived_dir"
                     mv "$current_file" "$archived_file"
-                    ((archived_count++))
+                    archived_count=$((archived_count + 1))
                     cp "$file" "$current_file"
-                    ((file_count++))
+                    file_count=$((file_count + 1))
 
-                    [ "$VERBOSE" = true ] && log_verbose "      • Backed up: $file"
+                    if [ "$VERBOSE" = true ]; then
+                        log_verbose "      • Backed up: $file"
+                    fi
                 fi
             else
                 cp "$file" "$current_file"
-                ((file_count++))
+                file_count=$((file_count + 1))
 
-                [ "$VERBOSE" = true ] && log_verbose "      • New file: $file"
+                if [ "$VERBOSE" = true ]; then
+                    log_verbose "      • New file: $file"
+                fi
             fi
 
         done < <(sort -u "$changed_files")

@@ -45,7 +45,7 @@ Automated, intelligent backup system for any development environment. Battle-tes
 - **Universal Database Detection** — Auto-detects and backs up SQLite, PostgreSQL, MySQL, MongoDB (local only)
 - **Database Snapshots** — Compressed timestamped backups with proper tools (sqlite3, pg_dump, mysqldump, mongodump)
 - **Version Archiving** — Old versions preserved when files change (not deleted)
-- **Critical File Coverage** — Backs up .env, credentials, IDE settings, notes (kept out of Git)
+- **Critical File Coverage** — Backs up .env, credentials, cloud configs (AWS, GCP), Terraform secrets, IDE settings, notes, local overrides (kept out of Git)
 - **Cloud Backup** — Off-site protection via rclone (Dropbox, Google Drive, OneDrive, iCloud)
 - **Drive Verification** — Ensures backing up to correct external drive
 - **Automated Triggers** — Hourly daemon + session detection
@@ -258,7 +258,7 @@ backup-status            # Detailed system health
 
 **Always Uploaded (Recommended):**
 - ✅ Database backups (~2MB compressed each)
-- ✅ Critical files (.env, credentials, keys)
+- ✅ Critical files (.env, credentials, keys, cloud configs, Terraform secrets, local overrides)
 
 **Optional:**
 - ❌ Project files (already in Git)
@@ -344,10 +344,24 @@ DRIVE_VERIFICATION_ENABLED=true
 DRIVE_MARKER_FILE="/Volumes/Drive/.backup-drive-marker"
 
 # Critical Files
-BACKUP_ENV_FILES=true
-BACKUP_CREDENTIALS=true
-BACKUP_IDE_SETTINGS=true
+BACKUP_ENV_FILES=true              # .env, .env.*
+BACKUP_CREDENTIALS=true            # Keys, certs, cloud configs, Terraform
+BACKUP_IDE_SETTINGS=true           # .vscode/, .idea/
+BACKUP_LOCAL_NOTES=true            # NOTES.md, TODO.local.md
+BACKUP_LOCAL_DATABASES=true        # *.db, *.sqlite (non-primary)
 ```
+
+**What's Backed Up:**
+- `BACKUP_ENV_FILES`: `.env`, `.env.*` (all environment files)
+- `BACKUP_CREDENTIALS`:
+  - Certificates: `*.pem`, `*.key`, `*.p12`, `*.pfx`
+  - Secrets: `credentials.json`, `secrets.*`
+  - Cloud: `.aws/credentials`, `.gcp/*.json`
+  - Infrastructure: `terraform.tfvars`, `*.tfvars`, `.firebase/*.json`
+  - Local overrides: `*.local.*`, `local.settings.json`, `appsettings.*.json`, `docker-compose.override.yml`
+- `BACKUP_IDE_SETTINGS`: `.vscode/settings.json`, `.vscode/launch.json`, `.vscode/extensions.json`, `.idea/workspace.xml`, `.idea/codeStyles/*`
+- `BACKUP_LOCAL_NOTES`: `NOTES.md`, `TODO.local.md`, `*.private.md`
+- `BACKUP_LOCAL_DATABASES`: Local `*.db`, `*.sqlite`, `*.sql` files (excluding primary database)
 
 Edit anytime to change settings.
 

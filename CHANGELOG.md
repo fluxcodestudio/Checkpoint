@@ -69,6 +69,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Library Files Included:** All libraries copied to `.claude/lib/`
 - **Fully Self-Contained:** No external dependencies after installation
 
+**Expanded .gitignore File Coverage** - Comprehensive local backup of excluded files
+
+- **Cloud Provider Configs:**
+  - AWS credentials (`.aws/credentials`, `.aws/config`)
+  - GCP service accounts (`*.gcp/*.json`)
+- **Infrastructure as Code:**
+  - Terraform secrets (`terraform.tfvars`, `*.tfvars`)
+  - Firebase configs (`*.firebase/*.json`)
+- **Local Configuration Overrides:**
+  - All `*.local.*` pattern files
+  - `local.settings.json` (Azure Functions)
+  - `appsettings.*.json` (ASP.NET)
+  - `docker-compose.override.yml`
+- **Enhanced IDE Settings:**
+  - `.vscode/extensions.json` (recommended extensions)
+  - `.idea/codeStyles/*` (code formatting preferences)
+- **Consistency:** Same patterns applied to both backup and dry-run modes
+
 ### Changed
 
 **Installation Flow** - All questions upfront, uninterrupted installation
