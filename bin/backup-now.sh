@@ -382,10 +382,24 @@ if [ "$DATABASE_ONLY" = false ]; then
 
     changed_files=$(mktemp)
 
+    # Detect if this is the first backup
+    is_first_backup=false
+    if [ ! -d "$FILES_DIR" ] || [ -z "$(ls -A "$FILES_DIR" 2>/dev/null)" ]; then
+        is_first_backup=true
+        log_info "   ▸ Files: First backup detected - will backup all tracked files"
+    fi
+
     # Get changed files
-    git diff --name-only >> "$changed_files" 2>/dev/null || true
-    git diff --cached --name-only >> "$changed_files" 2>/dev/null || true
-    git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+    if [ "$is_first_backup" = true ]; then
+        # FIRST BACKUP: Include ALL tracked git files
+        git ls-files >> "$changed_files" 2>/dev/null || true
+        git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+    else
+        # INCREMENTAL: Only changed files
+        git diff --name-only >> "$changed_files" 2>/dev/null || true
+        git diff --cached --name-only >> "$changed_files" 2>/dev/null || true
+        git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+    fi
 
     if [ "$BACKUP_ENV_FILES" = true ]; then
         find . -maxdepth 3 -type f \( -name ".env" -o -name ".env.*" \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
@@ -426,8 +440,13 @@ if [ "$DATABASE_ONLY" = false ]; then
         timestamp=$(date +%Y%m%d_%H%M%S)
 
         total_files=$(sort -u "$changed_files" | wc -l | tr -d ' ')
-        log_info "   ▸ Files: $total_files modified files found"
-        log_info "   ▸ Files: Backing up..."
+
+        if [ "$is_first_backup" = true ]; then
+            log_info "   ▸ Files: Initial backup - copying $total_files files..."
+        else
+            log_info "   ▸ Files: $total_files modified files found"
+            log_info "   ▸ Files: Backing up changes..."
+        fi
 
         while IFS= read -r file; do
             [ -z "$file" ] && continue
@@ -464,7 +483,11 @@ if [ "$DATABASE_ONLY" = false ]; then
         rm "$changed_files"
 
         if [ $file_count -gt 0 ]; then
-            log_success "   ▸ Files: ✅ $file_count files backed up ($archived_count archived)"
+            if [ "$is_first_backup" = true ]; then
+                log_success "   ▸ Files: ✅ Initial backup complete - $file_count files copied"
+            else
+                log_success "   ▸ Files: ✅ $file_count files backed up ($archived_count archived)"
+            fi
 
             # Auto-commit to git (if enabled)
             if [ "$AUTO_COMMIT_ENABLED" = true ]; then
