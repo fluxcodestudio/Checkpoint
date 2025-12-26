@@ -6,6 +6,41 @@
 # Usage: checkpoint-dashboard
 # ==============================================================================
 
+# Require Bash 4+ for associative arrays
+if ((BASH_VERSINFO[0] < 4)); then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "⚠️  Checkpoint Dashboard requires Bash 4.0 or newer"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Your bash: $BASH_VERSION (too old)"
+    echo ""
+
+    # Try to find newer bash
+    if [[ -x "/opt/homebrew/bin/bash" ]]; then
+        echo "Found Homebrew Bash 5+ at /opt/homebrew/bin/bash"
+        echo "Relaunching with newer bash..."
+        echo ""
+        exec /opt/homebrew/bin/bash "$0" "$@"
+    elif [[ -x "/usr/local/bin/bash" ]]; then
+        echo "Found newer bash at /usr/local/bin/bash"
+        echo "Relaunching with newer bash..."
+        echo ""
+        exec /usr/local/bin/bash "$0" "$@"
+    else
+        echo "Install Homebrew Bash 5+:"
+        echo "  brew install bash"
+        echo ""
+        echo "Falling back to simple menu mode..."
+        echo ""
+
+        # Call simple menu fallback
+        if [[ -x "$HOME/.local/bin/checkpoint" ]]; then
+            exec "$HOME/.local/bin/checkpoint" --status
+        fi
+        exit 1
+    fi
+fi
+
 set -euo pipefail
 
 # Find Checkpoint installation
