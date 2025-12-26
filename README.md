@@ -43,6 +43,7 @@ Automated, intelligent backup system for any development environment. Battle-tes
 - **Organized Backup Structure** — Databases, current files, and archived versions in separate folders
 - **Smart Change Detection** — Only backs up modified files
 - **Works Without Git** — Automatic fallback for non-git directories (uses filesystem scan + mtime)
+- **Instant Failure Alerts** — Native macOS notifications when backup fails (spam-prevented, actionable)
 - **Universal Database Detection** — Auto-detects and backs up SQLite, PostgreSQL, MySQL, MongoDB (local only)
 - **Database Snapshots** — Compressed timestamped backups with proper tools (sqlite3, pg_dump, mysqldump, mongodump)
 - **Version Archiving** — Old versions preserved when files change (not deleted)
@@ -379,6 +380,60 @@ CLOUD_SYNC_DATABASES=true
 CLOUD_SYNC_CRITICAL=true
 CLOUD_SYNC_FILES=false
 ```
+
+---
+
+## Failure Notifications
+
+**Never miss a backup failure** - Get instant macOS notifications when something goes wrong.
+
+### How It Works
+
+**When Backup Fails:**
+1. Native notification appears immediately
+2. Shows error count and type
+3. Plays warning sound ("Basso")
+4. Includes actionable message: "Run 'backup-status' to check"
+
+**When Backup Recovers:**
+1. Success notification appears
+2. Confirms backup is working again
+3. Plays success sound ("Glass")
+
+**Spam Prevention:**
+- Only notifies **ONCE** on first failure
+- Won't spam you every hour while issue persists
+- Automatically clears when backup succeeds
+
+### Examples
+
+**Failure Notification:**
+```
+⚠️ Checkpoint Backup Failed
+AI_GUARD failed with 1 error(s). Run 'backup-status' to check.
+```
+
+**Success After Failure:**
+```
+✅ Checkpoint Backup Restored
+AI_GUARD is working again!
+```
+
+### Configuration
+
+Notifications are **enabled by default**. To disable:
+
+```bash
+# In .backup-config.sh
+NOTIFICATIONS_ENABLED=false
+```
+
+### Troubleshooting
+
+**Not receiving notifications?**
+1. Check System Preferences → Notifications → Script Editor (allow notifications)
+2. Test notification: `osascript -e 'display notification "Test" with title "Checkpoint"'`
+3. Verify `NOTIFICATIONS_ENABLED=true` in config
 
 ---
 

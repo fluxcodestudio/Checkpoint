@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**Instant Failure Notifications** - Never miss a backup failure again
+
+- **Native macOS Notifications:** Uses osascript for zero-dependency notifications
+- **Immediate Alerts:** Get notified within seconds when backup fails
+- **Spam Prevention:** Only notifies ONCE on first failure (not every hour)
+- **Specific Error Messages:**
+  - "Drive not connected" when external drive unplugged
+  - "Backup failed with N errors" for other failures
+- **Success Recovery:** Notifies when backup starts working again after failure
+- **Configurable:** Set `NOTIFICATIONS_ENABLED=false` to disable
+- **Sound Alerts:**
+  - Failure: "Basso" (warning sound)
+  - Success: "Glass" (success sound)
+- **Actionable:** Message includes "Run 'backup-status' to check"
+- **State Tracking:** Stores failure state in `~/.claudecode-backups/state/.last-backup-failed`
+
 **Non-Git Repository Support** - Backup ANY directory, git optional
 
 - **Automatic Fallback:** Detects when git is not available and uses filesystem scan instead

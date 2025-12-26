@@ -65,6 +65,76 @@ check_drive() {
 }
 
 # ==============================================================================
+# NOTIFICATION SYSTEM
+# ==============================================================================
+
+# Send native macOS notification
+# Args: $1 = title, $2 = message, $3 = sound (optional)
+send_notification() {
+    local title="$1"
+    local message="$2"
+    local sound="${3:-default}"
+
+    # Only send if notifications are enabled (default: true)
+    if [ "${NOTIFICATIONS_ENABLED:-true}" = false ]; then
+        return 0
+    fi
+
+    # Use osascript for native macOS notifications (no dependencies)
+    osascript -e "display notification \"$message\" with title \"$title\" sound name \"$sound\"" 2>/dev/null || true
+}
+
+# Send backup failure notification (with spam prevention)
+# Args: $1 = error count, $2 = error message
+notify_backup_failure() {
+    local error_count="$1"
+    local error_msg="${2:-Unknown error}"
+    local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+    local failure_state="$state_dir/.last-backup-failed"
+
+    mkdir -p "$state_dir" 2>/dev/null || true
+
+    # Only notify on FIRST failure to avoid spam
+    if [ ! -f "$failure_state" ]; then
+        send_notification \
+            "⚠️ Checkpoint Backup Failed" \
+            "${PROJECT_NAME:-Backup} failed with $error_count error(s). Run 'backup-status' to check." \
+            "Basso"
+
+        # Mark as failed with timestamp and error
+        echo "$(date +%s)|$error_count|$error_msg" > "$failure_state"
+    fi
+}
+
+# Send backup success notification (only after previous failure)
+# Clears failure state and notifies user backup is restored
+notify_backup_success() {
+    local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+    local failure_state="$state_dir/.last-backup-failed"
+
+    # Only notify if recovering from previous failure
+    if [ -f "$failure_state" ]; then
+        send_notification \
+            "✅ Checkpoint Backup Restored" \
+            "${PROJECT_NAME:-Backup} is working again!" \
+            "Glass"
+
+        rm -f "$failure_state"
+    fi
+}
+
+# Send backup warning notification (non-critical issues)
+# Args: $1 = warning message
+notify_backup_warning() {
+    local warning_msg="$1"
+
+    send_notification \
+        "⚠️ Checkpoint Warning" \
+        "${PROJECT_NAME:-Backup}: $warning_msg" \
+        "Purr"
+}
+
+# ==============================================================================
 # FILE LOCKING
 # ==============================================================================
 

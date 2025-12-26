@@ -227,6 +227,14 @@ fi
 if [ $preflight_errors -gt 0 ]; then
     log_error ""
     log_error "Pre-flight checks failed ($preflight_errors errors)"
+
+    # Determine specific error message
+    if [ "$DRIVE_VERIFICATION_ENABLED" = "true" ] && ! check_drive; then
+        notify_backup_failure "$preflight_errors" "Drive not connected: $DRIVE_MARKER_FILE"
+    else
+        notify_backup_failure "$preflight_errors" "Pre-flight checks failed"
+    fi
+
     exit 1
 fi
 
@@ -695,9 +703,17 @@ fi
 
 log_info ""
 
-# Exit code
+# ==============================================================================
+# NOTIFICATIONS
+# ==============================================================================
+
+# Send notifications based on backup result
 if [ $backup_errors -gt 0 ]; then
+    # Backup failed - notify user (spam-prevented)
+    notify_backup_failure "$backup_errors" "Backup completed with errors"
     exit 2
 else
+    # Backup succeeded - notify if recovering from previous failure
+    notify_backup_success
     exit 0
 fi
