@@ -614,31 +614,33 @@ if [ "$DATABASE_ONLY" = false ]; then
                     mv "$current_file" "$archived_file"
                     archived_count=$((archived_count + 1))
 
-                    # Copy with error checking
-                    if cp "$file" "$current_file" 2>/dev/null; then
+                    # Copy with retry logic (3 attempts)
+                    if copy_with_retry "$file" "$current_file" 3; then
                         file_count=$((file_count + 1))
                         if [ "$VERBOSE" = true ]; then
                             log_verbose "      • Backed up: $file"
                         fi
                     else
-                        # Copy failed - track it
+                        # Copy failed after retries - track it with specific error type
                         failed_count=$((failed_count + 1))
-                        echo "$file|permission denied or read error" >> "$failed_files"
-                        log_error "      ✗ Failed: $file (permission denied or read error)"
+                        error_type="${COPY_FAILURE_REASON:-copy_failed}"
+                        track_file_failure "$file" "$error_type" "$failed_files"
+                        log_error "      ✗ Failed: $file ($error_type)"
                     fi
                 fi
             else
-                # Copy with error checking
-                if cp "$file" "$current_file" 2>/dev/null; then
+                # Copy with retry logic (3 attempts)
+                if copy_with_retry "$file" "$current_file" 3; then
                     file_count=$((file_count + 1))
                     if [ "$VERBOSE" = true ]; then
                         log_verbose "      • New file: $file"
                     fi
                 else
-                    # Copy failed - track it
+                    # Copy failed after retries - track it with specific error type
                     failed_count=$((failed_count + 1))
-                    echo "$file|permission denied or read error" >> "$failed_files"
-                    log_error "      ✗ Failed: $file (permission denied or read error)"
+                    error_type="${COPY_FAILURE_REASON:-copy_failed}"
+                    track_file_failure "$file" "$error_type" "$failed_files"
+                    log_error "      ✗ Failed: $file ($error_type)"
                 fi
             fi
 
@@ -660,16 +662,16 @@ if [ "$DATABASE_ONLY" = false ]; then
             if [ ! -f "$backup_file" ]; then
                 # File missing from backup
                 verification_failed=$((verification_failed + 1))
-                echo "$file|missing from backup" >> "$failed_files"
+                track_file_failure "$file" "file_missing" "$failed_files"
                 log_error "      ✗ Verification failed: $file (missing from backup)"
             else
                 # Check size matches
                 actual_size=$(stat -f%z "$backup_file" 2>/dev/null || echo "0")
                 if [ "$actual_size" != "$expected_size" ]; then
-                    # Size mismatch - file may be corrupted
+                    # Size mismatch - file may be corrupted or modified during backup
                     verification_failed=$((verification_failed + 1))
-                    echo "$file|size mismatch (expected: $expected_size, got: $actual_size)" >> "$failed_files"
-                    log_error "      ✗ Verification failed: $file (size mismatch)"
+                    track_file_failure "$file" "size_mismatch" "$failed_files"
+                    log_error "      ✗ Verification failed: $file (size mismatch: expected $expected_size, got $actual_size)"
                 fi
             fi
         done < "$manifest_file"

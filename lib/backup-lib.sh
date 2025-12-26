@@ -84,7 +84,7 @@ send_notification() {
     osascript -e "display notification \"$message\" with title \"$title\" sound name \"$sound\"" 2>/dev/null || true
 }
 
-# Send backup failure notification (with spam prevention)
+# Send backup failure notification (with spam prevention + escalation)
 # Args: $1 = error count, $2 = error message
 notify_backup_failure() {
     local error_count="$1"
@@ -94,15 +94,42 @@ notify_backup_failure() {
 
     mkdir -p "$state_dir" 2>/dev/null || true
 
-    # Only notify on FIRST failure to avoid spam
+    # Check if this is a new failure or escalation
     if [ ! -f "$failure_state" ]; then
+        # FIRST FAILURE - notify immediately
         send_notification \
             "⚠️ Checkpoint Backup Failed" \
-            "${PROJECT_NAME:-Backup} failed with $error_count error(s). Run 'backup-status' to check." \
+            "${PROJECT_NAME:-Backup} failed with $error_count error(s). Run 'backup-failures' to see details." \
             "Basso"
 
         # Mark as failed with timestamp and error
         echo "$(date +%s)|$error_count|$error_msg" > "$failure_state"
+    else
+        # EXISTING FAILURE - check if we should escalate
+        local first_failure_time=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f1)
+        local now=$(date +%s)
+        local time_since_first=$((now - first_failure_time))
+
+        # Escalate every 3 hours (10800 seconds)
+        local escalation_interval=10800
+        local escalation_marker="$state_dir/.last-backup-escalation"
+        local last_escalation=0
+
+        if [ -f "$escalation_marker" ]; then
+            last_escalation=$(cat "$escalation_marker" 2>/dev/null || echo "0")
+        fi
+
+        local time_since_escalation=$((now - last_escalation))
+
+        if [ $time_since_escalation -ge $escalation_interval ]; then
+            # ESCALATION - remind user
+            send_notification \
+                "🚨 Checkpoint Still Failing" \
+                "${PROJECT_NAME:-Backup} has been failing for $((time_since_first / 3600))h. Run 'backup-failures' to fix." \
+                "Basso"
+
+            echo "$now" > "$escalation_marker"
+        fi
     fi
 }
 
@@ -111,6 +138,8 @@ notify_backup_failure() {
 notify_backup_success() {
     local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
     local failure_state="$state_dir/.last-backup-failed"
+    local escalation_marker="$state_dir/.last-backup-escalation"
+    local failure_log="$state_dir/.last-backup-failures"
 
     # Only notify if recovering from previous failure
     if [ -f "$failure_state" ]; then
@@ -119,7 +148,10 @@ notify_backup_success() {
             "${PROJECT_NAME:-Backup} is working again!" \
             "Glass"
 
+        # Clear all failure tracking
         rm -f "$failure_state"
+        rm -f "$escalation_marker"
+        rm -f "$failure_log"
     fi
 }
 
@@ -132,6 +164,158 @@ notify_backup_warning() {
         "⚠️ Checkpoint Warning" \
         "${PROJECT_NAME:-Backup}: $warning_msg" \
         "Purr"
+}
+
+# ==============================================================================
+# RETRY LOGIC FOR TRANSIENT FAILURES
+# ==============================================================================
+
+# Copy file with retry logic for transient errors
+# Args: $1 = source, $2 = destination, $3 = max retries (default: 3)
+# Returns: 0 on success, 1 on permanent failure
+# Sets: COPY_FAILURE_REASON (permission_denied|disk_full|read_error|unknown)
+copy_with_retry() {
+    local src="$1"
+    local dest="$2"
+    local max_retries="${3:-3}"
+    local retry_delay=1
+    local attempt=1
+    local last_error=""
+
+    while [ $attempt -le $max_retries ]; do
+        # Attempt copy and capture error
+        last_error=$(cp "$src" "$dest" 2>&1) && return 0
+
+        # Detect error type from error message
+        if echo "$last_error" | grep -qi "permission denied"; then
+            COPY_FAILURE_REASON="permission_denied"
+            return 1  # Don't retry permission errors
+        elif echo "$last_error" | grep -qi "no space left"; then
+            COPY_FAILURE_REASON="disk_full"
+            return 1  # Don't retry disk full errors
+        elif echo "$last_error" | grep -qi "input/output error"; then
+            COPY_FAILURE_REASON="read_error"
+            # Continue retrying for I/O errors (transient)
+        else
+            COPY_FAILURE_REASON="unknown"
+        fi
+
+        # Copy failed - check if we should retry
+        if [ $attempt -lt $max_retries ]; then
+            # Log retry attempt (if verbose)
+            if [ "${VERBOSE:-false}" = true ]; then
+                echo "      Retry $attempt/$max_retries for $(basename "$src")..." >&2
+            fi
+
+            sleep $retry_delay
+            retry_delay=$((retry_delay * 2))  # Exponential backoff: 1s, 2s, 4s
+        fi
+
+        attempt=$((attempt + 1))
+    done
+
+    # All retries exhausted
+    return 1
+}
+
+# Track file backup failure with actionable error message
+# Args: $1 = file path, $2 = error type, $3 = failure log file
+track_file_failure() {
+    local file="$1"
+    local error_type="$2"
+    local failure_log="$3"
+
+    local suggested_fix=""
+
+    case "$error_type" in
+        "permission_denied")
+            suggested_fix="Run: chmod +r \"$file\" or check file permissions"
+            ;;
+        "file_missing")
+            suggested_fix="File was deleted during backup (ignore if intentional)"
+            ;;
+        "read_error")
+            suggested_fix="File may be locked by another process. Close editors/apps using this file"
+            ;;
+        "size_mismatch")
+            suggested_fix="File was modified during backup. Retry backup to capture current version"
+            ;;
+        "copy_failed")
+            suggested_fix="Check disk space and file system integrity"
+            ;;
+        "verification_failed")
+            suggested_fix="Backup corrupted. Check disk space and file system health"
+            ;;
+        *)
+            suggested_fix="Unknown error. Run 'backup-failures' for details"
+            ;;
+    esac
+
+    echo "$file|$error_type|$suggested_fix" >> "$failure_log"
+}
+
+# ==============================================================================
+# FAILURE REPORTING
+# ==============================================================================
+
+# Display backup failures in human-readable format
+# Shows detailed error info with suggested fixes
+show_backup_failures() {
+    local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+    local failure_log="$state_dir/.last-backup-failures"
+    local failure_state="$state_dir/.last-backup-failed"
+
+    if [ ! -f "$failure_state" ]; then
+        echo "✅ No backup failures"
+        return 0
+    fi
+
+    # Parse failure state
+    local failure_time=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f1)
+    local error_count=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f2)
+    local error_msg=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f3)
+
+    local time_ago=$(format_time_ago "$failure_time")
+
+    echo ""
+    echo "⚠️  BACKUP FAILURES DETECTED"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Project: ${PROJECT_NAME:-Unknown}"
+    echo "Failed: $time_ago ($error_count errors)"
+    echo "Reason: $error_msg"
+    echo ""
+
+    if [ ! -f "$failure_log" ]; then
+        echo "No detailed failure log available"
+        echo ""
+        return 1
+    fi
+
+    echo "FAILED FILES:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    local count=0
+    while IFS='|' read -r file error_type suggested_fix; do
+        count=$((count + 1))
+        echo ""
+        echo "$count. $file"
+        echo "   Error: $error_type"
+        echo "   Fix: $suggested_fix"
+    done < "$failure_log"
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "TO FIX:"
+    echo "  1. Copy the error details above"
+    echo "  2. Paste into Claude Code chat"
+    echo "  3. Ask: 'Fix these backup failures'"
+    echo "  4. After fixing, run: backup-now.sh --force"
+    echo ""
+    echo "FAILURE LOG: $failure_log"
+    echo ""
+
+    return 1
 }
 
 # ==============================================================================
