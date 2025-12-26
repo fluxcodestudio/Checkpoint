@@ -396,6 +396,7 @@ fi
 # Track backup start time
 backup_start=$(date +%s)
 backup_errors=0
+db_count=0  # Track successful database backups
 
 log_info "📦 Backup in progress..."
 log_info ""
@@ -763,7 +764,9 @@ log_info ""
 if [ $backup_errors -eq 0 ]; then
     log_success "✅ Backup complete in ${backup_duration}s"
 else
-    log_error "⚠️  Backup completed with $backup_errors errors"
+    # Partial success - some files backed up despite errors
+    log_warn "⚠️  Backup completed with $backup_errors errors (partial success)"
+    log_warn "    Run 'backup-failures' to see details and fix issues"
 fi
 
 log_info ""
@@ -791,16 +794,30 @@ fi
 log_info ""
 
 # ==============================================================================
-# NOTIFICATIONS
+# NOTIFICATIONS & EXIT CODES
 # ==============================================================================
 
-# Send notifications based on backup result
+# Determine if backup was total failure or partial success
+total_backed_up=$((file_count + db_count))
+
 if [ $backup_errors -gt 0 ]; then
-    # Backup failed - notify user (spam-prevented)
-    notify_backup_failure "$backup_errors" "Backup completed with errors"
-    exit 2
+    if [ $total_backed_up -eq 0 ]; then
+        # TOTAL FAILURE - zero files/databases backed up
+        log_error "❌ TOTAL FAILURE: No files or databases were backed up"
+        notify_backup_failure "$backup_errors" "Total backup failure - nothing backed up"
+        exit 2
+    else
+        # PARTIAL SUCCESS - some files backed up despite errors
+        # This is acceptable - we got MOST of the backup
+        # User can fix failures and re-run for complete backup
+        notify_backup_failure "$backup_errors" "Backup completed with $backup_errors errors (partial success)"
+
+        # Exit 0 to allow daemon to continue (not a fatal error)
+        # Notification will alert user to check backup-failures
+        exit 0
+    fi
 else
-    # Backup succeeded - notify if recovering from previous failure
+    # COMPLETE SUCCESS - notify if recovering from previous failure
     notify_backup_success
     exit 0
 fi
