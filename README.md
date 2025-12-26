@@ -42,6 +42,7 @@ Automated, intelligent backup system for any development environment. Battle-tes
 ### Core Capabilities
 - **Organized Backup Structure** — Databases, current files, and archived versions in separate folders
 - **Smart Change Detection** — Only backs up modified files
+- **Works Without Git** — Automatic fallback for non-git directories (uses filesystem scan + mtime)
 - **Universal Database Detection** — Auto-detects and backs up SQLite, PostgreSQL, MySQL, MongoDB (local only)
 - **Database Snapshots** — Compressed timestamped backups with proper tools (sqlite3, pg_dump, mysqldump, mongodump)
 - **Version Archiving** — Old versions preserved when files change (not deleted)

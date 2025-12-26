@@ -270,6 +270,21 @@ if [ "$DRY_RUN" = true ]; then
         git diff --cached --name-only >> "$changed_files" 2>/dev/null || true
         git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
 
+        # FALLBACK: If no git repo, use mtime check for dry-run
+        if [ ! -s "$changed_files" ]; then
+            find . -type f -mmin -$(( BACKUP_INTERVAL / 60 )) \
+                ! -path "*/backups/*" \
+                ! -path "*/.git/*" \
+                ! -path "*/node_modules/*" \
+                ! -path "*/.venv/*" \
+                ! -path "*/__pycache__/*" \
+                ! -path "*/dist/*" \
+                ! -path "*/build/*" \
+                ! -path "*/.next/*" \
+                ! -path "*/.DS_Store" \
+                2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        fi
+
         if [ "$BACKUP_ENV_FILES" = true ]; then
             find . -maxdepth 3 -type f \( -name ".env" -o -name ".env.*" \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
         fi
@@ -445,11 +460,44 @@ if [ "$DATABASE_ONLY" = false ]; then
         # FIRST BACKUP: Include ALL tracked git files
         git ls-files >> "$changed_files" 2>/dev/null || true
         git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+
+        # FALLBACK: If no git repo, use find to get all files
+        if [ ! -s "$changed_files" ]; then
+            log_verbose "   No git repository detected - using file system scan"
+            find . -type f \
+                ! -path "*/backups/*" \
+                ! -path "*/.git/*" \
+                ! -path "*/node_modules/*" \
+                ! -path "*/.venv/*" \
+                ! -path "*/__pycache__/*" \
+                ! -path "*/dist/*" \
+                ! -path "*/build/*" \
+                ! -path "*/.next/*" \
+                ! -path "*/.DS_Store" \
+                2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        fi
     else
         # INCREMENTAL: Only changed files
         git diff --name-only >> "$changed_files" 2>/dev/null || true
         git diff --cached --name-only >> "$changed_files" 2>/dev/null || true
         git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+
+        # FALLBACK: If no git repo, backup modified files (by mtime)
+        if [ ! -s "$changed_files" ]; then
+            log_verbose "   No git repository detected - using mtime check"
+            # Find files modified in last hour (BACKUP_INTERVAL)
+            find . -type f -mmin -$(( BACKUP_INTERVAL / 60 )) \
+                ! -path "*/backups/*" \
+                ! -path "*/.git/*" \
+                ! -path "*/node_modules/*" \
+                ! -path "*/.venv/*" \
+                ! -path "*/__pycache__/*" \
+                ! -path "*/dist/*" \
+                ! -path "*/build/*" \
+                ! -path "*/.next/*" \
+                ! -path "*/.DS_Store" \
+                2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        fi
     fi
 
     if [ "$BACKUP_ENV_FILES" = true ]; then

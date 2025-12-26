@@ -5,6 +5,31 @@ All notable changes to Checkpoint will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+**Non-Git Repository Support** - Backup ANY directory, git optional
+
+- **Automatic Fallback:** Detects when git is not available and uses filesystem scan instead
+- **First Backup:** Uses `find` to copy all files (excluding node_modules, dist, build, .venv, __pycache__)
+- **Incremental Backup:** Uses `mtime` to detect files modified in last backup interval
+- **Verbose Logging:** Shows "No git repository detected - using file system scan"
+- **Zero Configuration:** Works automatically, no setup needed
+- **Use Case:** Perfect for non-code projects, legacy codebases, or directories without version control
+
+### Fixed
+
+**Critical set -euo pipefail Bugs** - Script exited prematurely during backup
+
+- **Fixed:** `((var++))` arithmetic expansion returning 0 caused exit when var=0 (lines 539, 541, 549)
+  - Changed to `var=$((var + 1))` to always return success
+- **Fixed:** `[ condition ] && command` pattern caused exit when condition false (lines 523-525)
+  - Changed to `if [ condition ]; then command; fi` for proper `set -e` handling
+- **Fixed:** Conditional logging caused exits
+  - Changed from `[ "$VERBOSE" = true ] && log_verbose "..."` to proper if statements
+- **Impact:** Backup would only process first file then exit, now processes all files correctly
+
 ## [2.2.0] - 2025-12-25
 
 ### Fixed
