@@ -85,25 +85,41 @@ send_notification() {
 }
 
 # Send backup failure notification (with spam prevention + escalation)
-# Args: $1 = error count, $2 = error message
+# Args: $1 = error count, $2 = total files attempted, $3 = files succeeded
 notify_backup_failure() {
     local error_count="$1"
-    local error_msg="${2:-Unknown error}"
+    local total_files="${2:-0}"
+    local succeeded_files="${3:-0}"
     local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
     local failure_state="$state_dir/.last-backup-failed"
+    local failure_log="$state_dir/.last-backup-failures"
 
     mkdir -p "$state_dir" 2>/dev/null || true
 
+    # Generate LLM-ready prompt from failure log
+    local llm_prompt=""
+    if [ -f "$failure_log" ]; then
+        llm_prompt="Fix these Checkpoint backup failures:\n\n"
+        while IFS='|' read -r file error_type suggested_fix; do
+            llm_prompt+="File: $file\nError: $error_type\nFix: $suggested_fix\n\n"
+        done < "$failure_log"
+    fi
+
     # Check if this is a new failure or escalation
     if [ ! -f "$failure_state" ]; then
-        # FIRST FAILURE - notify immediately
+        # FIRST FAILURE - notify immediately with details
+        local summary="$succeeded_files/$total_files files backed up. $error_count FAILED."
+
         send_notification \
-            "⚠️ Checkpoint Backup Failed" \
-            "${PROJECT_NAME:-Backup} failed with $error_count error(s). Run 'backup-failures' to see details." \
+            "⚠️ Checkpoint Backup Incomplete" \
+            "${PROJECT_NAME}: $summary Run 'backup-failures' for LLM prompt." \
             "Basso"
 
-        # Mark as failed with timestamp and error
-        echo "$(date +%s)|$error_count|$error_msg" > "$failure_state"
+        # Mark as failed with timestamp, counts, and LLM prompt
+        echo "$(date +%s)|$error_count|$succeeded_files|$total_files|$llm_prompt" > "$failure_state"
+
+        # Also write LLM prompt to separate file for easy access
+        echo "$llm_prompt" > "$state_dir/.last-backup-llm-prompt"
     else
         # EXISTING FAILURE - check if we should escalate
         local first_failure_time=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f1)
@@ -122,10 +138,10 @@ notify_backup_failure() {
         local time_since_escalation=$((now - last_escalation))
 
         if [ $time_since_escalation -ge $escalation_interval ]; then
-            # ESCALATION - remind user
+            # ESCALATION - remind user with counts
             send_notification \
-                "🚨 Checkpoint Still Failing" \
-                "${PROJECT_NAME:-Backup} has been failing for $((time_since_first / 3600))h. Run 'backup-failures' to fix." \
+                "🚨 Checkpoint Still Incomplete" \
+                "${PROJECT_NAME}: $error_count files failing for $((time_since_first / 3600))h. Run 'backup-failures' to fix." \
                 "Basso"
 
             echo "$now" > "$escalation_marker"
@@ -430,11 +446,34 @@ show_backup_failures() {
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    echo "TO FIX:"
-    echo "  1. Copy the error details above"
-    echo "  2. Paste into Claude Code chat"
-    echo "  3. Ask: 'Fix these backup failures'"
-    echo "  4. After fixing, run: backup-now.sh --force"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "📋 COPY THIS PROMPT INTO CLAUDE CODE CHAT:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    # Show LLM-ready prompt if available
+    local llm_prompt_file="$state_dir/.last-backup-llm-prompt"
+    if [ -f "$llm_prompt_file" ]; then
+        cat "$llm_prompt_file"
+    else
+        # Generate prompt from failure log
+        echo "Fix these Checkpoint backup failures:"
+        echo ""
+        while IFS='|' read -r file error_type suggested_fix; do
+            echo "File: $file"
+            echo "Error: $error_type"
+            echo "Fix: $suggested_fix"
+            echo ""
+        done < "$failure_log"
+    fi
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "AFTER CLAUDE FIXES THE ISSUES:"
+    echo "  1. Apply the fixes Claude suggests"
+    echo "  2. Run: backup-now.sh --force"
+    echo "  3. Verify: 100% backed up = TRUE SUCCESS"
     echo ""
     echo "FAILURE LOG: $failure_log"
     echo ""

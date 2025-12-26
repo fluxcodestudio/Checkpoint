@@ -170,6 +170,9 @@ fi
 # Initialize state directories
 init_state_dirs
 
+# Ensure STATE_DIR is set for error logging
+STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+
 # ==============================================================================
 # PRE-FLIGHT CHECKS
 # ==============================================================================
@@ -230,9 +233,11 @@ if [ $preflight_errors -gt 0 ]; then
 
     # Determine specific error message
     if [ "$DRIVE_VERIFICATION_ENABLED" = "true" ] && ! check_drive; then
-        notify_backup_failure "$preflight_errors" "Drive not connected: $DRIVE_MARKER_FILE"
+        notify_backup_failure "$preflight_errors" "0" "0"  # No files attempted yet
+        echo "Error: Drive not connected: $DRIVE_MARKER_FILE" > "$STATE_DIR/.last-backup-failures"
     else
-        notify_backup_failure "$preflight_errors" "Pre-flight checks failed"
+        notify_backup_failure "$preflight_errors" "0" "0"  # No files attempted yet
+        echo "Pre-flight checks failed" > "$STATE_DIR/.last-backup-failures"
     fi
 
     exit 1
@@ -762,11 +767,11 @@ echo "$backup_end" > "$BACKUP_TIME_STATE"
 log_info ""
 
 if [ $backup_errors -eq 0 ]; then
-    log_success "✅ Backup complete in ${backup_duration}s"
+    log_success "✅ TRUE SUCCESS: 100% backed up in ${backup_duration}s"
 else
     # Partial success - some files backed up despite errors
-    log_warn "⚠️  Backup completed with $backup_errors errors (partial success)"
-    log_warn "    Run 'backup-failures' to see details and fix issues"
+    log_warn "⚠️  PARTIAL SUCCESS: $file_count files backed up, $backup_errors FAILED"
+    log_warn "    Run 'backup-failures' for LLM-ready prompt to fix issues"
 fi
 
 log_info ""
@@ -797,27 +802,30 @@ log_info ""
 # NOTIFICATIONS & EXIT CODES
 # ==============================================================================
 
-# Determine if backup was total failure or partial success
+# Calculate totals for notification
+total_files_attempted=$((file_count + failed_count))
 total_backed_up=$((file_count + db_count))
 
 if [ $backup_errors -gt 0 ]; then
     if [ $total_backed_up -eq 0 ]; then
         # TOTAL FAILURE - zero files/databases backed up
+        log_error ""
         log_error "❌ TOTAL FAILURE: No files or databases were backed up"
-        notify_backup_failure "$backup_errors" "Total backup failure - nothing backed up"
+        notify_backup_failure "$backup_errors" "$total_files_attempted" "0"
         exit 2
     else
         # PARTIAL SUCCESS - some files backed up despite errors
-        # This is acceptable - we got MOST of the backup
-        # User can fix failures and re-run for complete backup
-        notify_backup_failure "$backup_errors" "Backup completed with $backup_errors errors (partial success)"
+        # Make a fuss: Notify user with file counts + LLM prompt
+        # Even 1 file failure = NOT TRUE SUCCESS
+        notify_backup_failure "$backup_errors" "$total_files_attempted" "$file_count"
 
         # Exit 0 to allow daemon to continue (not a fatal error)
-        # Notification will alert user to check backup-failures
+        # But notification will alert user to fix incomplete backup
         exit 0
     fi
 else
-    # COMPLETE SUCCESS - notify if recovering from previous failure
+    # TRUE SUCCESS - 100% backed up and verified
+    # Only now can we call it "success"
     notify_backup_success
     exit 0
 fi
