@@ -568,9 +568,25 @@ if [ "$DATABASE_ONLY" = false ]; then
     else
         file_count=0
         archived_count=0
+        failed_count=0
         timestamp=$(date +%Y%m%d_%H%M%S)
 
+        # Create manifest for verification
+        manifest_file=$(mktemp)
+        failed_files=$(mktemp)
+
         total_files=$(sort -u "$changed_files" | wc -l | tr -d ' ')
+
+        # Build manifest: capture file metadata at backup START
+        log_verbose "   Creating backup manifest..."
+        while IFS= read -r file; do
+            # Skip backups directory and non-existent files
+            if [[ "$file" == backups/* ]] || [ ! -f "$file" ]; then
+                continue
+            fi
+            file_size=$(stat -f%z "$file" 2>/dev/null || echo "0")
+            echo "$file|$file_size" >> "$manifest_file"
+        done < <(sort -u "$changed_files")
 
         if [ "$is_first_backup" = true ]; then
             log_info "   ▸ Files: Initial backup - copying $total_files files..."
@@ -597,19 +613,32 @@ if [ "$DATABASE_ONLY" = false ]; then
                     mkdir -p "$archived_dir"
                     mv "$current_file" "$archived_file"
                     archived_count=$((archived_count + 1))
-                    cp "$file" "$current_file"
-                    file_count=$((file_count + 1))
 
-                    if [ "$VERBOSE" = true ]; then
-                        log_verbose "      • Backed up: $file"
+                    # Copy with error checking
+                    if cp "$file" "$current_file" 2>/dev/null; then
+                        file_count=$((file_count + 1))
+                        if [ "$VERBOSE" = true ]; then
+                            log_verbose "      • Backed up: $file"
+                        fi
+                    else
+                        # Copy failed - track it
+                        failed_count=$((failed_count + 1))
+                        echo "$file|permission denied or read error" >> "$failed_files"
+                        log_error "      ✗ Failed: $file (permission denied or read error)"
                     fi
                 fi
             else
-                cp "$file" "$current_file"
-                file_count=$((file_count + 1))
-
-                if [ "$VERBOSE" = true ]; then
-                    log_verbose "      • New file: $file"
+                # Copy with error checking
+                if cp "$file" "$current_file" 2>/dev/null; then
+                    file_count=$((file_count + 1))
+                    if [ "$VERBOSE" = true ]; then
+                        log_verbose "      • New file: $file"
+                    fi
+                else
+                    # Copy failed - track it
+                    failed_count=$((failed_count + 1))
+                    echo "$file|permission denied or read error" >> "$failed_files"
+                    log_error "      ✗ Failed: $file (permission denied or read error)"
                 fi
             fi
 
@@ -617,12 +646,68 @@ if [ "$DATABASE_ONLY" = false ]; then
 
         rm "$changed_files"
 
-        if [ $file_count -gt 0 ]; then
-            if [ "$is_first_backup" = true ]; then
-                log_success "   ▸ Files: ✅ Initial backup complete - $file_count files copied"
+        # ==============================================================================
+        # POST-BACKUP VERIFICATION
+        # ==============================================================================
+
+        log_verbose "   Verifying backup integrity..."
+
+        # Verify each file in manifest was actually backed up
+        verification_failed=0
+        while IFS='|' read -r file expected_size; do
+            backup_file="$FILES_DIR/$file"
+
+            if [ ! -f "$backup_file" ]; then
+                # File missing from backup
+                verification_failed=$((verification_failed + 1))
+                echo "$file|missing from backup" >> "$failed_files"
+                log_error "      ✗ Verification failed: $file (missing from backup)"
             else
-                log_success "   ▸ Files: ✅ $file_count files backed up ($archived_count archived)"
+                # Check size matches
+                actual_size=$(stat -f%z "$backup_file" 2>/dev/null || echo "0")
+                if [ "$actual_size" != "$expected_size" ]; then
+                    # Size mismatch - file may be corrupted
+                    verification_failed=$((verification_failed + 1))
+                    echo "$file|size mismatch (expected: $expected_size, got: $actual_size)" >> "$failed_files"
+                    log_error "      ✗ Verification failed: $file (size mismatch)"
+                fi
             fi
+        done < "$manifest_file"
+
+        # Update failed count with verification failures
+        failed_count=$((failed_count + verification_failed))
+
+        # Cleanup temp files
+        rm -f "$manifest_file"
+
+        # Report results
+        if [ $file_count -gt 0 ]; then
+            if [ $failed_count -eq 0 ]; then
+                # All files backed up successfully
+                if [ "$is_first_backup" = true ]; then
+                    log_success "   ▸ Files: ✅ Initial backup complete - $file_count files copied"
+                else
+                    log_success "   ▸ Files: ✅ $file_count files backed up ($archived_count archived)"
+                fi
+            else
+                # Some files failed
+                if [ "$is_first_backup" = true ]; then
+                    log_error "   ▸ Files: ⚠️ Backup incomplete - $file_count succeeded, $failed_count failed"
+                else
+                    log_error "   ▸ Files: ⚠️ Backup incomplete - $file_count succeeded, $failed_count failed ($archived_count archived)"
+                fi
+
+                # Increment backup errors
+                backup_errors=$((backup_errors + failed_count))
+
+                # Log failed files for troubleshooting
+                log_error "   ▸ Failed files saved to: $STATE_DIR/.last-backup-failures"
+                mkdir -p "$(dirname "$STATE_DIR/.last-backup-failures")" 2>/dev/null || true
+                cp "$failed_files" "$STATE_DIR/.last-backup-failures" 2>/dev/null || true
+            fi
+
+            # Cleanup failed files temp
+            rm -f "$failed_files"
 
             # Auto-commit to git (if enabled)
             if [ "$AUTO_COMMIT_ENABLED" = true ]; then
