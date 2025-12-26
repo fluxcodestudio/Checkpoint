@@ -400,8 +400,9 @@ fi
 
 # Track backup start time
 backup_start=$(date +%s)
-backup_errors=0
-db_count=0  # Track successful database backups
+
+# Initialize JSON state tracking
+init_backup_state
 
 log_info "📦 Backup in progress..."
 log_info ""
@@ -574,14 +575,13 @@ if [ "$DATABASE_ONLY" = false ]; then
     else
         file_count=0
         archived_count=0
-        failed_count=0
         timestamp=$(date +%Y%m%d_%H%M%S)
 
         # Create manifest for verification
         manifest_file=$(mktemp)
-        failed_files=$(mktemp)
 
         total_files=$(sort -u "$changed_files" | wc -l | tr -d ' ')
+        BACKUP_STATE_TOTAL_FILES=$total_files
 
         # Build manifest: capture file metadata at backup START
         log_verbose "   Creating backup manifest..."
@@ -623,30 +623,58 @@ if [ "$DATABASE_ONLY" = false ]; then
                     # Copy with retry logic (3 attempts)
                     if copy_with_retry "$file" "$current_file" 3; then
                         file_count=$((file_count + 1))
+                        BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
                         if [ "$VERBOSE" = true ]; then
                             log_verbose "      • Backed up: $file"
                         fi
                     else
-                        # Copy failed after retries - track it with specific error type
-                        failed_count=$((failed_count + 1))
-                        error_type="${COPY_FAILURE_REASON:-copy_failed}"
-                        track_file_failure "$file" "$error_type" "$failed_files"
-                        log_error "      ✗ Failed: $file ($error_type)"
+                        # Copy failed after retries - track in JSON state
+                        error_code="${COPY_FAILURE_REASON:-copy_failed}"
+                        suggested_fix=""
+
+                        case "$error_code" in
+                            "permission_denied")
+                                suggested_fix="Run: chmod +r \"$file\" or check file permissions"
+                                ;;
+                            "disk_full")
+                                suggested_fix="Free disk space or move backups to larger drive"
+                                ;;
+                            *)
+                                suggested_fix="Check file accessibility and try again"
+                                ;;
+                        esac
+
+                        add_file_failure "$file" "$error_code" "Copy failed after 3 retries" "$suggested_fix" 3
+                        log_error "      ✗ Failed: $file ($error_code)"
                     fi
                 fi
             else
                 # Copy with retry logic (3 attempts)
                 if copy_with_retry "$file" "$current_file" 3; then
                     file_count=$((file_count + 1))
+                    BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
                     if [ "$VERBOSE" = true ]; then
                         log_verbose "      • New file: $file"
                     fi
                 else
-                    # Copy failed after retries - track it with specific error type
-                    failed_count=$((failed_count + 1))
-                    error_type="${COPY_FAILURE_REASON:-copy_failed}"
-                    track_file_failure "$file" "$error_type" "$failed_files"
-                    log_error "      ✗ Failed: $file ($error_type)"
+                    # Copy failed after retries - track in JSON state
+                    error_code="${COPY_FAILURE_REASON:-copy_failed}"
+                    suggested_fix=""
+
+                    case "$error_code" in
+                        "permission_denied")
+                            suggested_fix="Run: chmod +r \"$file\" or check file permissions"
+                            ;;
+                        "disk_full")
+                            suggested_fix="Free disk space or move backups to larger drive"
+                            ;;
+                        *)
+                            suggested_fix="Check file accessibility and try again"
+                            ;;
+                    esac
+
+                    add_file_failure "$file" "$error_code" "Copy failed after 3 retries" "$suggested_fix" 3
+                    log_error "      ✗ Failed: $file ($error_code)"
                 fi
             fi
 
@@ -661,36 +689,30 @@ if [ "$DATABASE_ONLY" = false ]; then
         log_verbose "   Verifying backup integrity..."
 
         # Verify each file in manifest was actually backed up
-        verification_failed=0
         while IFS='|' read -r file expected_size; do
             backup_file="$FILES_DIR/$file"
 
             if [ ! -f "$backup_file" ]; then
                 # File missing from backup
-                verification_failed=$((verification_failed + 1))
-                track_file_failure "$file" "file_missing" "$failed_files"
+                add_file_failure "$file" "file_missing" "File missing from backup" "File was deleted during backup (ignore if intentional)" 0
                 log_error "      ✗ Verification failed: $file (missing from backup)"
             else
                 # Check size matches
                 actual_size=$(stat -f%z "$backup_file" 2>/dev/null || echo "0")
                 if [ "$actual_size" != "$expected_size" ]; then
                     # Size mismatch - file may be corrupted or modified during backup
-                    verification_failed=$((verification_failed + 1))
-                    track_file_failure "$file" "size_mismatch" "$failed_files"
+                    add_file_failure "$file" "size_mismatch" "Size: expected $expected_size, got $actual_size" "File was modified during backup. Retry backup to capture current version" 0
                     log_error "      ✗ Verification failed: $file (size mismatch: expected $expected_size, got $actual_size)"
                 fi
             fi
         done < "$manifest_file"
-
-        # Update failed count with verification failures
-        failed_count=$((failed_count + verification_failed))
 
         # Cleanup temp files
         rm -f "$manifest_file"
 
         # Report results
         if [ $file_count -gt 0 ]; then
-            if [ $failed_count -eq 0 ]; then
+            if [ $BACKUP_STATE_FAILED_FILES -eq 0 ]; then
                 # All files backed up successfully
                 if [ "$is_first_backup" = true ]; then
                     log_success "   ▸ Files: ✅ Initial backup complete - $file_count files copied"
@@ -700,22 +722,11 @@ if [ "$DATABASE_ONLY" = false ]; then
             else
                 # Some files failed
                 if [ "$is_first_backup" = true ]; then
-                    log_error "   ▸ Files: ⚠️ Backup incomplete - $file_count succeeded, $failed_count failed"
+                    log_error "   ▸ Files: ⚠️ Backup incomplete - $file_count succeeded, $BACKUP_STATE_FAILED_FILES failed"
                 else
-                    log_error "   ▸ Files: ⚠️ Backup incomplete - $file_count succeeded, $failed_count failed ($archived_count archived)"
+                    log_error "   ▸ Files: ⚠️ Backup incomplete - $file_count succeeded, $BACKUP_STATE_FAILED_FILES failed ($archived_count archived)"
                 fi
-
-                # Increment backup errors
-                backup_errors=$((backup_errors + failed_count))
-
-                # Log failed files for troubleshooting
-                log_error "   ▸ Failed files saved to: $STATE_DIR/.last-backup-failures"
-                mkdir -p "$(dirname "$STATE_DIR/.last-backup-failures")" 2>/dev/null || true
-                cp "$failed_files" "$STATE_DIR/.last-backup-failures" 2>/dev/null || true
             fi
-
-            # Cleanup failed files temp
-            rm -f "$failed_files"
 
             # Auto-commit to git (if enabled)
             if [ "$AUTO_COMMIT_ENABLED" = true ]; then
@@ -766,11 +777,14 @@ echo "$backup_end" > "$BACKUP_TIME_STATE"
 
 log_info ""
 
-if [ $backup_errors -eq 0 ]; then
+# Calculate final status
+total_failed=$((BACKUP_STATE_FAILED_FILES + BACKUP_STATE_FAILED_DBS))
+
+if [ $total_failed -eq 0 ]; then
     log_success "✅ TRUE SUCCESS: 100% backed up in ${backup_duration}s"
 else
     # Partial success - some files backed up despite errors
-    log_warn "⚠️  PARTIAL SUCCESS: $file_count files backed up, $backup_errors FAILED"
+    log_warn "⚠️  PARTIAL SUCCESS: $BACKUP_STATE_SUCCEEDED_FILES/$BACKUP_STATE_TOTAL_FILES files backed up, $total_failed FAILED"
     log_warn "    Run 'backup-failures' for LLM-ready prompt to fix issues"
 fi
 
@@ -799,33 +813,53 @@ fi
 log_info ""
 
 # ==============================================================================
-# NOTIFICATIONS & EXIT CODES
+# WRITE JSON STATE & EXIT WITH SIMPLE CODE
 # ==============================================================================
 
-# Calculate totals for notification
-total_files_attempted=$((file_count + failed_count))
-total_backed_up=$((file_count + db_count))
+# Determine exit code (0=success, 1=partial, 2=total failure)
+total_succeeded=$((BACKUP_STATE_SUCCEEDED_FILES + BACKUP_STATE_SUCCEEDED_DBS))
+total_failed=$((BACKUP_STATE_FAILED_FILES + BACKUP_STATE_FAILED_DBS))
 
-if [ $backup_errors -gt 0 ]; then
-    if [ $total_backed_up -eq 0 ]; then
-        # TOTAL FAILURE - zero files/databases backed up
-        log_error ""
-        log_error "❌ TOTAL FAILURE: No files or databases were backed up"
-        notify_backup_failure "$backup_errors" "$total_files_attempted" "0"
-        exit 2
-    else
-        # PARTIAL SUCCESS - some files backed up despite errors
-        # Make a fuss: Notify user with file counts + LLM prompt
-        # Even 1 file failure = NOT TRUE SUCCESS
-        notify_backup_failure "$backup_errors" "$total_files_attempted" "$file_count"
-
-        # Exit 0 to allow daemon to continue (not a fatal error)
-        # But notification will alert user to fix incomplete backup
-        exit 0
-    fi
+if [ $total_succeeded -eq 0 ] && [ $total_failed -gt 0 ]; then
+    # TOTAL FAILURE - nothing backed up
+    final_exit_code=2
+    log_error ""
+    log_error "❌ TOTAL FAILURE: No files or databases were backed up"
+elif [ $total_failed -gt 0 ]; then
+    # PARTIAL SUCCESS - some failed
+    final_exit_code=1
 else
-    # TRUE SUCCESS - 100% backed up and verified
-    # Only now can we call it "success"
-    notify_backup_success
-    exit 0
+    # TRUE SUCCESS - 100% backed up
+    final_exit_code=0
 fi
+
+# Write complete JSON state
+state_file=$(write_backup_state "$final_exit_code")
+
+log_info ""
+log_info "State saved to: $state_file"
+
+# Send notification based on JSON state
+if [ -f "$state_file" ]; then
+    # Read actions from JSON state
+    send_notif=$(grep -o '"send_notification":[^,}]*' "$state_file" | cut -d':' -f2 | tr -d ' ')
+    notif_title=$(grep -o '"title":"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
+    notif_message=$(grep -o '"message":"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
+
+    if [ "$send_notif" = "true" ]; then
+        # Determine sound based on exit code
+        sound="default"
+        case "$final_exit_code" in
+            0) sound="Glass" ;;       # Success
+            1) sound="Basso" ;;       # Partial
+            2) sound="Sosumi" ;;      # Total failure
+        esac
+
+        send_notification "$notif_title" "$notif_message" "$sound"
+    fi
+fi
+
+log_info ""
+
+# Exit with simple code
+exit $final_exit_code

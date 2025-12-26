@@ -183,6 +183,312 @@ notify_backup_warning() {
 }
 
 # ==============================================================================
+# BACKUP STATE TRACKING (JSON)
+# ==============================================================================
+
+# Global state tracking variables
+declare -a BACKUP_STATE_FAILURES=()
+BACKUP_STATE_TOTAL_FILES=0
+BACKUP_STATE_SUCCEEDED_FILES=0
+BACKUP_STATE_FAILED_FILES=0
+BACKUP_STATE_TOTAL_DBS=0
+BACKUP_STATE_SUCCEEDED_DBS=0
+BACKUP_STATE_FAILED_DBS=0
+
+# Initialize backup state tracking
+init_backup_state() {
+    BACKUP_STATE_FAILURES=()
+    BACKUP_STATE_TOTAL_FILES=0
+    BACKUP_STATE_SUCCEEDED_FILES=0
+    BACKUP_STATE_FAILED_FILES=0
+    BACKUP_STATE_TOTAL_DBS=0
+    BACKUP_STATE_SUCCEEDED_DBS=0
+    BACKUP_STATE_FAILED_DBS=0
+}
+
+# Add file failure to state
+# Args: $1 = file path, $2 = error_code, $3 = error_message, $4 = suggested_fix, $5 = retry_count
+add_file_failure() {
+    local file="$1"
+    local error_code="$2"
+    local error_message="${3:-Unknown error}"
+    local suggested_fix="$4"
+    local retry_count="${5:-3}"
+
+    # Escape for JSON
+    file=$(echo "$file" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    error_message=$(echo "$error_message" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    suggested_fix=$(echo "$suggested_fix" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+    local failure_json="{\"type\":\"file\",\"path\":\"$file\",\"error_code\":\"$error_code\",\"error_message\":\"$error_message\",\"suggested_fix\":\"$suggested_fix\",\"retry_count\":$retry_count}"
+
+    BACKUP_STATE_FAILURES+=("$failure_json")
+    BACKUP_STATE_FAILED_FILES=$((BACKUP_STATE_FAILED_FILES + 1))
+}
+
+# Add database failure to state
+# Args: $1 = db path, $2 = error_code, $3 = error_message, $4 = suggested_fix
+add_database_failure() {
+    local db_path="$1"
+    local error_code="$2"
+    local error_message="${3:-Unknown error}"
+    local suggested_fix="$4"
+
+    # Escape for JSON
+    db_path=$(echo "$db_path" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    error_message=$(echo "$error_message" | sed 's/\\/\\\\/g; s/"/\\"/g')
+    suggested_fix=$(echo "$suggested_fix" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+    local failure_json="{\"type\":\"database\",\"path\":\"$db_path\",\"error_code\":\"$error_code\",\"error_message\":\"$error_message\",\"suggested_fix\":\"$suggested_fix\"}"
+
+    BACKUP_STATE_FAILURES+=("$failure_json")
+    BACKUP_STATE_FAILED_DBS=$((BACKUP_STATE_FAILED_DBS + 1))
+}
+
+# Calculate severity level based on failures
+# Returns: critical, high, medium, low
+calculate_severity() {
+    local total_items=$((BACKUP_STATE_TOTAL_FILES + BACKUP_STATE_TOTAL_DBS))
+    local failed_items=$((BACKUP_STATE_FAILED_FILES + BACKUP_STATE_FAILED_DBS))
+
+    # No failures
+    if [ $failed_items -eq 0 ]; then
+        echo "none"
+        return
+    fi
+
+    # Check for critical error types
+    for failure in "${BACKUP_STATE_FAILURES[@]}"; do
+        if echo "$failure" | grep -q '"error_code":"disk_full"'; then
+            echo "critical"
+            return
+        fi
+        if echo "$failure" | grep -q '"error_code":"drive_disconnected"'; then
+            echo "high"
+            return
+        fi
+    done
+
+    # Calculate failure percentage
+    local failure_percent=$((failed_items * 100 / total_items))
+
+    if [ $failure_percent -ge 50 ]; then
+        echo "high"  # More than half failed
+    elif [ $failure_percent -ge 10 ]; then
+        echo "medium"  # 10-50% failed
+    else
+        echo "low"  # Less than 10% failed
+    fi
+}
+
+# Determine if immediate action required
+requires_immediate_action() {
+    local severity=$(calculate_severity)
+
+    case "$severity" in
+        critical|high)
+            echo "true"
+            ;;
+        *)
+            echo "false"
+            ;;
+    esac
+}
+
+# Get human-readable reason for severity
+get_severity_reason() {
+    local severity=$(calculate_severity)
+    local total_items=$((BACKUP_STATE_TOTAL_FILES + BACKUP_STATE_TOTAL_DBS))
+    local failed_items=$((BACKUP_STATE_FAILED_FILES + BACKUP_STATE_FAILED_DBS))
+
+    # Check for specific error types
+    for failure in "${BACKUP_STATE_FAILURES[@]}"; do
+        if echo "$failure" | grep -q '"error_code":"disk_full"'; then
+            echo "Disk full - no space for backups"
+            return
+        fi
+        if echo "$failure" | grep -q '"error_code":"drive_disconnected"'; then
+            echo "Backup drive disconnected"
+            return
+        fi
+    done
+
+    # Generic reasons based on count
+    if [ $failed_items -eq 1 ]; then
+        echo "Single file failed to backup"
+    elif [ $failed_items -lt 5 ]; then
+        echo "$failed_items files failed to backup"
+    else
+        local failure_percent=$((failed_items * 100 / total_items))
+        echo "$failure_percent% of files failed to backup"
+    fi
+}
+
+# Write complete backup state to JSON file
+write_backup_state() {
+    local exit_code="$1"
+    local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+    local project_name="${PROJECT_NAME:-unknown}"
+    local state_file="$state_dir/${project_name}/last-backup.json"
+
+    mkdir -p "$state_dir/$project_name" 2>/dev/null || true
+
+    # Determine status from exit code
+    local status="unknown"
+    case "$exit_code" in
+        0) status="complete_success" ;;
+        1) status="partial_success" ;;
+        2) status="total_failure" ;;
+    esac
+
+    # Calculate severity
+    local severity=$(calculate_severity)
+    local immediate=$(requires_immediate_action)
+    local reason=$(get_severity_reason)
+
+    # Determine actions based on severity
+    local retry_recommended="true"
+    local stop_daemon="false"
+    local block_cloud="false"
+    local send_notification="true"
+    local notification_urgency="medium"
+    local escalate_hours=3
+
+    case "$severity" in
+        critical)
+            stop_daemon="true"
+            block_cloud="true"
+            notification_urgency="critical"
+            escalate_hours=1
+            ;;
+        high)
+            block_cloud="true"
+            notification_urgency="high"
+            escalate_hours=2
+            ;;
+        medium)
+            notification_urgency="medium"
+            escalate_hours=3
+            ;;
+        low)
+            notification_urgency="low"
+            escalate_hours=6
+            ;;
+        none)
+            send_notification="false"
+            ;;
+    esac
+
+    # Build notification message
+    local notification_title="Checkpoint Backup"
+    local notification_message=""
+    local notification_details=""
+
+    case "$status" in
+        complete_success)
+            notification_title="✅ Checkpoint Backup Complete"
+            notification_message="${PROJECT_NAME}: All files backed up successfully"
+            notification_details="$BACKUP_STATE_SUCCEEDED_FILES files, $BACKUP_STATE_SUCCEEDED_DBS databases"
+            ;;
+        partial_success)
+            notification_title="⚠️ Checkpoint Backup Incomplete"
+            notification_message="${PROJECT_NAME}: $BACKUP_STATE_SUCCEEDED_FILES/$BACKUP_STATE_TOTAL_FILES files backed up. $BACKUP_STATE_FAILED_FILES FAILED."
+            notification_details="Run 'backup-failures' for fix instructions"
+            ;;
+        total_failure)
+            notification_title="❌ Checkpoint Backup Failed"
+            notification_message="${PROJECT_NAME}: Backup completely failed"
+            notification_details="Run 'backup-failures' for details"
+            ;;
+    esac
+
+    # Build failures array
+    local failures_json="["
+    local first=true
+    for failure in "${BACKUP_STATE_FAILURES[@]}"; do
+        if [ "$first" = true ]; then
+            first=false
+        else
+            failures_json+=","
+        fi
+        failures_json+="$failure"
+    done
+    failures_json+="]"
+
+    # Generate LLM prompt
+    local llm_prompt="Fix these Checkpoint backup failures:\\n\\n"
+    for failure in "${BACKUP_STATE_FAILURES[@]}"; do
+        local file=$(echo "$failure" | grep -o '"path":"[^"]*"' | cut -d'"' -f4)
+        local error_code=$(echo "$failure" | grep -o '"error_code":"[^"]*"' | cut -d'"' -f4)
+        local fix=$(echo "$failure" | grep -o '"suggested_fix":"[^"]*"' | cut -d'"' -f4)
+
+        llm_prompt+="File: $file\\nError: $error_code\\nFix: $fix\\n\\n"
+    done
+
+    # Write JSON state
+    cat > "$state_file" << EOF
+{
+  "backup_id": "$(date +%Y%m%d_%H%M%S)",
+  "timestamp": $(date +%s),
+  "exit_code": $exit_code,
+  "status": "$status",
+
+  "summary": {
+    "total_files": $BACKUP_STATE_TOTAL_FILES,
+    "succeeded_files": $BACKUP_STATE_SUCCEEDED_FILES,
+    "failed_files": $BACKUP_STATE_FAILED_FILES,
+    "total_databases": $BACKUP_STATE_TOTAL_DBS,
+    "succeeded_databases": $BACKUP_STATE_SUCCEEDED_DBS,
+    "failed_databases": $BACKUP_STATE_FAILED_DBS
+  },
+
+  "severity": {
+    "level": "$severity",
+    "reason": "$reason",
+    "requires_immediate_action": $immediate
+  },
+
+  "failures": $failures_json,
+
+  "actions": {
+    "retry_recommended": $retry_recommended,
+    "retry_delay_seconds": 3600,
+    "stop_daemon": $stop_daemon,
+    "block_cloud_upload": $block_cloud,
+    "send_notification": $send_notification,
+    "notification_urgency": "$notification_urgency",
+    "escalate_after_hours": $escalate_hours
+  },
+
+  "notification": {
+    "title": "$notification_title",
+    "message": "$notification_message",
+    "details": "$notification_details"
+  },
+
+  "llm_prompt": "$llm_prompt"
+}
+EOF
+
+    echo "$state_file"
+}
+
+# Read backup state from JSON
+# Returns: 0 if state exists, 1 otherwise
+read_backup_state() {
+    local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+    local project_name="${PROJECT_NAME:-unknown}"
+    local state_file="$state_dir/${project_name}/last-backup.json"
+
+    if [ ! -f "$state_file" ]; then
+        return 1
+    fi
+
+    cat "$state_file"
+    return 0
+}
+
+# ==============================================================================
 # RETRY LOGIC FOR TRANSIENT FAILURES
 # ==============================================================================
 
