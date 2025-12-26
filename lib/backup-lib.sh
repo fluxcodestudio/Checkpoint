@@ -91,10 +91,12 @@ notify_backup_failure() {
     local total_files="${2:-0}"
     local succeeded_files="${3:-0}"
     local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
-    local failure_state="$state_dir/.last-backup-failed"
-    local failure_log="$state_dir/.last-backup-failures"
+    local project_name="${PROJECT_NAME:-unknown}"
+    local project_state_dir="$state_dir/$project_name"
+    local failure_state="$project_state_dir/.last-backup-failed"
+    local failure_log="$project_state_dir/.last-backup-failures"
 
-    mkdir -p "$state_dir" 2>/dev/null || true
+    mkdir -p "$project_state_dir" 2>/dev/null || true
 
     # Generate LLM-ready prompt from failure log
     local llm_prompt=""
@@ -119,7 +121,7 @@ notify_backup_failure() {
         echo "$(date +%s)|$error_count|$succeeded_files|$total_files|$llm_prompt" > "$failure_state"
 
         # Also write LLM prompt to separate file for easy access
-        echo "$llm_prompt" > "$state_dir/.last-backup-llm-prompt"
+        echo "$llm_prompt" > "$project_state_dir/.last-backup-llm-prompt"
     else
         # EXISTING FAILURE - check if we should escalate
         local first_failure_time=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f1)
@@ -128,7 +130,7 @@ notify_backup_failure() {
 
         # Escalate every 3 hours (10800 seconds)
         local escalation_interval=10800
-        local escalation_marker="$state_dir/.last-backup-escalation"
+        local escalation_marker="$project_state_dir/.last-backup-escalation"
         local last_escalation=0
 
         if [ -f "$escalation_marker" ]; then
@@ -153,9 +155,11 @@ notify_backup_failure() {
 # Clears failure state and notifies user backup is restored
 notify_backup_success() {
     local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
-    local failure_state="$state_dir/.last-backup-failed"
-    local escalation_marker="$state_dir/.last-backup-escalation"
-    local failure_log="$state_dir/.last-backup-failures"
+    local project_name="${PROJECT_NAME:-unknown}"
+    local project_state_dir="$state_dir/$project_name"
+    local failure_state="$project_state_dir/.last-backup-failed"
+    local escalation_marker="$project_state_dir/.last-backup-escalation"
+    local failure_log="$project_state_dir/.last-backup-failures"
 
     # Only notify if recovering from previous failure
     if [ -f "$failure_state" ]; then
@@ -704,75 +708,104 @@ show_malware_report() {
 # FAILURE REPORTING
 # ==============================================================================
 
-# Display backup failures in human-readable format
+# Display backup failures from JSON state
 # Shows detailed error info with suggested fixes
 show_backup_failures() {
     local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
-    local failure_log="$state_dir/.last-backup-failures"
-    local failure_state="$state_dir/.last-backup-failed"
+    local project_name="${PROJECT_NAME:-unknown}"
+    local state_file="$state_dir/${project_name}/last-backup.json"
 
-    if [ ! -f "$failure_state" ]; then
-        echo "✅ No backup failures"
+    # Check if state file exists
+    if [ ! -f "$state_file" ]; then
+        echo "✅ No backup failures - state file not found"
+        echo ""
+        echo "This could mean:"
+        echo "  • No backups have been run yet"
+        echo "  • All previous backups succeeded"
+        echo ""
         return 0
     fi
 
-    # Parse failure state
-    local failure_time=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f1)
-    local error_count=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f2)
-    local error_msg=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f3)
+    # Read JSON state (using grep to avoid requiring jq)
+    local exit_code=$(grep -o '"exit_code": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
+    local backup_status=$(grep -o '"status": *"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
+    local timestamp=$(grep -o '"timestamp": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
 
-    local time_ago=$(format_time_ago "$failure_time")
+    # If exit code is 0, no failures
+    if [ "$exit_code" = "0" ]; then
+        echo "✅ No backup failures - last backup succeeded"
+        echo ""
+        local time_ago=$(format_time_ago "$timestamp")
+        echo "Last backup: $time_ago"
+        echo ""
+        return 0
+    fi
+
+    # Extract summary
+    local total_files=$(grep -o '"total_files": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
+    local succeeded_files=$(grep -o '"succeeded_files": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
+    local failed_files=$(grep -o '"failed_files": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
+
+    # Extract severity
+    local severity=$(grep -o '"level": *"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
+    local reason=$(grep -o '"reason": *"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
+    local immediate=$(grep -o '"requires_immediate_action": *[^,}]*' "$state_file" | grep -o '[a-z]*$')
+
+    local time_ago=$(format_time_ago "$timestamp")
 
     echo ""
     echo "⚠️  BACKUP FAILURES DETECTED"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "Project: ${PROJECT_NAME:-Unknown}"
-    echo "Failed: $time_ago ($error_count errors)"
-    echo "Reason: $error_msg"
+    echo "Status: $backup_status"
+    echo "Failed: $time_ago ($failed_files errors)"
+    echo "Success Rate: $succeeded_files/$total_files files ($(( succeeded_files * 100 / total_files ))%)"
+    echo ""
+    echo "Severity: $(echo $severity | tr '[:lower:]' '[:upper:]')"
+    echo "Reason: $reason"
+    if [ "$immediate" = "true" ]; then
+        echo "⚠️  REQUIRES IMMEDIATE ACTION"
+    fi
     echo ""
 
-    if [ ! -f "$failure_log" ]; then
-        echo "No detailed failure log available"
-        echo ""
-        return 1
-    fi
-
+    # Parse and display failures from JSON
     echo "FAILED FILES:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
 
+    # Extract failures array (single line or multi-line)
+    # Use sed to extract everything between "failures": [ and ]
+    local failures_json=$(sed -n '/"failures": *\[/,/\]/p' "$state_file" | sed '1s/.*\[/[/; $s/\].*/]/')
+
+    # Split failures by },{ to handle multiple failure objects
     local count=0
-    while IFS='|' read -r file error_type suggested_fix; do
+    echo "$failures_json" | grep -o '{[^}]*}' | while IFS= read -r failure_obj; do
         count=$((count + 1))
-        echo ""
-        echo "$count. $file"
-        echo "   Error: $error_type"
-        echo "   Fix: $suggested_fix"
-    done < "$failure_log"
 
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
+        # Extract fields from each failure object
+        local file_path=$(echo "$failure_obj" | grep -o '"path": *"[^"]*"' | cut -d'"' -f4)
+        local error_code=$(echo "$failure_obj" | grep -o '"error_code": *"[^"]*"' | cut -d'"' -f4)
+        local suggested_fix=$(echo "$failure_obj" | grep -o '"suggested_fix": *"[^"]*"' | cut -d'"' -f4)
+
+        # Display failure
+        if [ -n "$file_path" ]; then
+            echo "$count. $file_path"
+            echo "   Error: $error_code"
+            echo "   Fix: $suggested_fix"
+            echo ""
+        fi
+    done
+
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     echo "📋 COPY THIS PROMPT INTO CLAUDE CODE CHAT:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
 
-    # Show LLM-ready prompt if available
-    local llm_prompt_file="$state_dir/.last-backup-llm-prompt"
-    if [ -f "$llm_prompt_file" ]; then
-        cat "$llm_prompt_file"
-    else
-        # Generate prompt from failure log
-        echo "Fix these Checkpoint backup failures:"
-        echo ""
-        while IFS='|' read -r file error_type suggested_fix; do
-            echo "File: $file"
-            echo "Error: $error_type"
-            echo "Fix: $suggested_fix"
-            echo ""
-        done < "$failure_log"
-    fi
+    # Extract and display LLM prompt
+    local llm_prompt=$(grep -o '"llm_prompt": *"[^"]*"' "$state_file" | cut -d'"' -f4)
+    # Unescape newlines
+    echo "$llm_prompt" | sed 's/\\n/\n/g'
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
@@ -781,7 +814,24 @@ show_backup_failures() {
     echo "  2. Run: backup-now.sh --force"
     echo "  3. Verify: 100% backed up = TRUE SUCCESS"
     echo ""
-    echo "FAILURE LOG: $failure_log"
+
+    # Show actions
+    local stop_daemon=$(grep -o '"stop_daemon": *[^,}]*' "$state_file" | grep -o '[a-z]*$')
+    local block_cloud=$(grep -o '"block_cloud_upload": *[^,}]*' "$state_file" | grep -o '[a-z]*$')
+
+    if [ "$stop_daemon" = "true" ]; then
+        echo "⚠️  WARNING: Daemon stopped due to critical failure"
+        echo "    Restart after fixing: backup-now.sh --force"
+        echo ""
+    fi
+
+    if [ "$block_cloud" = "true" ]; then
+        echo "🔒 CLOUD UPLOAD BLOCKED"
+        echo "    Fix failures before syncing to cloud (malware/critical errors)"
+        echo ""
+    fi
+
+    echo "JSON STATE: $state_file"
     echo ""
 
     return 1

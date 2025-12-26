@@ -115,21 +115,21 @@ BACKUP_LOCAL_DATABASES=true
 # Main backup log file
 LOG_FILE="$BACKUP_DIR/backup.log"
 
-# Fallback log (if drive disconnected)
-FALLBACK_LOG="$HOME/.claudecode-backups/logs/backup-fallback.log"
+# Fallback log (if drive disconnected) - PROJECT-SPECIFIC
+FALLBACK_LOG="$HOME/.claudecode-backups/logs/${PROJECT_NAME}/backup-fallback.log"
 
 # ==============================================================================
 # STATE FILES (coordination between daemon and hooks)
 # ==============================================================================
 
-# State directory
+# State directory (global base - each project gets its own subdirectory)
 STATE_DIR="$HOME/.claudecode-backups/state"
 
-# Last backup timestamp
-BACKUP_TIME_STATE="$STATE_DIR/.last-backup-time"
+# Last backup timestamp - PROJECT-SPECIFIC
+BACKUP_TIME_STATE="$STATE_DIR/${PROJECT_NAME}/.last-backup-time"
 
-# Current session tracking
-SESSION_FILE="$STATE_DIR/.current-session-time"
+# Current session tracking - PROJECT-SPECIFIC
+SESSION_FILE="$STATE_DIR/${PROJECT_NAME}/.current-session-time"
 
 # Database state tracking
 DB_STATE_FILE="$BACKUP_DIR/.backup-state"

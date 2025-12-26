@@ -769,6 +769,8 @@ fi
 backup_end=$(date +%s)
 backup_duration=$((backup_end - backup_start))
 
+# Ensure project-specific state directory exists
+mkdir -p "$(dirname "$BACKUP_TIME_STATE")" 2>/dev/null || true
 echo "$backup_end" > "$BACKUP_TIME_STATE"
 
 # ==============================================================================
