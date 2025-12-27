@@ -8,7 +8,7 @@
 
 Automated, intelligent backup system for any development environment. Battle-tested with comprehensive test coverage, cloud backup support, and multi-platform integrations.
 
-**Version:** 2.2.0
+**Version:** 2.2.1
 **Test Coverage:** 164/164 (100%)
 **License:** GPL v3
 
@@ -16,7 +16,17 @@ Automated, intelligent backup system for any development environment. Battle-tes
 
 ---
 
-## What's New in v2.2.0
+## What's New in v2.2.1
+
+🛠️ **Bug Fixes**
+- Fixed TUI dashboard on macOS (Bash 3.2 compatibility)
+- Auto-detects and uses Homebrew Bash 5+ when available
+- Fixed `backup-status` symlink resolution
+- Fixed unbound variable errors in status commands
+
+---
+
+## What's New in v2.2.1
 
 🚀 **Universal Database Support**
 - Auto-detects PostgreSQL, MySQL, MongoDB (in addition to SQLite)
@@ -620,7 +630,7 @@ A: Run `./bin/backup-restore.sh`, choose file, select version.
 A: Yes. Edit `.backup-config.sh`, change `DB_RETENTION_DAYS` and `FILE_RETENTION_DAYS`.
 
 **Q: What databases are supported?**
-A: SQLite, PostgreSQL, MySQL, and MongoDB! v2.2.0 auto-detects all databases and installs required tools (pg_dump, mysqldump, mongodump) progressively.
+A: SQLite, PostgreSQL, MySQL, and MongoDB! v2.2.1 auto-detects all databases and installs required tools (pg_dump, mysqldump, mongodump) progressively.
 
 **Q: How do I update Checkpoint?**
 A: Use `/checkpoint --update` (Claude Code) or `./bin/backup-update.sh`. Updates automatically from GitHub.
@@ -644,8 +654,8 @@ A: Use `/uninstall` (keeps backups by default) or `./bin/uninstall.sh`. Add `--n
 - **[API Reference](docs/API.md)** - Library functions for developers
 - **[Development Guide](docs/DEVELOPMENT.md)** - Contributing guidelines
 - **[Migration Guide](docs/MIGRATION.md)** - Upgrading from older versions
-- **[Testing Guide](docs/TESTING.md)** - Running tests (164/164 passing + 115 v2.2.0)
-- **[Testing Report](TESTING-REPORT.md)** - Comprehensive v2.2.0 validation results
+- **[Testing Guide](docs/TESTING.md)** - Running tests (164/164 passing + 115 v2.2.1)
+- **[Testing Report](TESTING-REPORT.md)** - Comprehensive v2.2.1 validation results
 
 ---
 
@@ -661,8 +671,8 @@ Checkpoint/
 │   ├── backup-config.sh
 │   ├── backup-restore.sh
 │   ├── backup-cleanup.sh
-│   ├── backup-update.sh          # Update from GitHub (v2.2.0)
-│   ├── backup-pause.sh           # Pause/resume (v2.2.0)
+│   ├── backup-update.sh          # Update from GitHub (v2.2.1)
+│   ├── backup-pause.sh           # Pause/resume (v2.2.1)
 │   ├── backup-cloud-config.sh    # Cloud setup
 │   ├── backup-daemon.sh
 │   ├── install.sh
@@ -670,15 +680,15 @@ Checkpoint/
 ├── lib/                          # Core libraries
 │   ├── backup-lib.sh
 │   ├── cloud-backup.sh           # Cloud functions
-│   ├── database-detector.sh      # Universal DB detection (v2.2.0)
-│   └── dependency-manager.sh     # Progressive installs (v2.2.0)
+│   ├── database-detector.sh      # Universal DB detection (v2.2.1)
+│   └── dependency-manager.sh     # Progressive installs (v2.2.1)
 ├── integrations/                 # Universal integrations
 │   ├── shell/
 │   ├── git/
 │   ├── vim/
 │   ├── vscode/
 │   └── tmux/
-├── .claude/skills/              # Claude Code commands (v2.2.0)
+├── .claude/skills/              # Claude Code commands (v2.2.1)
 │   ├── checkpoint/              # Control panel
 │   ├── backup-update/           # Update command
 │   ├── backup-pause/            # Pause/resume
@@ -707,7 +717,7 @@ your-project/
 
 ## Testing
 
-**Test Coverage: 100% (164/164 tests passing + 115 v2.2.0 tests)**
+**Test Coverage: 100% (164/164 tests passing + 115 v2.2.1 tests)**
 
 ```bash
 # Run all tests

@@ -25,7 +25,7 @@ Complete reference for Checkpoint command system.
 
 ## Overview
 
-Checkpoint v2.2.0 introduces a comprehensive command system for managing backups through an intuitive CLI. All commands support both interactive (TUI) and programmatic modes.
+Checkpoint v2.2.1 introduces a comprehensive command system for managing backups through an intuitive CLI. All commands support both interactive (TUI) and programmatic modes.
 
 ### Quick Start
 
@@ -101,8 +101,8 @@ Main control panel for Checkpoint. Displays system status, checks for updates, a
   Checkpoint Status
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Version: v2.2.0
-✓ You're running the latest version: v2.2.0
+Version: v2.2.1
+✓ You're running the latest version: v2.2.1
 
 Status: ✅ ACTIVE
 
@@ -142,7 +142,7 @@ Available Commands:
 
 **Output:**
 ```
-ℹ  Update available: v2.2.0 → v2.3.0
+ℹ  Update available: v2.2.1 → v2.3.0
 
 ℹ  Starting update...
 ✓ Downloaded v2.3.0
@@ -948,7 +948,7 @@ Check for and install Checkpoint updates from GitHub releases. Supports both glo
 ```
 🔍 Checking for updates...
 
-Current version: v2.2.0
+Current version: v2.2.1
 Latest version: v2.3.0
 
 ℹ  Update available!
@@ -987,7 +987,7 @@ To verify: /checkpoint --status
 
 **Output:**
 ```
-✓ You're running the latest version: v2.2.0
+✓ You're running the latest version: v2.2.1
 ```
 
 **Example 2: Force update without prompts**
