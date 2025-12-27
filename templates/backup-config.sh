@@ -90,6 +90,27 @@ AUTO_COMMIT_ENABLED=false
 GIT_COMMIT_MESSAGE="Auto-backup: $(date '+%Y-%m-%d %H:%M')"
 
 # ==============================================================================
+# GITHUB AUTO-PUSH
+# ==============================================================================
+
+# Auto-push to GitHub after backup (true/false)
+# Requires: git remote configured, authentication set up (gh auth login)
+GIT_AUTO_PUSH_ENABLED=false
+
+# Push interval in seconds (default: 7200 = 2 hours)
+# Options: 3600 (hourly), 7200 (2 hours), 14400 (4 hours), 86400 (daily)
+GIT_PUSH_INTERVAL=7200
+
+# Branch to push (leave empty for current branch)
+GIT_PUSH_BRANCH=""
+
+# Remote name (default: origin)
+GIT_PUSH_REMOTE="origin"
+
+# Last push timestamp tracking - PROJECT-SPECIFIC
+GIT_PUSH_STATE="$STATE_DIR/${PROJECT_NAME}/.last-git-push"
+
+# ==============================================================================
 # CRITICAL FILES TO BACKUP (even if gitignored)
 # ==============================================================================
 

@@ -741,6 +741,71 @@ if [ "$DATABASE_ONLY" = false ]; then
 fi
 
 # ==============================================================================
+# GITHUB AUTO-PUSH
+# ==============================================================================
+
+# Set defaults for push config
+GIT_AUTO_PUSH_ENABLED="${GIT_AUTO_PUSH_ENABLED:-false}"
+GIT_PUSH_INTERVAL="${GIT_PUSH_INTERVAL:-7200}"
+GIT_PUSH_REMOTE="${GIT_PUSH_REMOTE:-origin}"
+GIT_PUSH_BRANCH="${GIT_PUSH_BRANCH:-}"
+GIT_PUSH_STATE="${GIT_PUSH_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-git-push}"
+
+if [ "$GIT_AUTO_PUSH_ENABLED" = true ]; then
+    # Ensure state directory exists
+    mkdir -p "$(dirname "$GIT_PUSH_STATE")" 2>/dev/null || true
+
+    # Check if we're in a git repo with a remote
+    if git remote get-url "$GIT_PUSH_REMOTE" &>/dev/null; then
+        # Get last push time
+        last_push_time=0
+        if [ -f "$GIT_PUSH_STATE" ]; then
+            last_push_time=$(cat "$GIT_PUSH_STATE" 2>/dev/null || echo "0")
+        fi
+
+        current_time=$(date +%s)
+        time_since_push=$((current_time - last_push_time))
+
+        # Check if push interval has elapsed
+        if [ $time_since_push -ge $GIT_PUSH_INTERVAL ]; then
+            # Determine branch to push
+            push_branch="$GIT_PUSH_BRANCH"
+            if [ -z "$push_branch" ]; then
+                push_branch=$(git branch --show-current 2>/dev/null)
+            fi
+
+            if [ -n "$push_branch" ]; then
+                # Check if there are commits to push
+                local_commits=$(git rev-list --count "$GIT_PUSH_REMOTE/$push_branch..HEAD" 2>/dev/null || echo "0")
+
+                if [ "$local_commits" -gt 0 ]; then
+                    log_info "   ▸ GitHub: Pushing $local_commits commit(s) to $GIT_PUSH_REMOTE/$push_branch..."
+
+                    if git push "$GIT_PUSH_REMOTE" "$push_branch" -q 2>/dev/null; then
+                        echo "$current_time" > "$GIT_PUSH_STATE"
+                        log_success "   ▸ GitHub: ✅ Pushed to $GIT_PUSH_REMOTE/$push_branch"
+                    else
+                        log_error "   ▸ GitHub: ❌ Push failed - check authentication (run: gh auth login)"
+                    fi
+                else
+                    # No commits to push, but update timestamp
+                    echo "$current_time" > "$GIT_PUSH_STATE"
+                    log_verbose "   ▸ GitHub: Already up to date"
+                fi
+            else
+                log_error "   ▸ GitHub: ❌ No branch detected"
+            fi
+        else
+            remaining=$((GIT_PUSH_INTERVAL - time_since_push))
+            remaining_min=$((remaining / 60))
+            log_verbose "   ▸ GitHub: Next push in ${remaining_min}m"
+        fi
+    else
+        log_verbose "   ▸ GitHub: No remote '$GIT_PUSH_REMOTE' configured"
+    fi
+fi
+
+# ==============================================================================
 # CLEANUP
 # ==============================================================================
 

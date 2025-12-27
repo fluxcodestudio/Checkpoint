@@ -56,7 +56,7 @@ fi
 
 # === Question 1: Database Backups ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  1/5: Auto-Detecting Databases"
+echo "  1/6: Auto-Detecting Databases"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 detected_dbs=$(detect_databases "$PROJECT_DIR" 2>/dev/null | grep -v "🔍" || echo "")
@@ -109,7 +109,7 @@ echo ""
 
 # === Question 2: Cloud Backup ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  2/5: Cloud Backup (Optional)"
+echo "  2/6: Cloud Backup (Optional)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Enable cloud backup? (y/N): " wants_cloud
 wants_cloud=${wants_cloud:-n}
@@ -117,7 +117,7 @@ echo ""
 
 # === Question 3: Automated Hourly Backups ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  3/5: Automated Hourly Backups"
+echo "  3/6: Automated Hourly Backups"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [[ "$OSTYPE" == "darwin"* ]]; then
     read -p "  Install hourly backup schedule (macOS LaunchAgent)? (Y/n): " install_daemon
@@ -130,7 +130,7 @@ echo ""
 
 # === Question 4: Claude Code Integration ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  4/5: Claude Code Integration (Optional)"
+echo "  4/6: Claude Code Integration (Optional)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 if [[ -d "$HOME/.claude" ]]; then
     read -p "  Add backup trigger to Claude Code? (Y/n): " install_hook
@@ -141,9 +141,56 @@ else
 fi
 echo ""
 
-# === Question 5: Initial Backup ===
+# === Question 5: GitHub Auto-Push ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  5/5: Initial Backup"
+echo "  5/6: GitHub Auto-Push (Optional)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+wants_github_push=n
+github_push_interval=7200
+if git remote get-url origin &>/dev/null; then
+    echo "  Git remote detected: $(git remote get-url origin)"
+    read -p "  Auto-push to GitHub every 2 hours? (Y/n): " wants_github_push
+    wants_github_push=${wants_github_push:-y}
+
+    if [[ "$wants_github_push" =~ ^[Yy]$ ]]; then
+        echo ""
+        echo "  Push frequency options:"
+        echo "    1) Every hour"
+        echo "    2) Every 2 hours (recommended)"
+        echo "    3) Every 4 hours"
+        echo "    4) Daily"
+        read -p "  Choose [1-4] (default: 2): " push_freq_choice
+        push_freq_choice=${push_freq_choice:-2}
+
+        case "$push_freq_choice" in
+            1) github_push_interval=3600 ;;
+            2) github_push_interval=7200 ;;
+            3) github_push_interval=14400 ;;
+            4) github_push_interval=86400 ;;
+            *) github_push_interval=7200 ;;
+        esac
+
+        # Check authentication
+        if ! check_github_auth 2>/dev/null; then
+            echo ""
+            echo "  ⚠️  GitHub authentication not detected."
+            read -p "  Set up authentication now? (Y/n): " setup_auth
+            setup_auth=${setup_auth:-y}
+            if [[ "$setup_auth" =~ ^[Yy]$ ]]; then
+                setup_github_auth
+            fi
+        else
+            echo "  ✓ GitHub authentication detected"
+        fi
+    fi
+else
+    echo "  No git remote configured - skipping"
+fi
+echo ""
+
+# === Question 6: Initial Backup ===
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  6/6: Initial Backup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Run initial backup now? (Y/n): " run_initial
 run_initial=${run_initial:-y}
@@ -185,6 +232,13 @@ SESSION_IDLE_THRESHOLD=600
 # Cloud Backup
 CLOUD_ENABLED=$([ "$wants_cloud" =~ ^[Yy]$ ] && echo "true" || echo "false")
 BACKUP_LOCATION="local"
+
+# GitHub Auto-Push
+GIT_AUTO_PUSH_ENABLED=$([ "$wants_github_push" =~ ^[Yy]$ ] && echo "true" || echo "false")
+GIT_PUSH_INTERVAL=$github_push_interval
+GIT_PUSH_REMOTE="origin"
+GIT_PUSH_BRANCH=""
+GIT_PUSH_STATE="\$STATE_DIR/\${PROJECT_NAME}/.last-git-push"
 
 # Critical Files
 BACKUP_ENV_FILES=true
