@@ -130,6 +130,29 @@ BACKUP_LOCAL_NOTES=true
 BACKUP_LOCAL_DATABASES=true
 
 # ==============================================================================
+# FILE SIZE LIMITS
+# ==============================================================================
+
+# Maximum file size to backup (in bytes)
+# Default: 104857600 (100MB)
+# Files larger than this will be skipped with a warning
+# Set to 0 to disable size limit (backup all files regardless of size)
+MAX_BACKUP_FILE_SIZE=104857600
+
+# Backup large files anyway (overrides MAX_BACKUP_FILE_SIZE)
+# Set to true if you have specific large files you need backed up
+BACKUP_LARGE_FILES=false
+
+# ==============================================================================
+# TIMESTAMP CONFIGURATION (Issue #13)
+# ==============================================================================
+
+# Use UTC timestamps for backup filenames (true/false)
+# Default: false (use local time)
+# Set to true for consistent timestamps across timezones
+USE_UTC_TIMESTAMPS=false
+
+# ==============================================================================
 # LOGGING
 # ==============================================================================
 

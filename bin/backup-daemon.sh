@@ -30,6 +30,46 @@ if [[ -f "$CLOUD_LIB" ]] && [[ "${CLOUD_ENABLED:-false}" == "true" ]]; then
 fi
 
 # ==============================================================================
+# ORPHAN DETECTION (Issue #8)
+# ==============================================================================
+# Check if project still exists - self-disable if deleted
+
+if [ ! -d "$PROJECT_DIR" ]; then
+    echo "⚠️  Project directory no longer exists: $PROJECT_DIR" >&2
+    echo "   This LaunchAgent appears to be orphaned." >&2
+
+    # Try to unload the LaunchAgent automatically
+    PLIST_NAME="com.claudecode.backup.${PROJECT_NAME}.plist"
+    PLIST_PATH="$HOME/Library/LaunchAgents/$PLIST_NAME"
+
+    if [ -f "$PLIST_PATH" ]; then
+        echo "   Attempting to unload orphaned LaunchAgent..." >&2
+        if launchctl unload "$PLIST_PATH" 2>/dev/null; then
+            rm -f "$PLIST_PATH"
+            echo "✅ Orphaned LaunchAgent removed: $PLIST_NAME" >&2
+        else
+            echo "   Failed to unload. Run manually:" >&2
+            echo "   launchctl unload '$PLIST_PATH' && rm '$PLIST_PATH'" >&2
+        fi
+    fi
+
+    # Clean up state files for this project
+    STATE_PROJECT_DIR="$HOME/.claudecode-backups/state/${PROJECT_NAME}"
+    if [ -d "$STATE_PROJECT_DIR" ]; then
+        rm -rf "$STATE_PROJECT_DIR"
+        echo "   Cleaned up state files for: $PROJECT_NAME" >&2
+    fi
+
+    # Clean up lock files
+    LOCK_DIR="$HOME/.claudecode-backups/locks/${PROJECT_NAME}.lock"
+    if [ -d "$LOCK_DIR" ]; then
+        rm -rf "$LOCK_DIR"
+    fi
+
+    exit 0  # Exit gracefully, not an error
+fi
+
+# ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
 
@@ -105,22 +145,45 @@ backup_database() {
 
     log "📦 Backing up database: $PROJECT_NAME"
 
-    # Human-readable timestamp: "ProjectName - 12.23.25 - 10:45.db.gz"
+    # Human-readable timestamp with PID suffix to prevent collisions
     timestamp=$(date '+%m.%d.%y - %H:%M')
     backup_file="$DATABASE_DIR/${PROJECT_NAME} - ${timestamp}.db.gz"
 
-    # SQLite backup: copy + compress
+    # SQLite backup: copy + compress with proper cleanup
     if [ "$DB_TYPE" = "sqlite" ]; then
-        sqlite3 "$DB_PATH" ".backup /tmp/${PROJECT_NAME}_temp.db" && \
-        gzip -c "/tmp/${PROJECT_NAME}_temp.db" > "$backup_file" && \
-        rm "/tmp/${PROJECT_NAME}_temp.db"
+        # Use mktemp for secure temp file (not world-readable /tmp)
+        local temp_db
+        temp_db=$(mktemp -t "${PROJECT_NAME}_backup.XXXXXX.db") || {
+            log "❌ Failed to create temp file"
+            return 1
+        }
 
-        if [ $? -eq 0 ]; then
-            size=$(du -h "$backup_file" | cut -f1)
-            log "✅ Database backup created: ${backup_file##*/} ($size)"
-            return 0
+        # Trap to ensure cleanup on any exit from this function
+        trap "rm -f '$temp_db' 2>/dev/null" RETURN
+
+        # Perform backup
+        if sqlite3 "$DB_PATH" ".backup '$temp_db'" 2>/dev/null; then
+            if gzip -c "$temp_db" > "$backup_file" 2>/dev/null; then
+                # Verify the backup is valid
+                if gunzip -t "$backup_file" 2>/dev/null; then
+                    size=$(du -h "$backup_file" | cut -f1)
+                    log "✅ Database backup created: ${backup_file##*/} ($size)"
+                    rm -f "$temp_db" 2>/dev/null
+                    return 0
+                else
+                    log "❌ Database backup verification failed"
+                    rm -f "$backup_file" 2>/dev/null
+                    rm -f "$temp_db" 2>/dev/null
+                    return 1
+                fi
+            else
+                log "❌ Database compression failed"
+                rm -f "$temp_db" 2>/dev/null
+                return 1
+            fi
         else
-            log "❌ Database backup failed"
+            log "❌ SQLite backup command failed"
+            rm -f "$temp_db" 2>/dev/null
             return 1
         fi
     else
@@ -287,14 +350,39 @@ log "✅ Drive verification passed"
 # ==============================================================================
 # Prevents duplicate backups when daemon and hook run simultaneously
 # Uses atomic mkdir for cross-platform compatibility (macOS + Linux)
+# Fix: Write PID atomically to prevent race conditions
 
-LOCK_DIR="${HOME}/.claudecode-backups/locks/${PROJECT_NAME}.lock"
+LOCK_BASE="${HOME}/.claudecode-backups/locks"
+LOCK_DIR="${LOCK_BASE}/${PROJECT_NAME}.lock"
 LOCK_PID_FILE="$LOCK_DIR/pid"
 
-# Try to acquire lock by creating directory (atomic operation)
-if mkdir "$LOCK_DIR" 2>/dev/null; then
-    # Successfully acquired lock
-    echo $$ > "$LOCK_PID_FILE"
+# Ensure lock base directory exists
+mkdir -p "$LOCK_BASE" 2>/dev/null
+
+# Helper function to acquire lock atomically
+acquire_lock() {
+    # Create temp PID file first (atomic write)
+    local temp_pid_file
+    temp_pid_file=$(mktemp "${LOCK_BASE}/.pid.XXXXXX") || return 1
+    echo $$ > "$temp_pid_file"
+
+    # Try to create lock directory (atomic operation)
+    if mkdir "$LOCK_DIR" 2>/dev/null; then
+        # Move PID file into lock directory (atomic on same filesystem)
+        mv "$temp_pid_file" "$LOCK_PID_FILE" 2>/dev/null || {
+            rm -f "$temp_pid_file"
+            rm -rf "$LOCK_DIR"
+            return 1
+        }
+        return 0
+    else
+        rm -f "$temp_pid_file"
+        return 1
+    fi
+}
+
+# Try to acquire lock
+if acquire_lock; then
     trap 'rm -rf "$LOCK_DIR"' EXIT
     log "🔒 Acquired backup lock (PID: $$)"
 else
@@ -311,8 +399,7 @@ else
             log "⚠️  Removing stale lock (PID $LOCK_PID not running)"
             rm -rf "$LOCK_DIR"
             # Try to acquire lock again
-            if mkdir "$LOCK_DIR" 2>/dev/null; then
-                echo $$ > "$LOCK_PID_FILE"
+            if acquire_lock; then
                 trap 'rm -rf "$LOCK_DIR"' EXIT
                 log "🔒 Acquired backup lock after cleanup (PID: $$)"
             else
@@ -323,11 +410,21 @@ else
             fi
         fi
     else
-        # Lock directory exists but no PID file - probably stale
+        # Lock directory exists but no PID file - probably stale or race condition
+        # Wait briefly and check again (handles the mkdir/mv race window)
+        sleep 0.1
+        if [ -f "$LOCK_PID_FILE" ]; then
+            LOCK_PID=$(cat "$LOCK_PID_FILE" 2>/dev/null)
+            if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
+                log "ℹ️  Another backup is currently running (PID: $LOCK_PID), skipping"
+                log "═══════════════════════════════════════════════"
+                exit 0
+            fi
+        fi
+        # Still no valid PID, clean up and try again
         log "⚠️  Removing incomplete lock directory"
         rm -rf "$LOCK_DIR"
-        if mkdir "$LOCK_DIR" 2>/dev/null; then
-            echo $$ > "$LOCK_PID_FILE"
+        if acquire_lock; then
             trap 'rm -rf "$LOCK_DIR"' EXIT
             log "🔒 Acquired backup lock after cleanup (PID: $$)"
         else

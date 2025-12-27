@@ -157,6 +157,16 @@ log_verbose() {
     echo -e "${COLOR_GRAY}$@${COLOR_RESET}"
 }
 
+# Issue #13: Get timestamp (UTC or local based on config)
+get_backup_timestamp() {
+    local format="${1:-%Y%m%d_%H%M%S}"
+    if [ "${USE_UTC_TIMESTAMPS:-false}" = "true" ]; then
+        date -u +"$format"
+    else
+        date +"$format"
+    fi
+}
+
 # ==============================================================================
 # LOAD CONFIGURATION
 # ==============================================================================
@@ -172,6 +182,23 @@ init_state_dirs
 
 # Ensure STATE_DIR is set for error logging
 STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+
+# Set defaults for optional config variables (compatibility with older configs)
+DRIVE_VERIFICATION_ENABLED="${DRIVE_VERIFICATION_ENABLED:-false}"
+DRIVE_MARKER_FILE="${DRIVE_MARKER_FILE:-}"
+BACKUP_LOCAL_NOTES="${BACKUP_LOCAL_NOTES:-true}"
+BACKUP_LOCAL_DATABASES="${BACKUP_LOCAL_DATABASES:-true}"
+AUTO_COMMIT_ENABLED="${AUTO_COMMIT_ENABLED:-false}"
+GIT_COMMIT_MESSAGE="${GIT_COMMIT_MESSAGE:-Auto-backup: $(date '+%Y-%m-%d %H:%M')}"
+USE_UTC_TIMESTAMPS="${USE_UTC_TIMESTAMPS:-false}"
+DB_PATH="${DB_PATH:-}"
+DB_TYPE="${DB_TYPE:-none}"
+DB_STATE_FILE="${DB_STATE_FILE:-$BACKUP_DIR/.backup-state}"
+BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-backup-time}"
+DATABASE_DIR="${DATABASE_DIR:-$BACKUP_DIR/databases}"
+FILES_DIR="${FILES_DIR:-$BACKUP_DIR/files}"
+ARCHIVED_DIR="${ARCHIVED_DIR:-$BACKUP_DIR/archived}"
+LOG_FILE="${LOG_FILE:-$BACKUP_DIR/backup.log}"
 
 # ==============================================================================
 # PRE-FLIGHT CHECKS
@@ -404,6 +431,9 @@ backup_start=$(date +%s)
 # Initialize JSON state tracking
 init_backup_state
 
+# Initialize error counter (used for legacy database backup path)
+backup_errors=0
+
 log_info "📦 Backup in progress..."
 log_info ""
 
@@ -464,9 +494,23 @@ if [ "$DATABASE_ONLY" = false ]; then
     changed_files=$(mktemp)
 
     # Detect if this is the first backup
+    # Issue #9: Filter .DS_Store and other system files from emptiness check
     is_first_backup=false
-    if [ ! -d "$FILES_DIR" ] || [ -z "$(ls -A "$FILES_DIR" 2>/dev/null)" ]; then
+    if [ ! -d "$FILES_DIR" ]; then
         is_first_backup=true
+    else
+        # Count real files (excluding .DS_Store, .localized, etc.)
+        real_file_count=$(find "$FILES_DIR" -type f \
+            ! -name ".DS_Store" \
+            ! -name ".localized" \
+            ! -name "*.swp" \
+            ! -name "*~" \
+            2>/dev/null | wc -l | tr -d ' ')
+        if [ "$real_file_count" -eq 0 ]; then
+            is_first_backup=true
+        fi
+    fi
+    if [ "$is_first_backup" = true ]; then
         log_info "   ▸ Files: First backup detected - will backup all tracked files"
     fi
 
@@ -570,12 +614,17 @@ if [ "$DATABASE_ONLY" = false ]; then
             ! -name "$main_db_name" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
     fi
 
+    # Issue #11: Always backup the backup config itself
+    [ -f ".backup-config.sh" ] && echo ".backup-config.sh" >> "$changed_files"
+
     if [ ! -s "$changed_files" ]; then
         log_info "   ▸ Files: No changes detected"
     else
         file_count=0
         archived_count=0
-        timestamp=$(date +%Y%m%d_%H%M%S)
+        # Issue #5: Add PID suffix to prevent timestamp collisions
+        # Issue #13: Use UTC or local time based on config
+        timestamp=$(get_backup_timestamp)_$$
 
         # Create manifest for verification
         manifest_file=$(mktemp)
@@ -601,10 +650,40 @@ if [ "$DATABASE_ONLY" = false ]; then
             log_info "   ▸ Files: Backing up changes..."
         fi
 
+        # Set defaults for file size limits
+        MAX_BACKUP_FILE_SIZE="${MAX_BACKUP_FILE_SIZE:-104857600}"  # 100MB default
+        BACKUP_LARGE_FILES="${BACKUP_LARGE_FILES:-false}"
+        skipped_large_files=0
+        skipped_symlinks=0
+
         while IFS= read -r file; do
             if [ -z "$file" ]; then continue; fi
-            if [ ! -f "$file" ]; then continue; fi
+            if [ ! -e "$file" ]; then continue; fi
             if [[ "$file" == backups/* ]]; then continue; fi
+
+            # Issue #7: Skip symlinks for safety (avoid following to system files or loops)
+            if [ -L "$file" ]; then
+                skipped_symlinks=$((skipped_symlinks + 1))
+                if [ "$VERBOSE" = true ]; then
+                    log_verbose "      ⊘ Skipped symlink: $file"
+                fi
+                continue
+            fi
+
+            # Must be a regular file
+            if [ ! -f "$file" ]; then continue; fi
+
+            # Issue #6: Check file size limits
+            if [ "$MAX_BACKUP_FILE_SIZE" -gt 0 ] && [ "$BACKUP_LARGE_FILES" != "true" ]; then
+                file_size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0")
+                if [ "$file_size" -gt "$MAX_BACKUP_FILE_SIZE" ]; then
+                    skipped_large_files=$((skipped_large_files + 1))
+                    file_size_mb=$((file_size / 1048576))
+                    max_size_mb=$((MAX_BACKUP_FILE_SIZE / 1048576))
+                    log_warn "      ⊘ Skipped large file (${file_size_mb}MB > ${max_size_mb}MB limit): $file"
+                    continue
+                fi
+            fi
 
             current_file="$FILES_DIR/$file"
             current_dir=$(dirname "$current_file")

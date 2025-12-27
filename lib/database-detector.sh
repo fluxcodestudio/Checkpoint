@@ -286,18 +286,45 @@ backup_single_database() {
 
     case "$db_type" in
         sqlite)
-            # SQLite: Simple file copy
+            # SQLite: Safe backup with verification
             local db_path="$rest"
             local db_name=$(basename "$db_path")
-            local backup_file="$backup_dir/databases/${db_name%.db}_${timestamp}.db.gz"
+            local backup_file="$backup_dir/databases/${db_name%.db}_${timestamp}_$$.db.gz"
 
             mkdir -p "$backup_dir/databases"
-            gzip -c "$db_path" > "$backup_file"
-            echo "✅ SQLite: $db_name"
+
+            # Use sqlite3 .backup for safe copy (handles locks properly)
+            local temp_db
+            temp_db=$(mktemp -t "sqlite_backup.XXXXXX.db") || {
+                echo "❌ SQLite: $db_name (temp file failed)"
+                return 1
+            }
+
+            if sqlite3 "$db_path" ".backup '$temp_db'" 2>/dev/null; then
+                if gzip -c "$temp_db" > "$backup_file" 2>/dev/null; then
+                    # Verify backup integrity
+                    if gunzip -t "$backup_file" 2>/dev/null; then
+                        echo "✅ SQLite: $db_name"
+                        rm -f "$temp_db"
+                    else
+                        echo "❌ SQLite: $db_name (verification failed)"
+                        rm -f "$temp_db" "$backup_file"
+                        return 1
+                    fi
+                else
+                    echo "❌ SQLite: $db_name (compression failed)"
+                    rm -f "$temp_db"
+                    return 1
+                fi
+            else
+                echo "❌ SQLite: $db_name (backup command failed)"
+                rm -f "$temp_db"
+                return 1
+            fi
             ;;
 
         postgresql)
-            # PostgreSQL: Use pg_dump
+            # PostgreSQL: Use pg_dump with verification
             IFS='|' read -r host port database user is_local <<< "$rest"
 
             if [[ "$is_local" != "true" ]]; then
@@ -310,19 +337,32 @@ backup_single_database() {
                 return 1
             fi
 
-            local backup_file="$backup_dir/databases/postgres_${database}_${timestamp}.sql.gz"
+            local backup_file="$backup_dir/databases/postgres_${database}_${timestamp}_$$.sql.gz"
             mkdir -p "$backup_dir/databases"
 
-            if pg_dump -h "$host" -p "$port" -U "$user" "$database" 2>/dev/null | gzip > "$backup_file"; then
-                echo "✅ PostgreSQL: $database"
+            # Capture exit code properly
+            local pg_exit_code
+            pg_dump -h "$host" -p "$port" -U "$user" "$database" 2>/dev/null | gzip > "$backup_file"
+            pg_exit_code=${PIPESTATUS[0]}
+
+            if [[ $pg_exit_code -eq 0 ]]; then
+                # Verify backup
+                if gunzip -t "$backup_file" 2>/dev/null && [[ -s "$backup_file" ]]; then
+                    echo "✅ PostgreSQL: $database"
+                else
+                    echo "❌ PostgreSQL: $database (verification failed)"
+                    rm -f "$backup_file"
+                    return 1
+                fi
             else
-                echo "❌ PostgreSQL: $database (backup failed)"
+                echo "❌ PostgreSQL: $database (pg_dump failed with code $pg_exit_code)"
+                rm -f "$backup_file"
                 return 1
             fi
             ;;
 
         mysql)
-            # MySQL: Use mysqldump
+            # MySQL: Use mysqldump with verification
             IFS='|' read -r host port database user is_local <<< "$rest"
 
             if [[ "$is_local" != "true" ]]; then
@@ -335,19 +375,32 @@ backup_single_database() {
                 return 1
             fi
 
-            local backup_file="$backup_dir/databases/mysql_${database}_${timestamp}.sql.gz"
+            local backup_file="$backup_dir/databases/mysql_${database}_${timestamp}_$$.sql.gz"
             mkdir -p "$backup_dir/databases"
 
-            if mysqldump -h "$host" -P "$port" -u "$user" "$database" 2>/dev/null | gzip > "$backup_file"; then
-                echo "✅ MySQL: $database"
+            # Capture exit code properly
+            local mysql_exit_code
+            mysqldump -h "$host" -P "$port" -u "$user" "$database" 2>/dev/null | gzip > "$backup_file"
+            mysql_exit_code=${PIPESTATUS[0]}
+
+            if [[ $mysql_exit_code -eq 0 ]]; then
+                # Verify backup
+                if gunzip -t "$backup_file" 2>/dev/null && [[ -s "$backup_file" ]]; then
+                    echo "✅ MySQL: $database"
+                else
+                    echo "❌ MySQL: $database (verification failed)"
+                    rm -f "$backup_file"
+                    return 1
+                fi
             else
-                echo "❌ MySQL: $database (backup failed)"
+                echo "❌ MySQL: $database (mysqldump failed with code $mysql_exit_code)"
+                rm -f "$backup_file"
                 return 1
             fi
             ;;
 
         mongodb)
-            # MongoDB: Use mongodump
+            # MongoDB: Use mongodump with verification
             IFS='|' read -r host port database user is_local <<< "$rest"
 
             if [[ "$is_local" != "true" ]]; then
@@ -360,17 +413,38 @@ backup_single_database() {
                 return 1
             fi
 
-            local backup_file="$backup_dir/databases/mongodb_${database}_${timestamp}.gz"
+            local backup_file="$backup_dir/databases/mongodb_${database}_${timestamp}_$$.tar.gz"
             mkdir -p "$backup_dir/databases"
-            local temp_dir=$(mktemp -d)
+            local temp_dir
+            temp_dir=$(mktemp -d) || {
+                echo "❌ MongoDB: $database (temp dir failed)"
+                return 1
+            }
 
-            if mongodump --host "$host" --port "$port" --db "$database" --out "$temp_dir" &>/dev/null; then
-                tar -czf "$backup_file" -C "$temp_dir" .
-                rm -rf "$temp_dir"
-                echo "✅ MongoDB: $database"
+            # Capture exit code
+            local mongo_exit_code
+            mongodump --host "$host" --port "$port" --db "$database" --out "$temp_dir" &>/dev/null
+            mongo_exit_code=$?
+
+            if [[ $mongo_exit_code -eq 0 ]]; then
+                if tar -czf "$backup_file" -C "$temp_dir" . 2>/dev/null; then
+                    # Verify backup
+                    if tar -tzf "$backup_file" &>/dev/null && [[ -s "$backup_file" ]]; then
+                        echo "✅ MongoDB: $database"
+                        rm -rf "$temp_dir"
+                    else
+                        echo "❌ MongoDB: $database (verification failed)"
+                        rm -rf "$temp_dir" "$backup_file"
+                        return 1
+                    fi
+                else
+                    echo "❌ MongoDB: $database (compression failed)"
+                    rm -rf "$temp_dir"
+                    return 1
+                fi
             else
                 rm -rf "$temp_dir"
-                echo "❌ MongoDB: $database (backup failed)"
+                echo "❌ MongoDB: $database (mongodump failed with code $mongo_exit_code)"
                 return 1
             fi
             ;;

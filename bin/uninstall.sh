@@ -5,6 +5,118 @@
 set -euo pipefail
 
 # ==============================================================================
+# ORPHAN CLEANUP MODE (Issue #8)
+# ==============================================================================
+
+cleanup_orphans() {
+    echo "═══════════════════════════════════════════════"
+    echo "Checkpoint - Orphan Cleanup"
+    echo "═══════════════════════════════════════════════"
+    echo ""
+    echo "Scanning for orphaned LaunchAgents..."
+    echo ""
+
+    local orphans_found=0
+    local orphans_cleaned=0
+
+    # Scan all Checkpoint LaunchAgents
+    for plist in "$HOME/Library/LaunchAgents"/com.claudecode.backup.*.plist; do
+        [ -f "$plist" ] || continue
+
+        # Extract project name from plist filename
+        local basename="${plist##*/}"
+        local project_name="${basename#com.claudecode.backup.}"
+        project_name="${project_name%.plist}"
+
+        # Try to find project directory from plist
+        local project_dir=""
+        if command -v /usr/libexec/PlistBuddy &>/dev/null; then
+            project_dir=$(/usr/libexec/PlistBuddy -c "Print :WorkingDirectory" "$plist" 2>/dev/null || echo "")
+        fi
+
+        # If we couldn't extract from plist, check state directory
+        if [ -z "$project_dir" ]; then
+            local state_dir="$HOME/.claudecode-backups/state/$project_name"
+            if [ -f "$state_dir/.project-dir" ]; then
+                project_dir=$(cat "$state_dir/.project-dir" 2>/dev/null || echo "")
+            fi
+        fi
+
+        # Check if project directory exists
+        if [ -n "$project_dir" ] && [ ! -d "$project_dir" ]; then
+            orphans_found=$((orphans_found + 1))
+            echo "⚠️  Orphan found: $project_name"
+            echo "   Missing: $project_dir"
+
+            if [ "${DRY_RUN:-false}" = "true" ]; then
+                echo "   [DRY RUN] Would remove: $plist"
+            else
+                # Unload and remove
+                if launchctl unload "$plist" 2>/dev/null; then
+                    rm -f "$plist"
+                    orphans_cleaned=$((orphans_cleaned + 1))
+                    echo "   ✅ Removed LaunchAgent"
+                else
+                    echo "   ❌ Failed to unload (may already be unloaded)"
+                    rm -f "$plist" 2>/dev/null && orphans_cleaned=$((orphans_cleaned + 1))
+                fi
+
+                # Clean up state directory
+                local state_dir="$HOME/.claudecode-backups/state/$project_name"
+                if [ -d "$state_dir" ]; then
+                    rm -rf "$state_dir"
+                    echo "   ✅ Cleaned state files"
+                fi
+
+                # Clean up lock directory
+                local lock_dir="$HOME/.claudecode-backups/locks/${project_name}.lock"
+                if [ -d "$lock_dir" ]; then
+                    rm -rf "$lock_dir"
+                fi
+            fi
+            echo ""
+        fi
+    done
+
+    echo "═══════════════════════════════════════════════"
+    if [ $orphans_found -eq 0 ]; then
+        echo "✅ No orphaned LaunchAgents found"
+    elif [ "${DRY_RUN:-false}" = "true" ]; then
+        echo "Found $orphans_found orphan(s). Run without --dry-run to clean."
+    else
+        echo "✅ Cleaned $orphans_cleaned of $orphans_found orphan(s)"
+    fi
+    echo "═══════════════════════════════════════════════"
+}
+
+# Check for orphan cleanup mode
+if [ "${1:-}" = "--cleanup-orphans" ] || [ "${1:-}" = "--orphans" ]; then
+    if [ "${2:-}" = "--dry-run" ]; then
+        DRY_RUN=true
+    fi
+    cleanup_orphans
+    exit 0
+fi
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    cat <<EOF
+Checkpoint - Uninstaller
+
+USAGE:
+    uninstall.sh [PROJECT_DIR]       Uninstall from specific project
+    uninstall.sh --cleanup-orphans   Find and remove orphaned LaunchAgents
+    uninstall.sh --orphans --dry-run Preview orphans without removing
+
+OPTIONS:
+    --cleanup-orphans, --orphans  Scan for and remove orphaned LaunchAgents
+    --dry-run                     Preview changes without making them
+    --help, -h                    Show this help message
+
+EOF
+    exit 0
+fi
+
+# ==============================================================================
 # LOAD CONFIGURATION
 # ==============================================================================
 

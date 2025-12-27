@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.2] - 2025-12-26
+
+### Fixed
+
+**Critical Bug Fixes**
+
+- **Bug #1: Uninitialized `backup_errors`** - Fixed `set -u` error when `backup_errors` variable used before initialization in `backup-now.sh`
+- **Bug #2: Lock Race Condition** - Rewrote lock acquisition with atomic temp file + rename pattern to prevent PID file race conditions
+- **Bug #3: Temp File Cleanup** - Added proper cleanup with `mktemp` and trap handlers to ensure temp files are removed even on failure
+
+**Backup Verification**
+
+- **Issue #4: Database Backup Verification** - Added `gunzip -t` verification after all database backups (SQLite, PostgreSQL, MySQL, MongoDB)
+- **Issue #12: Exit Code Capture** - Fixed pipeline exit code capture using `${PIPESTATUS[0]}` for all database dump commands
+
+**File Handling**
+
+- **Issue #5: Timestamp Collisions** - Added PID suffix (`_$$`) to all backup timestamps to prevent collisions during rapid successive backups
+- **Issue #6: File Size Limits** - Added configurable `MAX_BACKUP_FILE_SIZE` (default 100MB) to skip large files with warning
+- **Issue #7: Symlink Safety** - Skip symlinks during backup to prevent following to system files or infinite loops
+
+**System Robustness**
+
+- **Issue #8: LaunchAgent Orphan Detection** - Daemon now detects when project directory is deleted and self-disables the LaunchAgent
+- **Issue #9: First Backup Detection** - Fixed emptiness check to filter `.DS_Store` and other system files
+- **Issue #11: Config Self-Backup** - `.backup-config.sh` now always included in critical files backup
+- **Issue #13: UTC Timestamps** - Added optional `USE_UTC_TIMESTAMPS=true` config for consistent timestamps across timezones
+
+### Added
+
+**New Commands**
+
+- `uninstall.sh --cleanup-orphans` - Scan and remove orphaned LaunchAgents for deleted projects
+- `uninstall.sh --orphans --dry-run` - Preview orphans without removing
+
+**New Configuration Options**
+
+```bash
+# File size limits (templates/backup-config.sh)
+MAX_BACKUP_FILE_SIZE=104857600    # 100MB default, 0 to disable
+BACKUP_LARGE_FILES=false          # Override to backup large files
+
+# Timestamp configuration
+USE_UTC_TIMESTAMPS=false          # Use UTC for backup filenames
+```
+
+### Technical Details
+
+- All fixes backward compatible with existing installations
+- No migration required
+- Files modified: `bin/backup-now.sh`, `bin/backup-daemon.sh`, `bin/uninstall.sh`, `lib/database-detector.sh`, `templates/backup-config.sh`
+
 ## [2.2.1] - 2025-12-26
 
 ### Fixed
