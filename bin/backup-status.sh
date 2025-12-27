@@ -8,8 +8,15 @@ set -euo pipefail
 # INITIALIZATION
 # ==============================================================================
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+# Resolve symlinks to find actual script location
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+LIB_DIR="$SCRIPT_DIR/../lib"
 
 # Source foundation library
 if [ -f "$LIB_DIR/backup-lib.sh" ]; then
@@ -101,6 +108,24 @@ if ! load_backup_config "$PROJECT_DIR"; then
     exit 1
 fi
 
+# Set defaults for optional config variables
+DATABASE_DIR="${DATABASE_DIR:-${BACKUP_DIR:-./backups}/databases}"
+ARCHIVE_DIR="${ARCHIVE_DIR:-${BACKUP_DIR:-./backups}/archived}"
+DB_RETENTION_DAYS="${DB_RETENTION_DAYS:-30}"
+FILE_RETENTION_DAYS="${FILE_RETENTION_DAYS:-60}"
+
+# State management defaults
+STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+PROJECT_NAME="${PROJECT_NAME:-$(basename "$PROJECT_DIR")}"
+BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/$PROJECT_NAME/.last-backup-time}"
+SESSION_FILE="${SESSION_FILE:-$STATE_DIR/$PROJECT_NAME/.current-session-time}"
+
+# Feature flags defaults
+DRIVE_VERIFICATION_ENABLED="${DRIVE_VERIFICATION_ENABLED:-false}"
+NOTIFICATIONS_ENABLED="${NOTIFICATIONS_ENABLED:-true}"
+CLOUD_ENABLED="${CLOUD_ENABLED:-false}"
+BACKUP_INTERVAL="${BACKUP_INTERVAL:-3600}"
+
 # Initialize state directories
 init_state_dirs
 
@@ -189,8 +214,8 @@ fi
 
 # Check for stale backups (no backup in >2 hours)
 if [ $last_backup_time -gt 0 ]; then
-    local now=$(date +%s)
-    local backup_age=$((now - last_backup_time))
+    now=$(date +%s)
+    backup_age=$((now - last_backup_time))
     if [ $backup_age -gt 7200 ]; then
         warnings+=("No backup in $last_backup_ago (expected: hourly)")
         if [ "$health_status" = "HEALTHY" ]; then
@@ -201,8 +226,8 @@ fi
 
 # Check disk space
 disk_usage=$(get_backup_disk_usage)
-check_disk_space
-disk_status=$?
+disk_status=0
+check_disk_space || disk_status=$?
 if [ $disk_status -eq 2 ]; then
     errors+=("Disk usage critical: ${disk_usage}% of backup volume")
     health_status="ERROR"
@@ -216,7 +241,7 @@ fi
 # Check retention policy warnings
 db_to_prune=$(count_backups_to_prune "$DATABASE_DIR" "$DB_RETENTION_DAYS" 7)
 if [ $db_to_prune -gt 0 ]; then
-    local days_until=$(days_until_prune "$DATABASE_DIR" "$DB_RETENTION_DAYS")
+    days_until=$(days_until_prune "$DATABASE_DIR" "$DB_RETENTION_DAYS")
     if [ $days_until -ge 0 ]; then
         warnings+=("Database backups: $db_to_prune will be pruned in $days_until days")
         if [ "$health_status" = "HEALTHY" ]; then
@@ -422,7 +447,7 @@ if [ ${#warnings[@]} -gt 0 ]; then
     echo "│ ${COLOR_YELLOW}⚠️  Warnings${COLOR_RESET}                                              │"
     for warning in "${warnings[@]}"; do
         # Word wrap long warnings
-        local wrapped=$(echo "$warning" | fold -w 56 -s)
+        wrapped=$(echo "$warning" | fold -w 56 -s)
         while IFS= read -r line; do
             printf "│   • %-56s │\n" "$line"
         done <<< "$wrapped"
@@ -435,7 +460,7 @@ if [ ${#errors[@]} -gt 0 ]; then
     echo "│ ${COLOR_RED}❌ Errors${COLOR_RESET}                                                 │"
     for error in "${errors[@]}"; do
         # Word wrap long errors
-        local wrapped=$(echo "$error" | fold -w 56 -s)
+        wrapped=$(echo "$error" | fold -w 56 -s)
         while IFS= read -r line; do
             printf "│   • %-56s │\n" "$line"
         done <<< "$wrapped"
