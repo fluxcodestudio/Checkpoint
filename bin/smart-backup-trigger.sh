@@ -9,12 +9,21 @@ set -euo pipefail
 # LOAD CONFIGURATION
 # ==============================================================================
 
+# Resolve symlinks to get actual script location
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_PATH" ]; do
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+
 # Find config file
 CONFIG_FILE=""
 if [ -f "$PWD/.backup-config.sh" ]; then
     CONFIG_FILE="$PWD/.backup-config.sh"
-elif [ -f "$(dirname "$0")/../templates/backup-config.sh" ]; then
-    CONFIG_FILE="$(dirname "$0")/../templates/backup-config.sh"
+elif [ -f "$SCRIPT_DIR/../templates/backup-config.sh" ]; then
+    CONFIG_FILE="$SCRIPT_DIR/../templates/backup-config.sh"
 else
     # Silently exit if no config (not all projects have backups)
     exit 0
@@ -85,7 +94,7 @@ fi
 
 # Run backup in background
 if [ "$SHOULD_BACKUP" = true ]; then
-    DAEMON_SCRIPT="$(dirname "$0")/backup-daemon.sh"
+    DAEMON_SCRIPT="$SCRIPT_DIR/backup-daemon.sh"
     if [ -f "$DAEMON_SCRIPT" ]; then
         "$DAEMON_SCRIPT" > /dev/null 2>&1 &
         echo "$NOW" > "$BACKUP_TIME_STATE"

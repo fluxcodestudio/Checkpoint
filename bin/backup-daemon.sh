@@ -9,12 +9,21 @@ set -euo pipefail
 # LOAD CONFIGURATION
 # ==============================================================================
 
+# Resolve symlinks to get actual script location
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [ -L "$SCRIPT_PATH" ]; do
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+
 # Find config file (check project root first, then script directory)
 CONFIG_FILE=""
 if [ -f "$PWD/.backup-config.sh" ]; then
     CONFIG_FILE="$PWD/.backup-config.sh"
-elif [ -f "$(dirname "$0")/../templates/backup-config.sh" ]; then
-    CONFIG_FILE="$(dirname "$0")/../templates/backup-config.sh"
+elif [ -f "$SCRIPT_DIR/../templates/backup-config.sh" ]; then
+    CONFIG_FILE="$SCRIPT_DIR/../templates/backup-config.sh"
 else
     echo "❌ Configuration file not found. Run install.sh first." >&2
     exit 1
@@ -23,7 +32,6 @@ fi
 source "$CONFIG_FILE"
 
 # Load cloud backup library if cloud enabled
-SCRIPT_DIR="$(dirname "$0")"
 CLOUD_LIB="$SCRIPT_DIR/../lib/cloud-backup.sh"
 if [[ -f "$CLOUD_LIB" ]] && [[ "${CLOUD_ENABLED:-false}" == "true" ]]; then
     source "$CLOUD_LIB"
