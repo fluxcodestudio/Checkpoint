@@ -146,9 +146,11 @@ echo "Installing Claude Code skill..."
 USER_SKILLS_DIR="$HOME/.claude/skills"
 mkdir -p "$USER_SKILLS_DIR"
 
-if [[ -d "$PACKAGE_DIR/.claude/skills/checkpoint" ]]; then
-    cp -r "$PACKAGE_DIR/.claude/skills/checkpoint" "$USER_SKILLS_DIR/"
-    chmod +x "$USER_SKILLS_DIR/checkpoint/run.sh"
+# Remove old directory-format skill if exists
+rm -rf "$USER_SKILLS_DIR/checkpoint" 2>/dev/null
+
+if [[ -f "$PACKAGE_DIR/.claude/skills/checkpoint.md" ]]; then
+    cp "$PACKAGE_DIR/.claude/skills/checkpoint.md" "$USER_SKILLS_DIR/"
     echo "  ✅ /checkpoint skill installed to ~/.claude/skills/"
 else
     echo "  ⚠️  Checkpoint skill not found in package"

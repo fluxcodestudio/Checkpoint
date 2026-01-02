@@ -44,17 +44,16 @@ mkdir -p "$SKILLS_DIR"
 # Install /checkpoint skill
 # ==============================================================================
 
-if [[ -d "$PROJECT_ROOT/.claude/skills/checkpoint" ]]; then
+# Remove old directory-format skill if exists
+rm -rf "$SKILLS_DIR/checkpoint" 2>/dev/null
+
+if [[ -f "$PROJECT_ROOT/.claude/skills/checkpoint.md" ]]; then
     echo "📦 Installing /checkpoint skill..."
-
-    # If installing to a different project, copy the skill
-    if [[ "$PROJECT_ROOT/.claude/skills" != "$SKILLS_DIR" ]]; then
-        cp -r "$PROJECT_ROOT/.claude/skills/checkpoint" "$SKILLS_DIR/"
-    fi
-
-    chmod +x "$SKILLS_DIR/checkpoint/run.sh"
+    cp "$PROJECT_ROOT/.claude/skills/checkpoint.md" "$SKILLS_DIR/"
     echo "   ✅ /checkpoint skill installed"
     echo ""
+else
+    echo "⚠️  Checkpoint skill file not found"
 fi
 
 # ==============================================================================
