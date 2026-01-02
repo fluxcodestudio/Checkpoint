@@ -23,11 +23,24 @@ fi
 source "$CONFIG_FILE"
 
 # ==============================================================================
+# DEFENSIVE DEFAULTS (ensure script never fails)
+# ==============================================================================
+
+STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+PROJECT_NAME="${PROJECT_NAME:-$(basename "$PWD")}"
+SESSION_FILE="${SESSION_FILE:-$STATE_DIR/$PROJECT_NAME/.current-session-time}"
+BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/$PROJECT_NAME/.last-backup-time}"
+SESSION_IDLE_THRESHOLD="${SESSION_IDLE_THRESHOLD:-600}"
+BACKUP_INTERVAL="${BACKUP_INTERVAL:-3600}"
+DRIVE_VERIFICATION_ENABLED="${DRIVE_VERIFICATION_ENABLED:-false}"
+DRIVE_MARKER_FILE="${DRIVE_MARKER_FILE:-}"
+
+# ==============================================================================
 # SESSION DETECTION
 # ==============================================================================
 
-mkdir -p "$(dirname "$SESSION_FILE")"
-mkdir -p "$(dirname "$BACKUP_TIME_STATE")"
+mkdir -p "$(dirname "$SESSION_FILE")" 2>/dev/null || exit 0
+mkdir -p "$(dirname "$BACKUP_TIME_STATE")" 2>/dev/null || exit 0
 
 # Check if correct drive is connected (if verification enabled)
 if [ "$DRIVE_VERIFICATION_ENABLED" = true ]; then

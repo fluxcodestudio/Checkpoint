@@ -8,7 +8,7 @@
 
 Automated, intelligent backup system for any development environment. Battle-tested with comprehensive test coverage, cloud backup support, and multi-platform integrations.
 
-**Version:** 2.2.1
+**Version:** 2.2.2
 **Test Coverage:** 164/164 (100%)
 **License:** GPL v3
 

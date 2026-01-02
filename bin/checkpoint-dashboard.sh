@@ -6,39 +6,16 @@
 # Usage: checkpoint-dashboard
 # ==============================================================================
 
-# Require Bash 4+ for associative arrays
+# Bash 3.2 compatibility: Try to relaunch with newer bash for best experience
+# but gracefully degrade if not available
 if ((BASH_VERSINFO[0] < 4)); then
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "⚠️  Checkpoint Dashboard requires Bash 4.0 or newer"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-    echo "Your bash: $BASH_VERSION (too old)"
-    echo ""
-
-    # Try to find newer bash
+    # Try to find newer bash silently
     if [[ -x "/opt/homebrew/bin/bash" ]]; then
-        echo "Found Homebrew Bash 5+ at /opt/homebrew/bin/bash"
-        echo "Relaunching with newer bash..."
-        echo ""
         exec /opt/homebrew/bin/bash "$0" "$@"
     elif [[ -x "/usr/local/bin/bash" ]]; then
-        echo "Found newer bash at /usr/local/bin/bash"
-        echo "Relaunching with newer bash..."
-        echo ""
         exec /usr/local/bin/bash "$0" "$@"
-    else
-        echo "Install Homebrew Bash 5+:"
-        echo "  brew install bash"
-        echo ""
-        echo "Falling back to simple menu mode..."
-        echo ""
-
-        # Call simple menu fallback
-        if [[ -x "$HOME/.local/bin/checkpoint" ]]; then
-            exec "$HOME/.local/bin/checkpoint" --status
-        fi
-        exit 1
     fi
+    # If no newer bash, continue with Bash 3.2 compatible code
 fi
 
 set -euo pipefail
@@ -59,8 +36,8 @@ source "$CHECKPOINT_LIB/lib/dashboard-status.sh"
 GLOBAL_CONFIG_DIR="$HOME/.config/checkpoint"
 GLOBAL_CONFIG_FILE="$GLOBAL_CONFIG_DIR/config.sh"
 
-# Status cache
-declare -A STATUS_CACHE
+# Status cache (Bash 3.2 compatible using simple variables with prefix)
+# Variables are created dynamically as _STATUS_CACHE_<key>
 
 # ==============================================================================
 # STATUS MANAGEMENT
@@ -78,16 +55,20 @@ refresh_status() {
         source "$GLOBAL_CONFIG_FILE" 2>/dev/null
     fi
 
-    # Collect all status data
+    # Collect all status data using eval for Bash 3.2 compatibility
     while IFS='=' read -r key value; do
-        STATUS_CACHE["$key"]="$value"
+        # Sanitize key for variable name (replace non-alphanumeric with _)
+        local safe_key="${key//[^a-zA-Z0-9_]/_}"
+        eval "_STATUS_CACHE_${safe_key}=\"\$value\""
     done < <(get_all_status)
 }
 
 # Get status value
 get_status() {
     local key="$1"
-    echo "${STATUS_CACHE[$key]:-Unknown}"
+    local safe_key="${key//[^a-zA-Z0-9_]/_}"
+    local var_name="_STATUS_CACHE_${safe_key}"
+    eval "echo \"\${$var_name:-Unknown}\""
 }
 
 # ==============================================================================

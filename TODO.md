@@ -112,8 +112,13 @@
 ### Version Update
 - [x] Bump VERSION to 2.2.2
 - [x] Update CHANGELOG.md
-- [ ] Update README.md version references
+- [x] Update README.md version references
 - [ ] Create git tag v2.2.2
+
+### Issue #19: Bash 3.2 Compatibility (Added during audit)
+- [x] Refactor `bin/checkpoint-dashboard.sh` to avoid `declare -A`
+- [x] Use eval-based variable storage for status cache
+- [x] Verify smoke tests pass on macOS default bash
 
 ### Global Installation Update
 - [ ] Copy fixed files to `~/.local/lib/checkpoint/`
@@ -135,13 +140,15 @@
 | High (P2) | 12 | 12 | 0 |
 | Medium (P3) | 8 | 8 | 0 |
 | Testing (P4) | 11 | 0 | 11 |
-| Final (P5) | 7 | 2 | 5 |
-| **TOTAL** | **45** | **29** | **16** |
+| Final (P5) | 10 | 6 | 4 |
+| **TOTAL** | **48** | **33** | **15** |
 
 ---
 
 ## Notes
 
 - ✅ Phase 1-3 COMPLETE (all code fixes done)
+- ✅ Issue #19 (Bash 3.2 compatibility) FIXED during comprehensive audit
+- ✅ README.md version updated to 2.2.2
 - Phase 4 tests can be added after fixes verified manually
-- Phase 5 finalizes release (version update done, need commit/push)
+- Phase 5 finalizes release (commit/push remaining)
