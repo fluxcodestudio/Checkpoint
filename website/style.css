@@ -286,7 +286,8 @@ code {
     text-decoration: none;
     color: var(--text);
     font-weight: 600;
-    font-size: 1.25rem;
+    font-size: 1.1rem;
+    letter-spacing: 0.1em;
 }
 
 .logo-img {
