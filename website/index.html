@@ -29,6 +29,8 @@
                 <a href="#features">Features</a>
                 <a href="#how-it-works">How It Works</a>
                 <a href="https://github.com/nizernoj/Checkpoint" target="_blank">GitHub</a>
+                <a href="#" onclick="openContactModal(); return false;">Contact</a>
+                <a href="#" onclick="openNewsletterModal(); return false;">Join Us</a>
                 <a href="#download" class="btn btn-primary">Download Free</a>
             </div>
         </div>
@@ -227,5 +229,129 @@ backup-now</code>
             </div>
         </div>
     </footer>
+
+    <!-- Contact Modal -->
+    <div id="contactModal" class="modal" onclick="if(event.target === this) closeContactModal()">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeContactModal()">&times;</button>
+            <h2>Get in Touch</h2>
+            <p class="modal-subtitle">Have questions or feedback? We'd love to hear from you.</p>
+            <form id="contactForm" class="modal-form" onsubmit="submitContactForm(event)">
+                <div class="form-group">
+                    <input type="text" name="name" placeholder="Your Name" required>
+                </div>
+                <div class="form-group">
+                    <input type="email" name="email" placeholder="Your Email" required>
+                </div>
+                <div class="form-group">
+                    <textarea name="message" placeholder="Your Message" rows="4" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-large">Send Message</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Newsletter Popup Modal -->
+    <div id="newsletterModal" class="modal" onclick="if(event.target === this) closeNewsletterModal()">
+        <div class="modal-content modal-newsletter">
+            <button class="modal-close" onclick="closeNewsletterModal()">&times;</button>
+            <div class="newsletter-icon">🚀</div>
+            <h2>Join the Revolution</h2>
+            <p class="modal-subtitle">We're building killer apps for coders and society at large. Be first to know when we launch something new.</p>
+            <form id="newsletterForm" class="modal-form" action="SENDY_URL_HERE/subscribe" method="POST" onsubmit="submitNewsletterForm(event)">
+                <input type="hidden" name="list" value="SENDY_LIST_ID_HERE">
+                <input type="hidden" name="subform" value="yes">
+                <div class="form-group">
+                    <input type="email" name="email" placeholder="Enter your email" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-large btn-full">Join Early Adopters</button>
+                <p class="form-note">No spam, ever. Unsubscribe anytime.</p>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // MODAL FUNCTIONALITY
+        // ==========================================
+
+        // Contact Modal
+        function openContactModal() {
+            document.getElementById('contactModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeContactModal() {
+            document.getElementById('contactModal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function submitContactForm(e) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+
+            // TODO: Replace with your contact form endpoint
+            // Option 1: Use Formspree (https://formspree.io)
+            // Option 2: Use your own backend
+            // Option 3: Use mailto (less elegant)
+
+            const mailtoLink = `mailto:YOUR_EMAIL_HERE?subject=Contact from ${encodeURIComponent(formData.get('name'))}&body=${encodeURIComponent(formData.get('message'))}%0A%0AFrom: ${encodeURIComponent(formData.get('email'))}`;
+            window.location.href = mailtoLink;
+
+            closeContactModal();
+        }
+
+        // Newsletter Modal
+        function openNewsletterModal() {
+            document.getElementById('newsletterModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeNewsletterModal() {
+            document.getElementById('newsletterModal').classList.remove('active');
+            document.body.style.overflow = '';
+            // Remember they've seen it
+            localStorage.setItem('newsletterDismissed', 'true');
+        }
+
+        function submitNewsletterForm(e) {
+            e.preventDefault();
+            const form = e.target;
+            const formData = new FormData(form);
+
+            // Submit to Sendy via AJAX
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                mode: 'no-cors' // Sendy may not have CORS headers
+            }).then(() => {
+                // Show success (we can't read response with no-cors)
+                form.innerHTML = '<div class="form-success">🎉 You\'re in! Check your email to confirm.</div>';
+                setTimeout(closeNewsletterModal, 3000);
+            }).catch(() => {
+                // Fallback: submit normally
+                form.submit();
+            });
+        }
+
+        // Auto-show newsletter popup after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            // Don't show if already dismissed
+            if (localStorage.getItem('newsletterDismissed')) return;
+
+            setTimeout(function() {
+                openNewsletterModal();
+            }, 5000);
+        });
+
+        // Close modals with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeContactModal();
+                closeNewsletterModal();
+            }
+        });
+    </script>
 </body>
 </html>
