@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkpoint - Automated Backup for Developers</title>
+    <meta name="description" content="A code guardian for developing projects. Automated, intelligent backup system for any development environment.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <span class="logo-icon">🛡️</span>
+                <span class="logo-text">Checkpoint</span>
+            </a>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="https://github.com/nizernoj/Checkpoint" target="_blank">GitHub</a>
+                <a href="#download" class="btn btn-primary">Download Free</a>
+            </div>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-content">
+            <div class="badge">Open Source & Free Forever</div>
+            <h1>A code guardian for your projects</h1>
+            <p class="hero-subtitle">Automated, intelligent backup system for developers. Never lose work again.</p>
+            <div class="hero-cta">
+                <a href="#download" class="btn btn-large btn-primary">Download for macOS</a>
+                <a href="https://github.com/nizernoj/Checkpoint" class="btn btn-large btn-secondary" target="_blank">View on GitHub</a>
+            </div>
+            <div class="hero-stats">
+                <div class="stat">
+                    <span class="stat-value">100%</span>
+                    <span class="stat-label">Test Coverage</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">GPL v3</span>
+                    <span class="stat-label">Open Source</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">v2.3.0</span>
+                    <span class="stat-label">Latest Release</span>
+                </div>
+            </div>
+        </div>
+        <div class="hero-terminal">
+            <div class="terminal">
+                <div class="terminal-header">
+                    <span class="terminal-dot red"></span>
+                    <span class="terminal-dot yellow"></span>
+                    <span class="terminal-dot green"></span>
+                    <span class="terminal-title">Terminal</span>
+                </div>
+                <div class="terminal-body">
+                    <pre><code><span class="prompt">$</span> cd my-project
+<span class="prompt">$</span> backup-now
+
+<span class="success">📦 First time backup - creating configuration...</span>
+   ✅ Configuration created
+   ✅ Project registered
+
+<span class="success">🚀 Backup complete!</span>
+   Files: 142 backed up
+   Next: in 59 minutes (hourly)</code></pre>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section id="features" class="features">
+        <div class="container">
+            <h2>Everything you need, nothing you don't</h2>
+            <p class="section-subtitle">Set it once, forget about it. Checkpoint handles the rest.</p>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Zero Config</h3>
+                    <p>Run <code>backup-now</code> in any project. Config is auto-created with smart defaults.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>Hourly Backups</h3>
+                    <p>Global daemon backs up ALL your projects automatically. One install, all projects covered.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🗄️</div>
+                    <h3>Database Support</h3>
+                    <p>Auto-detects SQLite, PostgreSQL, MySQL, MongoDB. Compressed timestamped snapshots.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔐</div>
+                    <h3>Critical Files</h3>
+                    <p>Backs up .env, credentials, API keys, IDE settings - everything Git ignores.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">☁️</div>
+                    <h3>Cloud Backup</h3>
+                    <p>Optional off-site protection via Dropbox, Google Drive, OneDrive, or iCloud.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📁</div>
+                    <h3>Version History</h3>
+                    <p>Old file versions preserved in archives. Restore any point in time.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="how-it-works" class="how-it-works">
+        <div class="container">
+            <h2>How it works</h2>
+            <p class="section-subtitle">Three steps to peace of mind</p>
+
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Install globally</h3>
+                    <div class="code-block">
+                        <code>git clone https://github.com/nizernoj/Checkpoint.git<br>
+cd Checkpoint && ./bin/install-global.sh</code>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Run in any project</h3>
+                    <div class="code-block">
+                        <code>cd /your/project<br>
+backup-now</code>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Done. Forever.</h3>
+                    <p>Project registered. Hourly backups enabled. Go build something.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="backup-structure">
+        <div class="container">
+            <h2>Organized backup structure</h2>
+            <p class="section-subtitle">Everything in its place</p>
+
+            <div class="structure-demo">
+                <pre><code>backups/
+├── databases/           <span class="comment"># Compressed timestamped snapshots</span>
+│   ├── MyApp-2025.01.03-10.45.12.db.gz
+│   └── MyApp-2025.01.03-14.30.45.db.gz
+├── files/               <span class="comment"># Current versions (readable)</span>
+│   ├── src/
+│   ├── .env
+│   └── credentials.json
+└── archived/            <span class="comment"># Old versions with timestamps</span>
+    ├── src/app.py.20250102_104500
+    └── .env.20250101_093015</code></pre>
+            </div>
+        </div>
+    </section>
+
+    <section id="download" class="download">
+        <div class="container">
+            <h2>Download Checkpoint</h2>
+            <p class="section-subtitle">Free, open source, forever</p>
+
+            <div class="download-card">
+                <div class="download-info">
+                    <h3>Checkpoint v2.3.0</h3>
+                    <p>For macOS (Bash 3.2+)</p>
+                    <ul class="download-features">
+                        <li>✓ Global multi-project backups</li>
+                        <li>✓ Auto-registration</li>
+                        <li>✓ Database support</li>
+                        <li>✓ Cloud backup ready</li>
+                    </ul>
+                </div>
+                <div class="download-actions">
+                    <a href="https://github.com/nizernoj/Checkpoint/archive/refs/heads/main.zip" class="btn btn-large btn-primary">
+                        Download ZIP
+                    </a>
+                    <p class="download-alt">or clone with Git:</p>
+                    <div class="code-block small">
+                        <code>git clone https://github.com/nizernoj/Checkpoint.git</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <span class="logo-icon">🛡️</span>
+                    <span class="logo-text">Checkpoint</span>
+                    <p>A little peace of mind goes a long way.</p>
+                </div>
+                <div class="footer-links">
+                    <a href="https://github.com/nizernoj/Checkpoint" target="_blank">GitHub</a>
+                    <a href="https://github.com/nizernoj/Checkpoint/blob/main/README.md" target="_blank">Documentation</a>
+                    <a href="https://github.com/nizernoj/Checkpoint/issues" target="_blank">Report Issue</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>Open source under GPL v3 License</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
