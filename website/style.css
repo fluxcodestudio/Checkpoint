@@ -370,13 +370,48 @@ code {
 
 /* Hero */
 .hero {
-    padding: 160px 24px 100px;
+    padding: 140px 24px 100px;
     max-width: 1200px;
     margin: 0 auto;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 60px;
     align-items: center;
+}
+
+/* Hero Brand Logo - Centered above grid */
+.hero-brand {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 32px;
+}
+
+.hero-brand-logo {
+    height: 140px;
+    width: auto;
+    filter:
+        drop-shadow(0 0 20px rgba(139, 92, 246, 0.6))
+        drop-shadow(0 0 40px rgba(34, 211, 238, 0.4))
+        drop-shadow(0 0 60px rgba(139, 92, 246, 0.3));
+    animation: logo-glow 6s ease-in-out infinite;
+}
+
+@keyframes logo-glow {
+    0%, 100% {
+        filter:
+            drop-shadow(0 0 20px rgba(139, 92, 246, 0.6))
+            drop-shadow(0 0 40px rgba(34, 211, 238, 0.4))
+            drop-shadow(0 0 60px rgba(139, 92, 246, 0.3));
+        transform: scale(1);
+    }
+    50% {
+        filter:
+            drop-shadow(0 0 30px rgba(34, 211, 238, 0.7))
+            drop-shadow(0 0 50px rgba(139, 92, 246, 0.5))
+            drop-shadow(0 0 80px rgba(244, 114, 182, 0.3));
+        transform: scale(1.03);
+    }
 }
 
 .badge {
@@ -788,12 +823,20 @@ code {
         padding-top: 120px;
     }
 
+    .hero-brand-logo {
+        height: 100px;
+    }
+
     .hero h1 {
         font-size: 2.5rem;
     }
 
     .hero-terminal {
         order: -1;
+    }
+
+    .hero-brand {
+        order: -2;
     }
 
     .feature-grid, .steps {
