@@ -960,6 +960,28 @@ code {
     width: 100%;
 }
 
+.checkbox-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin: 8px 0;
+}
+
+.checkbox-group input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.checkbox-group span {
+    line-height: 1.4;
+}
+
 .form-note {
     font-size: 0.85rem;
     color: var(--text-muted);

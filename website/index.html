@@ -246,6 +246,10 @@ backup-now</code>
                 <div class="form-group">
                     <textarea name="message" placeholder="Your Message" rows="4" required></textarea>
                 </div>
+                <label class="checkbox-group">
+                    <input type="checkbox" name="subscribe" checked>
+                    <span>Join us for updates and new releases</span>
+                </label>
                 <button type="submit" class="btn btn-primary btn-large">Send Message</button>
             </form>
         </div>
@@ -257,7 +261,7 @@ backup-now</code>
             <button class="modal-close" onclick="closeNewsletterModal()">&times;</button>
             <div class="newsletter-icon">🚀</div>
             <h2>Join the Revolution</h2>
-            <p class="modal-subtitle">We're building killer apps for coders and society at large. Be first to know when we launch something new.</p>
+            <p class="modal-subtitle">We're building killer apps for coders and society at large. Be first to know when we launch something new — plus get CHECKPOINT updates and new releases delivered straight to your inbox.</p>
             <form id="newsletterForm" class="modal-form" action="SENDY_URL_HERE/subscribe" method="POST" onsubmit="submitNewsletterForm(event)">
                 <input type="hidden" name="list" value="SENDY_LIST_ID_HERE">
                 <input type="hidden" name="subform" value="yes">
@@ -291,11 +295,22 @@ backup-now</code>
             const form = e.target;
             const formData = new FormData(form);
 
-            // TODO: Replace with your contact form endpoint
-            // Option 1: Use Formspree (https://formspree.io)
-            // Option 2: Use your own backend
-            // Option 3: Use mailto (less elegant)
+            // If subscribe checkbox is checked, also add to Sendy
+            if (formData.get('subscribe')) {
+                const sendyData = new FormData();
+                sendyData.append('email', formData.get('email'));
+                sendyData.append('list', 'SENDY_LIST_ID_HERE');
+                sendyData.append('subform', 'yes');
 
+                fetch('SENDY_URL_HERE/subscribe', {
+                    method: 'POST',
+                    body: sendyData,
+                    mode: 'no-cors'
+                }).catch(() => {});
+            }
+
+            // Send contact message via mailto
+            // TODO: Replace YOUR_EMAIL_HERE with your email
             const mailtoLink = `mailto:YOUR_EMAIL_HERE?subject=Contact from ${encodeURIComponent(formData.get('name'))}&body=${encodeURIComponent(formData.get('message'))}%0A%0AFrom: ${encodeURIComponent(formData.get('email'))}`;
             window.location.href = mailtoLink;
 
