@@ -380,38 +380,37 @@ code {
     align-items: center;
 }
 
-/* Hero Brand Logo - Centered above grid */
-.hero-brand {
-    grid-column: 1 / -1;
+/* Section Brand Logo - Centered above section headings */
+.section-brand {
     display: flex;
     justify-content: center;
     margin-bottom: 32px;
 }
 
-.hero-brand-logo {
-    height: 140px;
+.section-logo {
+    height: 280px;
     width: auto;
     filter:
-        drop-shadow(0 0 20px rgba(139, 92, 246, 0.6))
-        drop-shadow(0 0 40px rgba(34, 211, 238, 0.4))
-        drop-shadow(0 0 60px rgba(139, 92, 246, 0.3));
-    animation: logo-glow 6s ease-in-out infinite;
+        drop-shadow(0 0 30px rgba(139, 92, 246, 0.5))
+        drop-shadow(0 0 60px rgba(34, 211, 238, 0.3))
+        drop-shadow(0 0 100px rgba(139, 92, 246, 0.2));
+    animation: logo-glow 8s ease-in-out infinite;
 }
 
 @keyframes logo-glow {
     0%, 100% {
         filter:
-            drop-shadow(0 0 20px rgba(139, 92, 246, 0.6))
-            drop-shadow(0 0 40px rgba(34, 211, 238, 0.4))
-            drop-shadow(0 0 60px rgba(139, 92, 246, 0.3));
+            drop-shadow(0 0 30px rgba(139, 92, 246, 0.5))
+            drop-shadow(0 0 60px rgba(34, 211, 238, 0.3))
+            drop-shadow(0 0 100px rgba(139, 92, 246, 0.2));
         transform: scale(1);
     }
     50% {
         filter:
-            drop-shadow(0 0 30px rgba(34, 211, 238, 0.7))
-            drop-shadow(0 0 50px rgba(139, 92, 246, 0.5))
-            drop-shadow(0 0 80px rgba(244, 114, 182, 0.3));
-        transform: scale(1.03);
+            drop-shadow(0 0 40px rgba(34, 211, 238, 0.6))
+            drop-shadow(0 0 80px rgba(139, 92, 246, 0.4))
+            drop-shadow(0 0 120px rgba(244, 114, 182, 0.25));
+        transform: scale(1.02);
     }
 }
 
@@ -1003,10 +1002,6 @@ code {
         padding-top: 120px;
     }
 
-    .hero-brand-logo {
-        height: 100px;
-    }
-
     .hero h1 {
         font-size: 2.5rem;
     }
@@ -1015,8 +1010,8 @@ code {
         order: -1;
     }
 
-    .hero-brand {
-        order: -2;
+    .section-logo {
+        height: 180px;
     }
 
     .feature-grid, .steps {
