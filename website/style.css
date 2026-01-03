@@ -69,15 +69,26 @@ code {
 .logo {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     text-decoration: none;
     color: var(--text);
     font-weight: 600;
     font-size: 1.25rem;
 }
 
-.logo-icon {
-    font-size: 1.5rem;
+.logo-img {
+    height: 36px;
+    width: auto;
+}
+
+.footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-logo .logo-img {
+    height: 32px;
 }
 
 .nav-links {
@@ -104,35 +115,44 @@ code {
     justify-content: center;
     padding: 10px 20px;
     border-radius: var(--radius-sm);
-    font-weight: 500;
+    font-weight: 600;
     text-decoration: none;
-    transition: all 0.2s;
+    transition: all 0.3s ease;
     border: none;
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
 }
 
 .btn-primary {
-    background: var(--primary);
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
     color: white;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
 }
 
 .btn-primary:hover {
-    background: var(--primary-dark);
+    background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%);
+    box-shadow: 0 6px 25px rgba(139, 92, 246, 0.5);
+    transform: translateY(-2px);
 }
 
 .btn-secondary {
-    background: var(--bg-light);
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
     color: var(--text);
-    border: 1px solid var(--border);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .btn-secondary:hover {
-    background: var(--border);
+    background: linear-gradient(135deg, #334155 0%, #475569 100%);
+    border-color: rgba(148, 163, 184, 0.4);
+    transform: translateY(-2px);
 }
 
 .btn-large {
-    padding: 14px 28px;
-    font-size: 1.05rem;
+    padding: 16px 32px;
+    font-size: 1.1rem;
+    border-radius: var(--radius);
 }
 
 /* Hero */
@@ -323,17 +343,18 @@ code {
 }
 
 .step-number {
-    width: 48px;
-    height: 48px;
-    background: var(--primary);
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
     color: white;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.25rem;
+    font-size: 1.35rem;
     font-weight: 700;
     margin: 0 auto 20px;
+    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
 }
 
 .step h3 {
