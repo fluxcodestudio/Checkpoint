@@ -175,13 +175,89 @@ get_backup_timestamp() {
 }
 
 # ==============================================================================
-# LOAD CONFIGURATION
+# LOAD CONFIGURATION (with auto-creation)
 # ==============================================================================
 
+# Source projects registry
+if [ -f "$LIB_DIR/projects-registry.sh" ]; then
+    source "$LIB_DIR/projects-registry.sh"
+fi
+
 if ! load_backup_config "$PROJECT_DIR"; then
-    log_error "Error: No backup configuration found in: $PROJECT_DIR"
-    log_error "Run install.sh first or specify project directory"
-    exit 1
+    # Auto-create configuration for new projects
+    echo "📦 First time backup - creating configuration..."
+    echo ""
+
+    PROJECT_NAME="$(basename "$PROJECT_DIR")"
+    BACKUP_DIR="$PROJECT_DIR/backups"
+
+    # Create config file with smart defaults
+    cat > "$PROJECT_DIR/.backup-config.sh" << AUTOCONFIG
+#!/usr/bin/env bash
+# Checkpoint Configuration (auto-generated)
+# Created: $(date)
+
+# Project
+PROJECT_NAME="$PROJECT_NAME"
+PROJECT_DIR="$PROJECT_DIR"
+BACKUP_DIR="$BACKUP_DIR"
+
+# Database (auto-detect on each backup)
+DB_TYPE="auto"
+DB_RETENTION_DAYS=30
+
+# Files
+FILE_RETENTION_DAYS=60
+
+# Automation
+BACKUP_INTERVAL=3600
+SESSION_IDLE_THRESHOLD=600
+
+# Optional Features
+HOOKS_ENABLED=false
+
+# Critical Files
+BACKUP_ENV_FILES=true
+BACKUP_CREDENTIALS=true
+BACKUP_IDE_SETTINGS=true
+BACKUP_LOCAL_NOTES=true
+BACKUP_LOCAL_DATABASES=true
+AUTOCONFIG
+
+    chmod +x "$PROJECT_DIR/.backup-config.sh"
+
+    # Add to .gitignore if exists
+    if [[ -f "$PROJECT_DIR/.gitignore" ]]; then
+        if ! grep -q "^backups/$" "$PROJECT_DIR/.gitignore" 2>/dev/null; then
+            echo "" >> "$PROJECT_DIR/.gitignore"
+            echo "# Checkpoint backups" >> "$PROJECT_DIR/.gitignore"
+            echo "backups/" >> "$PROJECT_DIR/.gitignore"
+            echo ".backup-config.sh" >> "$PROJECT_DIR/.gitignore"
+        fi
+    fi
+
+    # Create backup directories
+    mkdir -p "$BACKUP_DIR"/{databases,files,archived}
+
+    # Register in global registry
+    if type register_project &>/dev/null; then
+        register_project "$PROJECT_DIR" "$PROJECT_NAME"
+    fi
+
+    echo "   ✅ Configuration created: .backup-config.sh"
+    echo "   ✅ Backup directory: backups/"
+    echo ""
+
+    # Now load the config
+    if ! load_backup_config "$PROJECT_DIR"; then
+        log_error "Error: Failed to load auto-created configuration"
+        exit 1
+    fi
+fi
+
+# Register project if not already (for existing configs)
+if type is_registered &>/dev/null && ! is_registered "$PROJECT_DIR"; then
+    register_project "$PROJECT_DIR" "${PROJECT_NAME:-$(basename "$PROJECT_DIR")}"
 fi
 
 # Initialize state directories

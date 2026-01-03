@@ -1024,12 +1024,19 @@ get_dir_size_bytes() {
 # Check if daemon is running
 # Returns: 0 if running, 1 if not
 check_daemon_status() {
-    local project_name="${PROJECT_NAME:-}"
-    [ -z "$project_name" ] && return 1
-
-    if launchctl list 2>/dev/null | grep -q "com.claudecode.backup.${project_name}"; then
+    # Check for global daemon first (new architecture)
+    if launchctl list 2>/dev/null | grep -q "com.checkpoint.global-daemon"; then
         return 0
     fi
+
+    # Fallback: check for per-project daemons (legacy)
+    local project_name="${PROJECT_NAME:-}"
+    if [ -n "$project_name" ]; then
+        if launchctl list 2>/dev/null | grep -qE "com\.(claudecode|checkpoint)\.backup\."; then
+            return 0
+        fi
+    fi
+
     return 1
 }
 

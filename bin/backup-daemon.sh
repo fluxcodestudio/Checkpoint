@@ -31,6 +31,41 @@ fi
 
 source "$CONFIG_FILE"
 
+# Apply defaults for optional variables (Bash 3.2 compatible)
+# Backup directories
+DATABASE_DIR="${DATABASE_DIR:-$BACKUP_DIR/databases}"
+FILES_DIR="${FILES_DIR:-$BACKUP_DIR/files}"
+ARCHIVED_DIR="${ARCHIVED_DIR:-$BACKUP_DIR/archived}"
+
+# Drive verification
+DRIVE_VERIFICATION_ENABLED="${DRIVE_VERIFICATION_ENABLED:-false}"
+DRIVE_MARKER_FILE="${DRIVE_MARKER_FILE:-$PROJECT_DIR/.backup-drive-marker}"
+
+# Logging
+LOG_FILE="${LOG_FILE:-$BACKUP_DIR/backup.log}"
+FALLBACK_LOG="${FALLBACK_LOG:-$HOME/.claudecode-backups/logs/backup-fallback.log}"
+
+# State management
+STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-backup-time}"
+SESSION_FILE="${SESSION_FILE:-$STATE_DIR/${PROJECT_NAME}/.current-session-time}"
+DB_STATE_FILE="${DB_STATE_FILE:-$BACKUP_DIR/.backup-state}"
+
+# Git options
+AUTO_COMMIT_ENABLED="${AUTO_COMMIT_ENABLED:-false}"
+GIT_AUTO_PUSH_ENABLED="${GIT_AUTO_PUSH_ENABLED:-false}"
+GIT_PUSH_INTERVAL="${GIT_PUSH_INTERVAL:-7200}"
+GIT_PUSH_BRANCH="${GIT_PUSH_BRANCH:-}"
+GIT_PUSH_REMOTE="${GIT_PUSH_REMOTE:-origin}"
+GIT_PUSH_STATE="${GIT_PUSH_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-git-push}"
+
+# File size limits
+MAX_BACKUP_FILE_SIZE="${MAX_BACKUP_FILE_SIZE:-104857600}"
+BACKUP_LARGE_FILES="${BACKUP_LARGE_FILES:-false}"
+
+# Timestamps
+USE_UTC_TIMESTAMPS="${USE_UTC_TIMESTAMPS:-false}"
+
 # Load cloud backup library if cloud enabled
 CLOUD_LIB="$SCRIPT_DIR/../lib/cloud-backup.sh"
 if [[ -f "$CLOUD_LIB" ]] && [[ "${CLOUD_ENABLED:-false}" == "true" ]]; then

@@ -83,6 +83,11 @@ DRIVE_MARKER_FILE="$PROJECT_DIR/.backup-drive-marker"
 # OPTIONAL FEATURES
 # ==============================================================================
 
+# Claude Code hooks - trigger backup on each prompt (true/false)
+# When enabled, backups run after each Claude Code prompt
+# Default: false (use hourly daemon instead)
+HOOKS_ENABLED=false
+
 # Auto-commit to git after backup (true/false)
 AUTO_COMMIT_ENABLED=false
 

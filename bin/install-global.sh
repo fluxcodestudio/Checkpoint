@@ -102,6 +102,14 @@ echo "Installing integrations..."
 cp -r "$PACKAGE_DIR/integrations/"* "$LIB_DIR/integrations/"
 echo "✅ Integrations installed to $LIB_DIR/integrations/"
 
+# Copy skills
+echo "Installing skills..."
+mkdir -p "$LIB_DIR/skills"
+if [[ -d "$PACKAGE_DIR/skills" ]]; then
+    cp -r "$PACKAGE_DIR/skills/"* "$LIB_DIR/skills/" 2>/dev/null || true
+    echo "✅ Skills installed to $LIB_DIR/skills/"
+fi
+
 # Copy VERSION file
 cp "$PACKAGE_DIR/VERSION" "$LIB_DIR/VERSION"
 
@@ -130,6 +138,7 @@ create_symlink "backup-restore.sh" "backup-restore"
 create_symlink "backup-cleanup.sh" "backup-cleanup"
 create_symlink "backup-cloud-config.sh" "backup-cloud-config"
 create_symlink "backup-daemon.sh" "backup-daemon"
+create_symlink "backup-all-projects.sh" "backup-all"
 create_symlink "backup-update.sh" "backup-update"
 create_symlink "backup-pause.sh" "backup-pause"
 create_symlink "configure-project.sh" "configure-project"
@@ -142,18 +151,65 @@ create_symlink "uninstall-global.sh" "backup-uninstall"
 echo ""
 echo "Installing Claude Code skill..."
 
-# Install /checkpoint skill to user's skills directory
+# Install /checkpoint skill to user's skills directory (new single-file format)
 USER_SKILLS_DIR="$HOME/.claude/skills"
 mkdir -p "$USER_SKILLS_DIR"
 
-# Remove old directory-format skill if exists
-rm -rf "$USER_SKILLS_DIR/checkpoint" 2>/dev/null
-
-if [[ -f "$PACKAGE_DIR/.claude/skills/checkpoint.md" ]]; then
-    cp "$PACKAGE_DIR/.claude/skills/checkpoint.md" "$USER_SKILLS_DIR/"
+if [[ -f "$LIB_DIR/skills/checkpoint.md" ]]; then
+    cp "$LIB_DIR/skills/checkpoint.md" "$USER_SKILLS_DIR/checkpoint.md"
+    echo "  ✅ /checkpoint skill installed to ~/.claude/skills/"
+elif [[ -f "$PACKAGE_DIR/skills/checkpoint.md" ]]; then
+    cp "$PACKAGE_DIR/skills/checkpoint.md" "$USER_SKILLS_DIR/checkpoint.md"
     echo "  ✅ /checkpoint skill installed to ~/.claude/skills/"
 else
     echo "  ⚠️  Checkpoint skill not found in package"
+fi
+
+# ==============================================================================
+# INSTALL GLOBAL LAUNCHAGENT (macOS)
+# ==============================================================================
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo ""
+    echo "Installing global backup daemon..."
+
+    PLIST_FILE="$HOME/Library/LaunchAgents/com.checkpoint.global-daemon.plist"
+    DAEMON_PATH="$BIN_DIR/backup-all"
+
+    # Create global config directory
+    mkdir -p "$HOME/.config/checkpoint"
+
+    # Initialize projects registry if not exists
+    if [[ ! -f "$HOME/.config/checkpoint/projects.json" ]]; then
+        echo '{"version": 1, "projects": []}' > "$HOME/.config/checkpoint/projects.json"
+    fi
+
+    cat > "$PLIST_FILE" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.checkpoint.global-daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>${DAEMON_PATH}</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/tmp/checkpoint-global.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/checkpoint-global.err</string>
+</dict>
+</plist>
+PLIST
+
+    # Load the LaunchAgent
+    launchctl unload "$PLIST_FILE" 2>/dev/null || true
+    launchctl load "$PLIST_FILE" 2>/dev/null && echo "  ✅ Global daemon installed (hourly backups for all projects)"
 fi
 
 echo ""
@@ -167,13 +223,18 @@ echo "  Libraries: $LIB_DIR"
 echo ""
 echo "Available commands (system-wide):"
 echo "  checkpoint              Interactive command center"
-echo "  backup-now              Run backup immediately"
+echo "  backup-now              Run backup (auto-creates config for new projects)"
+echo "  backup-all              Backup all registered projects"
 echo "  backup-status           View backup status"
 echo "  backup-restore          Restore from backup"
 echo "  backup-cleanup          Clean old backups"
-echo "  backup-cloud-config     Configure cloud storage"
 echo "  backup-update           Update to latest version"
 echo "  backup-uninstall        Uninstall Checkpoint globally"
+echo ""
+echo "How it works:"
+echo "  1. Run 'backup-now' in any project directory"
+echo "  2. Config is auto-created, project is registered"
+echo "  3. Global daemon backs up all projects hourly"
 echo ""
 
 # ==============================================================================

@@ -41,19 +41,25 @@ echo ""
 mkdir -p "$SKILLS_DIR"
 
 # ==============================================================================
-# Install /checkpoint skill
+# Install /checkpoint skill (new single-file format)
 # ==============================================================================
 
-# Remove old directory-format skill if exists
-rm -rf "$SKILLS_DIR/checkpoint" 2>/dev/null
+SKILL_SOURCE=""
+if [[ -f "$PROJECT_ROOT/skills/checkpoint.md" ]]; then
+    SKILL_SOURCE="$PROJECT_ROOT/skills/checkpoint.md"
+elif [[ -f "$PROJECT_ROOT/../skills/checkpoint.md" ]]; then
+    SKILL_SOURCE="$PROJECT_ROOT/../skills/checkpoint.md"
+fi
 
-if [[ -f "$PROJECT_ROOT/.claude/skills/checkpoint.md" ]]; then
+if [[ -n "$SKILL_SOURCE" ]]; then
     echo "📦 Installing /checkpoint skill..."
-    cp "$PROJECT_ROOT/.claude/skills/checkpoint.md" "$SKILLS_DIR/"
+    cp "$SKILL_SOURCE" "$SKILLS_DIR/checkpoint.md"
     echo "   ✅ /checkpoint skill installed"
     echo ""
 else
-    echo "⚠️  Checkpoint skill file not found"
+    echo "⚠️  Checkpoint skill not found in package"
+    echo "   You can manually copy checkpoint.md to $SKILLS_DIR/"
+    echo ""
 fi
 
 # ==============================================================================

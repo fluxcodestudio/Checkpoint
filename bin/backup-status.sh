@@ -200,8 +200,9 @@ if [ "$daemon_running" = "false" ]; then
     fi
 fi
 
-if [ "$hooks_installed" = "false" ]; then
-    warnings+=("Hooks not installed: Manual backups only")
+# Only warn about hooks if they're enabled but not installed
+if [ "${HOOKS_ENABLED:-false}" = "true" ] && [ "$hooks_installed" = "false" ]; then
+    warnings+=("Hooks enabled but not installed")
     if [ "$health_status" = "HEALTHY" ]; then
         health_status="WARNING"
     fi
@@ -405,6 +406,8 @@ fi
 
 if [ "$hooks_installed" = "true" ]; then
     printf "│   ${COLOR_GREEN}✅${COLOR_RESET} Hook:             Installed%-24s │\n" ""
+elif [ "${HOOKS_ENABLED:-false}" = "false" ]; then
+    printf "│   ${COLOR_GRAY}○${COLOR_RESET}  Hook:             Disabled%-25s │\n" ""
 else
     printf "│   ${COLOR_RED}❌${COLOR_RESET} Hook:             Not installed%-20s │\n" ""
 fi

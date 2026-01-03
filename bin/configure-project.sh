@@ -240,6 +240,9 @@ GIT_PUSH_REMOTE="origin"
 GIT_PUSH_BRANCH=""
 GIT_PUSH_STATE="\$STATE_DIR/\${PROJECT_NAME}/.last-git-push"
 
+# Optional Features
+HOOKS_ENABLED=false
+
 # Critical Files
 BACKUP_ENV_FILES=true
 BACKUP_CREDENTIALS=true
