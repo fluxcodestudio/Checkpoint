@@ -385,11 +385,14 @@ code {
     display: flex;
     justify-content: center;
     margin-bottom: 32px;
+    position: relative;
+    z-index: 10;
 }
 
 .section-logo {
     height: 280px;
     width: auto;
+    display: block;
     filter:
         drop-shadow(0 0 30px rgba(139, 92, 246, 0.5))
         drop-shadow(0 0 60px rgba(34, 211, 238, 0.3))
@@ -530,6 +533,8 @@ code {
 .features {
     padding: 120px 24px;
     background: var(--bg-light);
+    position: relative;
+    z-index: 1;
 }
 
 .features h2, .how-it-works h2, .backup-structure h2, .download h2 {
@@ -621,6 +626,8 @@ code {
 /* How It Works */
 .how-it-works {
     padding: 120px 24px;
+    position: relative;
+    z-index: 1;
 }
 
 .steps {
@@ -680,6 +687,8 @@ code {
 .backup-structure {
     padding: 120px 24px;
     background: var(--bg-light);
+    position: relative;
+    z-index: 1;
 }
 
 .structure-demo {
@@ -705,6 +714,8 @@ code {
 /* Download */
 .download {
     padding: 120px 24px;
+    position: relative;
+    z-index: 1;
 }
 
 .download-card {
