@@ -8,7 +8,7 @@
 
 Automated, intelligent backup system for any development environment. Battle-tested with comprehensive test coverage, cloud backup support, and multi-platform integrations.
 
-**Version:** 2.2.2
+**Version:** 2.3.0
 **Test Coverage:** 164/164 (100%)
 **License:** GPL v3
 
@@ -16,17 +16,27 @@ Automated, intelligent backup system for any development environment. Battle-tes
 
 ---
 
-## What's New in v2.2.1
+## What's New in v2.3.0
 
-🛠️ **Bug Fixes**
-- Fixed TUI dashboard on macOS (Bash 3.2 compatibility)
-- Auto-detects and uses Homebrew Bash 5+ when available
-- Fixed `backup-status` symlink resolution
-- Fixed unbound variable errors in status commands
+🌐 **Global Multi-Project System**
+- **Auto-registration**: Run `backup-now` in any directory → config auto-created, project registered
+- **Single global daemon**: One LaunchAgent backs up ALL projects hourly
+- **Projects registry**: Tracks all your projects in `~/.config/checkpoint/projects.json`
+- **`backup-all` command**: Manually trigger backup of all registered projects
+
+🎛️ **Interactive Command Center**
+- `/checkpoint` skill with arrow-key menus (Claude Code)
+- Manage all projects from one place
+- Per-project settings adjustable via command center
+
+🛠️ **Improvements**
+- Hooks now opt-in (no false warnings)
+- Cleaner status display
+- Better daemon detection
 
 ---
 
-## What's New in v2.2.1
+## What's New in v2.2.x
 
 🚀 **Universal Database Support**
 - Auto-detects PostgreSQL, MySQL, MongoDB (in addition to SQLite)
@@ -96,17 +106,32 @@ backups/
 git clone https://github.com/nizernoj/Checkpoint.git
 cd Checkpoint
 
-# Run installer
-./bin/install.sh
+# Run installer (global mode recommended)
+./bin/install-global.sh
 ```
 
-**Choose Installation Mode:**
+### Using Checkpoint
+
+After global installation, just run `backup-now` in any project:
+
+```bash
+cd /your/project
+backup-now
+```
+
+**That's it!** Checkpoint will:
+1. Auto-create configuration (`.backup-config.sh`)
+2. Register the project in the global registry
+3. Back up immediately
+4. Include in hourly automatic backups
+
+### Installation Modes
 
 **1. Global (Recommended)**
 - Install once, use everywhere
-- Commands available system-wide: `backup-now`, `backup-status`, etc.
-- Easy updates: `git pull && ./bin/install.sh`
-- Installs to: `/usr/local` or `~/.local`
+- Commands available system-wide: `backup-now`, `backup-all`, `backup-status`, etc.
+- Single daemon backs up ALL projects hourly
+- Easy updates: `git pull && ./bin/install-global.sh`
 
 **2. Per-Project**
 - Self-contained in project directory
@@ -191,8 +216,9 @@ backup-status            # Detailed system health
 
 | Command | Global | Per-Project | Description |
 |---------|--------|-------------|-------------|
+| `backup-now` | ✓ | `./bin/backup-now.sh` | Backup current project (auto-creates config if new) |
+| `backup-all` | ✓ | — | Backup ALL registered projects |
 | `backup-status` | ✓ | `./bin/backup-status.sh` | View backup health, statistics, cloud status |
-| `backup-now` | ✓ | `./bin/backup-now.sh` | Trigger immediate backup |
 | `backup-restore` | ✓ | `./bin/backup-restore.sh` | Restore from backups |
 | `backup-cleanup` | ✓ | `./bin/backup-cleanup.sh` | Manage old backups and disk space |
 | `backup-update` | ✓ | `./bin/backup-update.sh` | Update Checkpoint from GitHub |
