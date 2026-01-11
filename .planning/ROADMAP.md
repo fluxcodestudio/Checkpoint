@@ -46,12 +46,11 @@ Plans:
 ### Phase 3: Claude Code Integration
 **Goal**: Trigger backups on Claude Code events (conversation end, file changes, commits)
 **Depends on**: Phase 2
-**Research**: Likely (Claude Code hooks mechanism)
-**Research topics**: Claude Code hooks API, event types available, hook configuration
-**Plans**: TBD
+**Research**: Complete
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: Research and implement Claude Code hooks
+- [x] 03-01: Create hook scripts and settings template
 - [ ] 03-02: Event-triggered backup orchestration
 
 ### Phase 4: Fallback Chain
@@ -94,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 |-------|----------------|--------|-----------|
 | 1. Cloud Destination Setup | 2/2 | Complete | 2026-01-11 |
 | 2. Activity Triggers | 2/2 | Complete | 2026-01-11 |
-| 3. Claude Code Integration | 0/2 | Not started | - |
+| 3. Claude Code Integration | 1/2 | In progress | - |
 | 4. Fallback Chain | 0/2 | Not started | - |
 | 5. Tiered Retention | 0/2 | Not started | - |
 | 6. Dashboard & Monitoring | 0/3 | Not started | - |
