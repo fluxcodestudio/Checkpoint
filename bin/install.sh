@@ -557,6 +557,23 @@ EOF
     launchctl unload "$PLIST_FILE" 2>/dev/null || true
     launchctl load "$PLIST_FILE" 2>&1 >/dev/null
     echo "        ✓ Hourly backups enabled"
+
+    # Install watcher LaunchAgent if enabled
+    if [ "${WATCHER_ENABLED:-false}" = "true" ]; then
+        WATCHER_PLIST_NAME="com.claudecode.backup-watcher.${PROJECT_NAME}.plist"
+        WATCHER_PLIST_PATH="$HOME/Library/LaunchAgents/$WATCHER_PLIST_NAME"
+
+        # Create from template
+        sed -e "s|PROJECT_NAME_PLACEHOLDER|$PROJECT_NAME|g" \
+            -e "s|PROJECT_DIR_PLACEHOLDER|$PROJECT_DIR|g" \
+            -e "s|HOME_PLACEHOLDER|$HOME|g" \
+            "$PACKAGE_DIR/templates/launchd-watcher.plist" > "$WATCHER_PLIST_PATH"
+
+        # Load LaunchAgent
+        launchctl unload "$WATCHER_PLIST_PATH" 2>/dev/null || true
+        launchctl load "$WATCHER_PLIST_PATH"
+        echo "        ✓ File watcher installed (debounce: ${DEBOUNCE_SECONDS:-60}s)"
+    fi
 fi
 
 # ==============================================================================

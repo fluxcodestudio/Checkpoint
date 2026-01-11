@@ -163,6 +163,20 @@ fi
 echo ""
 echo "Uninstalling..."
 
+# Stop and remove watcher LaunchAgent if exists
+WATCHER_PLIST_NAME="com.claudecode.backup-watcher.${PROJECT_NAME}.plist"
+WATCHER_PLIST_PATH="$HOME/Library/LaunchAgents/$WATCHER_PLIST_NAME"
+if [ -f "$WATCHER_PLIST_PATH" ]; then
+    launchctl unload "$WATCHER_PLIST_PATH" 2>/dev/null || true
+    rm -f "$WATCHER_PLIST_PATH"
+    echo "✅ File watcher removed"
+fi
+
+# Clean up watcher PID files
+STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+PROJECT_STATE_DIR="$STATE_DIR/${PROJECT_NAME}"
+rm -f "$PROJECT_STATE_DIR/.watcher.pid" "$PROJECT_STATE_DIR/.watcher-timer.pid" 2>/dev/null
+
 # Stop and remove LaunchAgent
 PLIST_FILE="$HOME/Library/LaunchAgents/com.claudecode.backup.${PROJECT_NAME}.plist"
 
