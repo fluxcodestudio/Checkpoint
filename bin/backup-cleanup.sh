@@ -26,6 +26,11 @@ else
     exit 1
 fi
 
+# Load retention policy library (for tiered retention)
+if [ -f "$LIB_DIR/retention-policy.sh" ]; then
+    source "$LIB_DIR/retention-policy.sh"
+fi
+
 # Check for --help before loading config
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     cat << 'EOF'
@@ -38,6 +43,7 @@ OPTIONS:
     --preview, --dry-run    Preview cleanup (no changes)
     --auto                  Execute cleanup automatically
     --recommendations       Show recommendations only
+    --tiered                Use Time Machine-style tiered retention (hourly/daily/weekly/monthly)
     --database-only         Clean only database backups
     --files-only            Clean only archived files
     --cloud                 Clean cloud backups (rotate old backups)
@@ -79,6 +85,7 @@ DRY_RUN=false
 AUTO_MODE=false
 PREVIEW_MODE=false
 RECOMMENDATIONS_MODE=false
+TIERED_MODE=false
 DATABASE_ONLY=false
 FILES_ONLY=false
 CLOUD_ONLY=false
@@ -99,6 +106,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --recommendations)
             RECOMMENDATIONS_MODE=true
+            shift
+            ;;
+        --tiered)
+            TIERED_MODE=true
             shift
             ;;
         --database-only)
@@ -417,6 +428,98 @@ clean_orphaned() {
 }
 
 # ==============================================================================
+# TIERED RETENTION CLEANUP
+# ==============================================================================
+
+# Execute tiered retention cleanup
+execute_tiered_cleanup() {
+    local dry_run="${1:-false}"
+    local deleted_count=0
+    local freed_size=0
+
+    color_bold "Tiered Retention Cleanup"
+    echo ""
+
+    # Show current retention policy
+    color_cyan "Retention policy:"
+    echo "  Hourly:  Keep all for ${RETENTION_HOURLY_HOURS}h"
+    echo "  Daily:   Keep 1/day for ${RETENTION_DAILY_DAYS} days"
+    echo "  Weekly:  Keep 1/week for ${RETENTION_WEEKLY_WEEKS} weeks"
+    echo "  Monthly: Keep 1/month for ${RETENTION_MONTHLY_MONTHS} months"
+    echo ""
+
+    # Process archived files
+    if [ "$DATABASE_ONLY" = "false" ] && [ -d "$ARCHIVED_DIR" ]; then
+        color_cyan "Analyzing archived files..."
+        local stats=$(get_retention_stats "$ARCHIVED_DIR")
+        echo "  Current distribution: $stats"
+
+        local savings=$(calculate_tiered_savings "$ARCHIVED_DIR" "*")
+        local savings_formatted=$(format_bytes "$savings")
+
+        if [ "$savings" -gt 0 ]; then
+            if [ "$dry_run" = "true" ]; then
+                color_cyan "  [DRY RUN] Would free: $savings_formatted"
+            else
+                while IFS= read -r file; do
+                    [[ -z "$file" ]] && continue
+                    local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+                    if rm -f "$file" 2>/dev/null; then
+                        ((deleted_count++))
+                        freed_size=$((freed_size + size))
+                    fi
+                done < <(find_tiered_pruning_candidates "$ARCHIVED_DIR" "*")
+
+                # Clean empty directories
+                find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null || true
+
+                color_green "  Freed: $savings_formatted"
+            fi
+        else
+            color_green "  No files need pruning"
+        fi
+        echo ""
+    fi
+
+    # Process database backups
+    if [ "$FILES_ONLY" = "false" ] && [ -d "$DATABASE_DIR" ]; then
+        color_cyan "Analyzing database backups..."
+        local stats=$(get_retention_stats "$DATABASE_DIR")
+        echo "  Current distribution: $stats"
+
+        local savings=$(calculate_tiered_savings "$DATABASE_DIR" "*.db.gz")
+        local savings_formatted=$(format_bytes "$savings")
+
+        if [ "$savings" -gt 0 ]; then
+            if [ "$dry_run" = "true" ]; then
+                color_cyan "  [DRY RUN] Would free: $savings_formatted"
+            else
+                while IFS= read -r file; do
+                    [[ -z "$file" ]] && continue
+                    local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+                    if rm -f "$file" 2>/dev/null; then
+                        ((deleted_count++))
+                        freed_size=$((freed_size + size))
+                    fi
+                done < <(find_tiered_pruning_candidates "$DATABASE_DIR" "*.db.gz")
+
+                color_green "  Freed: $savings_formatted"
+            fi
+        else
+            color_green "  No databases need pruning"
+        fi
+        echo ""
+    fi
+
+    if [ "$dry_run" = "false" ] && [ $deleted_count -gt 0 ]; then
+        audit_cleanup "TIERED" "$deleted_count" "$(format_bytes "$freed_size")"
+        color_green "Total pruned: $deleted_count files ($(format_bytes "$freed_size"))"
+    fi
+
+    return 0
+}
+
+# ==============================================================================
 # RECOMMENDATIONS MODE
 # ==============================================================================
 
@@ -615,6 +718,18 @@ if [ "$CLOUD_ONLY" = "true" ]; then
         exit 1
     fi
 
+    exit 0
+fi
+
+# Tiered retention mode
+if [ "$TIERED_MODE" = "true" ]; then
+    if [ "$DRY_RUN" = "true" ]; then
+        execute_tiered_cleanup "true"
+    else
+        execute_tiered_cleanup "false"
+    fi
+    echo ""
+    color_green "Tiered cleanup complete"
     exit 0
 fi
 
