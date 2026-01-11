@@ -19,7 +19,7 @@
 #   - Expired: Beyond monthly retention - eligible for pruning
 # ==============================================================================
 
-set -euo pipefail
+# Note: set -e removed for compatibility when sourcing in scripts with errexit
 
 # ==============================================================================
 # RETENTION TIER CONFIGURATION

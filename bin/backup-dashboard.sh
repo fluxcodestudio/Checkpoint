@@ -5,7 +5,7 @@
 # Interactive dashboard showing backup status across all registered projects
 # ==============================================================================
 
-set -euo pipefail
+set -uo pipefail
 
 # Find library directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,16 +21,26 @@ source "$LIB_DIR/retention-policy.sh"
 # HELPER FUNCTIONS
 # ==============================================================================
 
+# Get backup directory for a project
+get_project_backup_dir() {
+    local project_path="$1"
+    local config_file="$project_path/.backup-config.sh"
+
+    if [[ -f "$config_file" ]]; then
+        (
+            source "$config_file" 2>/dev/null
+            echo "${BACKUP_DIR:-$project_path/backups}"
+        )
+    else
+        echo "$project_path/backups"
+    fi
+}
+
 # Get storage usage for a project
 get_project_storage() {
     local project_path="$1"
-    local config_file="$project_path/.backup-config.sh"
     local backup_dir
-
-    backup_dir=$(
-        source "$config_file" 2>/dev/null
-        echo "${BACKUP_DIR:-$project_path/backups}"
-    )
+    backup_dir=$(get_project_backup_dir "$project_path")
 
     if [[ ! -d "$backup_dir" ]]; then
         echo "0B"
@@ -50,13 +60,8 @@ get_project_last_backup_detail() {
         return
     fi
 
-    # Get actual timestamp
-    local config_file="$project_path/.backup-config.sh"
     local backup_dir
-    backup_dir=$(
-        source "$config_file" 2>/dev/null
-        echo "${BACKUP_DIR:-$project_path/backups}"
-    )
+    backup_dir=$(get_project_backup_dir "$project_path")
 
     local last_file
     last_file=$(find "$backup_dir" -type f \( -name "*.gz" -o -name "*.tar" -o -name "*.sql" \) -print0 2>/dev/null |
@@ -78,13 +83,8 @@ get_project_last_backup_detail() {
 # Get retention tier counts for a project
 get_project_retention_summary() {
     local project_path="$1"
-    local config_file="$project_path/.backup-config.sh"
     local backup_dir
-
-    backup_dir=$(
-        source "$config_file" 2>/dev/null
-        echo "${BACKUP_DIR:-$project_path/backups}"
-    )
+    backup_dir=$(get_project_backup_dir "$project_path")
 
     if [[ ! -d "$backup_dir" ]]; then
         echo "No snapshots"

@@ -46,19 +46,13 @@ get_project_backup_age() {
 
     # Get backup directory from config
     if [[ -f "$config_file" ]]; then
-        # Source config to get BACKUP_DIR
-        (
+        backup_dir=$(
             source "$config_file" 2>/dev/null
             echo "${BACKUP_DIR:-$project_path/backups}"
         )
     else
         backup_dir="$project_path/backups"
     fi
-
-    backup_dir=$(
-        source "$config_file" 2>/dev/null
-        echo "${BACKUP_DIR:-$project_path/backups}"
-    )
 
     if [[ ! -d "$backup_dir" ]]; then
         echo "-1"
@@ -101,10 +95,14 @@ has_project_errors() {
     local config_file="$project_path/.backup-config.sh"
     local backup_dir
 
-    backup_dir=$(
-        source "$config_file" 2>/dev/null
-        echo "${BACKUP_DIR:-$project_path/backups}"
-    )
+    if [[ -f "$config_file" ]]; then
+        backup_dir=$(
+            source "$config_file" 2>/dev/null
+            echo "${BACKUP_DIR:-$project_path/backups}"
+        )
+    else
+        backup_dir="$project_path/backups"
+    fi
 
     local log_file="$backup_dir/backup.log"
 
