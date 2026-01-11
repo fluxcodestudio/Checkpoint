@@ -2445,6 +2445,42 @@ _ensure_cloud_detector_loaded() {
     fi
 }
 
+# Check if cloud folder is available and writable
+# Returns: 0 if healthy, 1 if unavailable
+check_cloud_folder_health() {
+    local cloud_dir="${CLOUD_BACKUP_DIR:-}"
+
+    # No cloud folder configured
+    if [[ -z "$cloud_dir" ]]; then
+        return 1
+    fi
+
+    # Directory doesn't exist
+    if [[ ! -d "$cloud_dir" ]]; then
+        return 1
+    fi
+
+    # Test write access with temp file
+    local test_file="$cloud_dir/.checkpoint-health-check"
+    if ! touch "$test_file" 2>/dev/null; then
+        return 1
+    fi
+    rm -f "$test_file" 2>/dev/null
+
+    return 0
+}
+
+# Ensure cloud-backup.sh is loaded for rclone functions
+_ensure_cloud_backup_loaded() {
+    if ! declare -f check_rclone_installed &>/dev/null; then
+        local lib_dir
+        lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+        if [[ -f "$lib_dir/cloud-backup.sh" ]]; then
+            source "$lib_dir/cloud-backup.sh"
+        fi
+    fi
+}
+
 # Resolve backup destinations based on cloud folder configuration
 # Sets PRIMARY_* and optionally SECONDARY_* destination variables
 # Returns: 0 on success, 1 on failure
