@@ -57,10 +57,10 @@ Plans:
 **Goal**: Implement reliability chain: cloud folder → rclone API → local queue
 **Depends on**: Phase 1
 **Research**: Unlikely (rclone already exists in codebase)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Fallback detection and switching logic
+- [x] 04-01: Fallback detection and switching logic
 - [ ] 04-02: Local queue for offline scenarios
 
 ### Phase 5: Tiered Retention
@@ -94,6 +94,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Cloud Destination Setup | 2/2 | Complete | 2026-01-11 |
 | 2. Activity Triggers | 2/2 | Complete | 2026-01-11 |
 | 3. Claude Code Integration | 2/2 | Complete | 2026-01-11 |
-| 4. Fallback Chain | 0/2 | Not started | - |
+| 4. Fallback Chain | 1/2 | In progress | - |
 | 5. Tiered Retention | 0/2 | Not started | - |
 | 6. Dashboard & Monitoring | 0/3 | Not started | - |
