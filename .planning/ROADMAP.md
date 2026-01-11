@@ -30,7 +30,7 @@ None
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Cloud folder detection and configuration
+- [x] 01-01: Cloud folder detection and configuration
 - [ ] 01-02: Backup destination routing to cloud folder
 
 ### Phase 2: Activity Triggers
@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Cloud Destination Setup | 0/2 | Not started | - |
+| 1. Cloud Destination Setup | 1/2 | In progress | - |
 | 2. Activity Triggers | 0/2 | Not started | - |
 | 3. Claude Code Integration | 0/2 | Not started | - |
 | 4. Fallback Chain | 0/2 | Not started | - |
