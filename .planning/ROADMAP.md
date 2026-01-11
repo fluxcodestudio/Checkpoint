@@ -17,7 +17,7 @@ None
 - [ ] **Phase 1: Cloud Destination Setup** - Configure master backup folder in Dropbox/GDrive local folder
 - [ ] **Phase 2: Activity Triggers** - Debounced file watching with 60s threshold
 - [x] **Phase 3: Claude Code Integration** - Event triggers for conversation end, file changes, commits
-- [ ] **Phase 4: Fallback Chain** - Cloud folder → rclone API → local queue reliability
+- [x] **Phase 4: Fallback Chain** - Cloud folder → rclone API → local queue reliability
 - [ ] **Phase 5: Tiered Retention** - Hourly/daily/weekly/monthly snapshot management
 - [ ] **Phase 6: Dashboard & Monitoring** - Status bar indicator, all-projects view, restore capability
 
@@ -61,7 +61,7 @@ Plans:
 
 Plans:
 - [x] 04-01: Fallback detection and switching logic
-- [ ] 04-02: Local queue for offline scenarios
+- [x] 04-02: Local queue for offline scenarios
 
 ### Phase 5: Tiered Retention
 **Goal**: Manage snapshot lifecycle with hourly/daily/weekly/monthly tiers (like Time Machine)
@@ -94,6 +94,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 1. Cloud Destination Setup | 2/2 | Complete | 2026-01-11 |
 | 2. Activity Triggers | 2/2 | Complete | 2026-01-11 |
 | 3. Claude Code Integration | 2/2 | Complete | 2026-01-11 |
-| 4. Fallback Chain | 1/2 | In progress | - |
+| 4. Fallback Chain | 2/2 | Complete | 2026-01-11 |
 | 5. Tiered Retention | 0/2 | Not started | - |
 | 6. Dashboard & Monitoring | 0/3 | Not started | - |

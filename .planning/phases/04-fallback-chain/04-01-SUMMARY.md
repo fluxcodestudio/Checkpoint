@@ -63,7 +63,7 @@ Each task was committed atomically:
 1. **Task 1: Add cloud folder health check function** - `bdc3c6a` (feat)
 2. **Task 2: Integrate rclone API as middle fallback tier** - `f89899a` (feat)
 
-**Plan metadata:** (pending)
+**Plan metadata:** `80d12b6` (docs)
 
 ## Files Created/Modified
 - `lib/backup-lib.sh` - Added check_cloud_folder_health(), _ensure_cloud_backup_loaded(), three-tier fallback in resolve_backup_destinations()
