@@ -81,3 +81,59 @@ dequeue_entry() {
 has_pending_queue() {
     [[ $(get_queue_count) -gt 0 ]]
 }
+
+# Process pending queue entries
+# Attempts sync for each entry, removes on success, increments retry on failure
+# Args: $1 = max_entries (optional, default 10)
+process_backup_queue() {
+    local max_entries="${1:-10}"
+    local processed=0
+    local succeeded=0
+    local failed=0
+
+    # Load cloud-backup for rclone functions
+    local lib_dir
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "$lib_dir/cloud-backup.sh" 2>/dev/null || true
+
+    while IFS= read -r queue_file; do
+        [[ -z "$queue_file" ]] && continue
+        ((processed >= max_entries)) && break
+
+        # Load entry variables
+        if ! read_queue_entry "$queue_file"; then
+            dequeue_entry "$queue_file"  # Corrupt entry, remove
+            continue
+        fi
+
+        local sync_success=false
+
+        # Try rclone sync
+        if [[ "$SYNC_TYPE" == "rclone" ]] && [[ "${CLOUD_ENABLED:-false}" == "true" ]]; then
+            # Set required vars for cloud_upload
+            export LOCAL_BACKUP_DIR="$BACKUP_DIR"
+
+            if cloud_upload 2>/dev/null; then
+                sync_success=true
+            fi
+        fi
+
+        if $sync_success; then
+            dequeue_entry "$queue_file"
+            ((succeeded++))
+        else
+            increment_retry_count "$queue_file"
+            ((failed++))
+
+            # Max 5 retries, then give up (but keep in queue for manual review)
+            local retry_count=$(grep "^RETRY_COUNT=" "$queue_file" | cut -d= -f2)
+            if [[ $retry_count -ge 5 ]]; then
+                mv "$queue_file" "${queue_file}.failed"
+            fi
+        fi
+
+        ((processed++))
+    done < <(list_queue_entries)
+
+    echo "Queue processed: $processed entries, $succeeded synced, $failed failed"
+}

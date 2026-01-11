@@ -1086,6 +1086,25 @@ else
 fi
 
 # ==============================================================================
+# CLOUD SYNC QUEUE (Fallback handling)
+# ==============================================================================
+
+# Queue for cloud sync if rclone fallback was triggered
+if [[ "${RCLONE_SYNC_PENDING:-false}" == "true" ]]; then
+    source "$LIB_DIR/backup-queue.sh"
+    enqueue_backup_sync "$PROJECT_NAME" "$PRIMARY_BACKUP_DIR" "rclone" >/dev/null
+    log_info "   ▸ Queue: Backup queued for cloud sync when connectivity restores"
+fi
+
+# Opportunistically process queue (non-blocking, max 3 entries)
+if [ -f "$LIB_DIR/backup-queue.sh" ]; then
+    source "$LIB_DIR/backup-queue.sh"
+    if has_pending_queue 2>/dev/null; then
+        process_backup_queue 3 &
+    fi
+fi
+
+# ==============================================================================
 # UPDATE STATE
 # ==============================================================================
 
