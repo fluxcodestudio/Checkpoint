@@ -83,11 +83,6 @@ DRIVE_MARKER_FILE="$PROJECT_DIR/.backup-drive-marker"
 # OPTIONAL FEATURES
 # ==============================================================================
 
-# Claude Code hooks - trigger backup on each prompt (true/false)
-# When enabled, backups run after each Claude Code prompt
-# Default: false (use hourly daemon instead)
-HOOKS_ENABLED=false
-
 # Auto-commit to git after backup (true/false)
 AUTO_COMMIT_ENABLED=false
 
@@ -232,6 +227,17 @@ DEBOUNCE_SECONDS=60
 #                           dist/, build/, .next/, coverage/, .planning/
 # Example: WATCHER_EXCLUDES=("vendor" "tmp" ".terraform")
 # WATCHER_EXCLUDES=()
+
+# ==============================================================================
+# CLAUDE CODE HOOKS SETTINGS
+# ==============================================================================
+
+# Enable Claude Code hooks for backup triggers (requires Claude Code CLI)
+HOOKS_ENABLED=false
+
+# Which events trigger backups (comma-separated)
+# Options: stop (conversation end), edit (file changes), commit (git commits)
+HOOKS_TRIGGERS="stop,edit,commit"
 
 # ==============================================================================
 # LOGGING
