@@ -72,6 +72,16 @@ if [[ -f "$CLOUD_LIB" ]] && [[ "${CLOUD_ENABLED:-false}" == "true" ]]; then
     source "$CLOUD_LIB"
 fi
 
+# Load retention policy library (for tiered cleanup)
+LIB_DIR="$SCRIPT_DIR/../lib"
+if [ -f "$LIB_DIR/retention-policy.sh" ]; then
+    source "$LIB_DIR/retention-policy.sh"
+fi
+
+# Tiered cleanup interval (in daemon cycles, e.g., 6 = every 6 hours if hourly daemon)
+CLEANUP_INTERVAL="${CLEANUP_INTERVAL:-6}"
+CLEANUP_COUNTER=0
+
 # ==============================================================================
 # ORPHAN DETECTION (Issue #8)
 # ==============================================================================
@@ -363,6 +373,52 @@ cleanup_old_backups() {
     fi
 }
 
+# Run tiered retention cleanup (silent, non-blocking)
+run_tiered_cleanup() {
+    local log_file="${STATE_DIR:-$HOME/.claudecode-backups/state}/cleanup.log"
+
+    # Only run if retention-policy.sh is available
+    if ! command -v find_tiered_pruning_candidates &>/dev/null; then
+        return 0
+    fi
+
+    {
+        echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] Starting tiered cleanup for $PROJECT_NAME"
+
+        local total_pruned=0
+        local total_freed=0
+
+        # Prune archived files
+        if [[ -d "$ARCHIVED_DIR" ]]; then
+            while IFS= read -r file; do
+                [[ -z "$file" ]] && continue
+                local size=$(stat -f%z "$file" 2>/dev/null || echo 0)
+                if rm -f "$file" 2>/dev/null; then
+                    ((total_pruned++))
+                    total_freed=$((total_freed + size))
+                fi
+            done < <(find_tiered_pruning_candidates "$ARCHIVED_DIR" "*" 2>/dev/null)
+
+            # Clean empty directories
+            find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null || true
+        fi
+
+        # Prune database backups
+        if [[ -d "$DATABASE_DIR" ]]; then
+            while IFS= read -r file; do
+                [[ -z "$file" ]] && continue
+                local size=$(stat -f%z "$file" 2>/dev/null || echo 0)
+                if rm -f "$file" 2>/dev/null; then
+                    ((total_pruned++))
+                    total_freed=$((total_freed + size))
+                fi
+            done < <(find_tiered_pruning_candidates "$DATABASE_DIR" "*.db.gz" 2>/dev/null)
+        fi
+
+        echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] Cleanup complete: $total_pruned files, $total_freed bytes freed"
+    } >> "$log_file" 2>&1 &
+}
+
 # ==============================================================================
 # MAIN EXECUTION
 # ==============================================================================
@@ -500,6 +556,13 @@ fi
 
 backup_changed_files
 cleanup_old_backups
+
+# Increment cleanup counter and run tiered cleanup if interval reached
+((CLEANUP_COUNTER++)) || true
+if [[ $CLEANUP_COUNTER -ge $CLEANUP_INTERVAL ]]; then
+    run_tiered_cleanup
+    CLEANUP_COUNTER=0
+fi
 
 # Update coordination state
 echo "$NOW" > "$BACKUP_TIME_STATE"
