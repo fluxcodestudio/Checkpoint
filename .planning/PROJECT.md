@@ -55,6 +55,21 @@ Backups happen automatically and invisibly — developer never loses work and ne
 - Already has daemon support and notification systems
 - Claude Code skills already integrated
 
+**Backup architecture (existing):**
+```
+PROJECT/backups/
+├── files/           # Current file versions (UNCOMPRESSED mirror)
+│   └── src/main.js  # Direct copy, readable, browsable
+├── archived/        # Previous file versions (UNCOMPRESSED + TIMESTAMP)
+│   └── src/main.js.20260102_150000_5678
+└── databases/       # Database dumps (COMPRESSED .db.gz)
+    └── mydb_20260103_120000.db.gz
+```
+- Files: Uncompressed copies, directory structure preserved
+- When file changes: current → archived with timestamp, new version → files/
+- Databases: Always compressed (gzip) — full dumps, not incremental
+- Retention: files=60 days, databases=30 days
+
 **Key insight from user:**
 Cloud sync services (Dropbox, GDrive) have local folders that auto-sync. Writing to these folders = automatic cloud backup without API calls. Direct API (rclone) is fallback only.
 
