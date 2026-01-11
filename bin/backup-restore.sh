@@ -26,6 +26,11 @@ else
     exit 1
 fi
 
+# Load restore library for point-in-time functions
+if [ -f "$LIB_DIR/restore-lib.sh" ]; then
+    source "$LIB_DIR/restore-lib.sh"
+fi
+
 # Check for --help before loading config
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     cat << 'EOF'
@@ -39,13 +44,19 @@ OPTIONS:
     --database              Restore database
     --file PATH             Restore specific file
     --version TIMESTAMP     Restore specific version
+    --at "TIME"             Restore to specific point in time
     --dry-run               Preview restore (no changes)
     --help, -h              Show this help message
+
+MODES:
+    timeline [PATH]         Show file timeline with version history
+    file PATH               Restore specific file
 
 EXAMPLES:
     backup-restore.sh                    # Interactive restore wizard
     backup-restore.sh --list             # List available backups
-    backup-restore.sh --database         # Restore database interactively
+    backup-restore.sh timeline src/app.ts # Show file timeline
+    backup-restore.sh file src/app.ts --at "2 hours ago"
     backup-restore.sh /path/to/project   # Restore from specific project
 
 EXIT CODES:
@@ -75,6 +86,8 @@ source "$CONFIG_FILE"
 
 DRY_RUN=false
 LIST_MODE=false
+TIMELINE_MODE=false
+SHOW_ALL=false
 RESTORE_TYPE=""
 RESTORE_TARGET=""
 RESTORE_VERSION=""
@@ -89,6 +102,15 @@ while [[ $# -gt 0 ]]; do
         --list)
             LIST_MODE=true
             shift
+            ;;
+        --all)
+            SHOW_ALL=true
+            shift
+            ;;
+        timeline)
+            TIMELINE_MODE=true
+            RESTORE_TARGET="${2:-}"
+            shift 2 2>/dev/null || shift
             ;;
         database)
             RESTORE_TYPE="database"
@@ -146,6 +168,317 @@ EOF
             ;;
     esac
 done
+
+# ==============================================================================
+# TIMELINE FUNCTIONS
+# ==============================================================================
+
+# Display file timeline with interactive options
+show_file_timeline() {
+    local filepath="$1"
+    local show_all="${2:-false}"
+
+    if [[ -z "$filepath" ]]; then
+        color_red "❌ No file path specified"
+        echo "Usage: backup-restore.sh timeline <filepath>" >&2
+        exit 1
+    fi
+
+    # Check if file has any backups
+    local version_count=0
+    while IFS='|' read -r mtime size path type; do
+        [[ -n "$mtime" ]] && ((version_count++))
+    done < <(list_file_versions "$filepath")
+
+    if [[ $version_count -eq 0 ]]; then
+        color_red "❌ No backups found for: $filepath"
+        exit 1
+    fi
+
+    # Display timeline header
+    color_bold "═══════════════════════════════════════════════════════════"
+    color_bold "  File Timeline: $filepath"
+    color_bold "═══════════════════════════════════════════════════════════"
+    echo ""
+
+    # Build version array for selection
+    local versions=()
+    local prev_date=""
+    local count=0
+    local max_count=20
+    local prev_size=""
+
+    [[ "$show_all" == "true" ]] && max_count=999
+
+    while IFS='|' read -r mtime size path type; do
+        [[ -z "$mtime" ]] && continue
+        ((count++))
+
+        [[ $count -gt $max_count ]] && continue
+
+        versions+=("$path")
+
+        # Format date header
+        local date_str
+        local today=$(date +%Y-%m-%d)
+        local yesterday
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            yesterday=$(date -v-1d +%Y-%m-%d)
+        else
+            yesterday=$(date -d "yesterday" +%Y-%m-%d)
+        fi
+
+        local file_date=$(date -r "$mtime" +%Y-%m-%d 2>/dev/null)
+
+        if [[ "$file_date" == "$today" ]]; then
+            date_str="Today"
+        elif [[ "$file_date" == "$yesterday" ]]; then
+            date_str="Yesterday"
+        else
+            date_str=$(date -r "$mtime" +"%b %d" 2>/dev/null)
+        fi
+
+        # Print date header if changed
+        if [[ "$date_str" != "$prev_date" ]]; then
+            [[ -n "$prev_date" ]] && echo ""
+            echo "  $date_str"
+            prev_date="$date_str"
+        fi
+
+        local time_str=$(date -r "$mtime" +"%H:%M:%S" 2>/dev/null)
+        local size_human=$(format_bytes "$size")
+
+        local marker=""
+        [[ "$type" == "current" ]] && marker="[current]"
+
+        # Calculate size delta
+        local delta=""
+        if [[ -n "$prev_size" ]] && [[ "$prev_size" != "0" ]]; then
+            local diff=$((size - prev_size))
+            if [[ $diff -gt 0 ]]; then
+                delta="(+$(format_bytes $diff))"
+            elif [[ $diff -lt 0 ]]; then
+                delta="(-$(format_bytes ${diff#-}))"
+            fi
+        fi
+
+        printf "    %-2d. %s  %-10s  %8s  %s\n" "$count" "$time_str" "$marker" "$size_human" "$delta"
+        prev_size="$size"
+    done < <(list_file_versions "$filepath")
+
+    local total_count=$count
+    if [[ $total_count -gt $max_count ]] && [[ "$show_all" != "true" ]]; then
+        echo ""
+        echo "  [Showing $max_count of $total_count versions - use --all for full history]"
+    fi
+
+    echo ""
+    echo "  Enter version number to restore, or:"
+    echo "    [d] Diff between versions"
+    echo "    [p] Preview version content"
+    echo "    [q] Cancel"
+    echo ""
+
+    read -p "  Select: " selection
+
+    case "$selection" in
+        q|Q|"")
+            echo "Cancelled."
+            exit 0
+            ;;
+        d|D)
+            timeline_diff_versions "$filepath" "${versions[@]}"
+            ;;
+        p|P)
+            timeline_preview_version "$filepath" "${versions[@]}"
+            ;;
+        *)
+            if [[ "$selection" =~ ^[0-9]+$ ]] && [[ "$selection" -ge 1 ]] && [[ "$selection" -le "${#versions[@]}" ]]; then
+                local selected_path="${versions[$((selection - 1))]}"
+                timeline_restore_version "$filepath" "$selected_path"
+            else
+                color_red "Invalid selection"
+                exit 1
+            fi
+            ;;
+    esac
+}
+
+# Diff two versions
+timeline_diff_versions() {
+    local filepath="$1"
+    shift
+    local versions=("$@")
+
+    echo ""
+    read -p "  Enter first version number: " v1
+    read -p "  Enter second version number: " v2
+
+    if [[ ! "$v1" =~ ^[0-9]+$ ]] || [[ ! "$v2" =~ ^[0-9]+$ ]]; then
+        color_red "Invalid version numbers"
+        exit 1
+    fi
+
+    if [[ "$v1" -lt 1 ]] || [[ "$v1" -gt "${#versions[@]}" ]] || \
+       [[ "$v2" -lt 1 ]] || [[ "$v2" -gt "${#versions[@]}" ]]; then
+        color_red "Version numbers out of range"
+        exit 1
+    fi
+
+    local path1="${versions[$((v1 - 1))]}"
+    local path2="${versions[$((v2 - 1))]}"
+
+    echo ""
+    color_bold "Diff: Version $v1 vs Version $v2"
+    echo ""
+
+    diff --color=auto -u "$path1" "$path2" 2>/dev/null || diff -u "$path1" "$path2"
+}
+
+# Preview version content
+timeline_preview_version() {
+    local filepath="$1"
+    shift
+    local versions=("$@")
+
+    echo ""
+    read -p "  Enter version number to preview: " v
+
+    if [[ ! "$v" =~ ^[0-9]+$ ]] || [[ "$v" -lt 1 ]] || [[ "$v" -gt "${#versions[@]}" ]]; then
+        color_red "Invalid version number"
+        exit 1
+    fi
+
+    local path="${versions[$((v - 1))]}"
+
+    echo ""
+    color_bold "Preview: Version $v"
+    color_cyan "File: $path"
+    echo ""
+    echo "─────────────────────────────────────────────────────────"
+
+    head -100 "$path"
+
+    local lines=$(wc -l < "$path" | tr -d ' ')
+    if [[ "$lines" -gt 100 ]]; then
+        echo ""
+        echo "─────────────────────────────────────────────────────────"
+        color_gray "  [Showing first 100 of $lines lines]"
+    fi
+}
+
+# Restore a selected version
+timeline_restore_version() {
+    local filepath="$1"
+    local source_path="$2"
+    local target_file="$PROJECT_DIR/$filepath"
+
+    echo ""
+    local preview=$(cat <<EOF
+
+⚠️  This will replace the current file
+
+Source:      $source_path
+Destination: $target_file
+
+Safety backup will be created if file exists
+
+EOF
+    )
+
+    draw_box "Restore Preview" "$preview"
+    echo ""
+
+    if [ "$DRY_RUN" = "true" ]; then
+        color_cyan "ℹ️  [DRY RUN] Skipping confirmation"
+    else
+        if ! confirm "Continue?"; then
+            echo "Cancelled."
+            exit 0
+        fi
+        echo ""
+    fi
+
+    # Perform restore
+    restore_file_from_backup "$source_path" "$target_file" "$DRY_RUN"
+
+    if [ $? -eq 0 ]; then
+        echo ""
+        color_green "✅ Restore complete"
+        audit_restore "FILE_TIMELINE" "$source_path" "$target_file"
+    else
+        echo ""
+        color_red "❌ Restore failed"
+        exit 1
+    fi
+}
+
+# Restore file at specific point in time
+restore_file_at_time() {
+    local filepath="$1"
+    local target_time="$2"
+
+    if [[ -z "$target_time" ]]; then
+        color_red "❌ No time specified. Use --at \"time\""
+        exit 1
+    fi
+
+    local closest=$(find_closest_version "$filepath" "$target_time")
+
+    if [[ -z "$closest" ]] || [[ "$closest" == Error* ]]; then
+        color_red "❌ No version found for $filepath at $target_time"
+        exit 1
+    fi
+
+    local mtime=$(stat -f%m "$closest" 2>/dev/null || stat -c%Y "$closest" 2>/dev/null)
+    local created=$(date -r "$mtime" "+%Y-%m-%d %H:%M:%S" 2>/dev/null)
+    local size=$(stat -f%z "$closest" 2>/dev/null || stat -c%s "$closest" 2>/dev/null)
+    local size_human=$(format_bytes "$size")
+
+    local target_file="$PROJECT_DIR/$filepath"
+
+    echo ""
+    local preview=$(cat <<EOF
+
+⚠️  This will replace the current file
+
+Requested:   $target_time
+Closest:     $created ($(format_relative_time "$mtime"))
+Source:      $(basename "$closest")
+Size:        $size_human
+Destination: $target_file
+
+Safety backup will be created if file exists
+
+EOF
+    )
+
+    draw_box "Point-in-Time Restore" "$preview"
+    echo ""
+
+    if [ "$DRY_RUN" = "true" ]; then
+        color_cyan "ℹ️  [DRY RUN] Skipping confirmation"
+    else
+        if ! confirm "Continue?"; then
+            echo "Cancelled."
+            exit 0
+        fi
+        echo ""
+    fi
+
+    # Perform restore
+    restore_file_from_backup "$closest" "$target_file" "$DRY_RUN"
+
+    if [ $? -eq 0 ]; then
+        echo ""
+        color_green "✅ Restore complete"
+        audit_restore "FILE_AT_TIME" "$closest" "$target_file"
+    else
+        echo ""
+        color_red "❌ Restore failed"
+        exit 1
+    fi
+}
 
 # ==============================================================================
 # RESTORE FUNCTIONS
@@ -563,6 +896,12 @@ if [ "$LIST_MODE" = "true" ]; then
     exit 0
 fi
 
+# Timeline mode
+if [ "$TIMELINE_MODE" = "true" ]; then
+    show_file_timeline "$RESTORE_TARGET" "$SHOW_ALL"
+    exit 0
+fi
+
 # Non-interactive modes
 if [ -n "$RESTORE_TYPE" ]; then
     case "$RESTORE_TYPE" in
@@ -579,8 +918,13 @@ if [ -n "$RESTORE_TYPE" ]; then
                 color_red "❌ No file path specified"
                 exit 1
             fi
-            file_path="$RESTORE_TARGET"
-            restore_file_interactive
+            # Check for point-in-time restore
+            if [ -n "$RESTORE_AT" ]; then
+                restore_file_at_time "$RESTORE_TARGET" "$RESTORE_AT"
+            else
+                file_path="$RESTORE_TARGET"
+                restore_file_interactive
+            fi
             ;;
     esac
     exit 0
