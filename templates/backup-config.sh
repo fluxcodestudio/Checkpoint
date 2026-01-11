@@ -215,6 +215,25 @@ BACKUP_LARGE_FILES=false
 USE_UTC_TIMESTAMPS=false
 
 # ==============================================================================
+# FILE WATCHER SETTINGS
+# ==============================================================================
+
+# Enable automatic file watching (triggers backup after quiet period)
+# When enabled, a LaunchAgent monitors file changes and triggers backup
+# after DEBOUNCE_SECONDS of inactivity (natural pause points in development)
+WATCHER_ENABLED=false
+
+# Seconds of inactivity before triggering backup (default: 60)
+# Lower values = more frequent backups, higher values = fewer backups
+DEBOUNCE_SECONDS=60
+
+# Additional paths to exclude from watching (beyond defaults)
+# Defaults always excluded: node_modules, .git, backups/, .cache, __pycache__,
+#                           dist/, build/, .next/, coverage/, .planning/
+# Example: WATCHER_EXCLUDES=("vendor" "tmp" ".terraform")
+# WATCHER_EXCLUDES=()
+
+# ==============================================================================
 # LOGGING
 # ==============================================================================
 
