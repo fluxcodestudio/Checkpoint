@@ -2,7 +2,7 @@
 # ==============================================================================
 # Checkpoint - Cloud Backup Library
 # ==============================================================================
-# Version: 2.1.0
+# Version: 2.3.0
 # Description: Cloud storage integration via rclone for off-site backup
 #              protection. Supports Dropbox, Google Drive, OneDrive, and iCloud.
 #
@@ -351,4 +351,166 @@ validate_cloud_config() {
     fi
 
     return $errors
+}
+
+# ==============================================================================
+# CLOUD BACKUP ROTATION (v2.3.0)
+# ==============================================================================
+
+# Default retention settings
+CLOUD_RETENTION_DAYS="${CLOUD_RETENTION_DAYS:-30}"
+CLOUD_MIN_BACKUP_COUNT="${CLOUD_MIN_BACKUP_COUNT:-5}"
+
+# Rotate (delete) old cloud backups based on retention policy
+# Args:
+#   $1 - dry_run: "true" to preview without deleting
+# Returns: Number of files deleted (or would delete in dry-run)
+cloud_rotate_backups() {
+    local dry_run="${1:-false}"
+    local deleted_count=0
+
+    # Skip if cloud not enabled
+    if [[ "${CLOUD_ENABLED:-false}" != "true" ]]; then
+        echo "Cloud backup not enabled"
+        return 0
+    fi
+
+    # Validate rclone is available
+    if ! check_rclone_installed; then
+        echo "rclone not installed"
+        return 1
+    fi
+
+    local cloud_remote="${CLOUD_REMOTE_NAME}"
+    local cloud_path="${CLOUD_BACKUP_PATH}"
+
+    if [[ -z "$cloud_remote" ]] || [[ -z "$cloud_path" ]]; then
+        echo "Cloud remote or path not configured"
+        return 1
+    fi
+
+    local full_path="${cloud_remote}:${cloud_path}"
+
+    echo "Scanning cloud backups for rotation..."
+    echo "Retention: $CLOUD_RETENTION_DAYS days"
+    echo "Minimum backups to keep: $CLOUD_MIN_BACKUP_COUNT"
+    echo ""
+
+    # Get list of all backup files with modification times
+    local backup_list
+    backup_list=$(rclone lsl "$full_path" 2>/dev/null | sort -k2,3 -r) || {
+        echo "Failed to list cloud backups"
+        return 1
+    }
+
+    if [[ -z "$backup_list" ]]; then
+        echo "No cloud backups found"
+        return 0
+    fi
+
+    # Count total backups
+    local total_count
+    total_count=$(echo "$backup_list" | wc -l | tr -d ' ')
+    echo "Found $total_count cloud backup files"
+
+    # Calculate cutoff date (Unix timestamp)
+    local cutoff_date
+    cutoff_date=$(date -v-${CLOUD_RETENTION_DAYS}d +%s 2>/dev/null || \
+                  date -d "-${CLOUD_RETENTION_DAYS} days" +%s 2>/dev/null)
+
+    # Track files to delete
+    local files_to_delete=()
+    local kept_count=0
+
+    while IFS= read -r line; do
+        # Parse rclone lsl output: size date time filename
+        local file_date file_time filename
+        file_date=$(echo "$line" | awk '{print $2}')
+        file_time=$(echo "$line" | awk '{print $3}')
+        filename=$(echo "$line" | awk '{print $4}')
+
+        if [[ -z "$filename" ]]; then
+            continue
+        fi
+
+        # Parse file date to Unix timestamp
+        local file_timestamp
+        file_timestamp=$(date -j -f "%Y-%m-%d %H:%M:%S" "$file_date $file_time" +%s 2>/dev/null || \
+                        date -d "$file_date $file_time" +%s 2>/dev/null || echo "0")
+
+        if [[ "$file_timestamp" -eq 0 ]]; then
+            # Can't parse date, keep the file
+            kept_count=$((kept_count + 1))
+            continue
+        fi
+
+        # Check if file is older than retention period
+        if [[ "$file_timestamp" -lt "$cutoff_date" ]]; then
+            # Check if we still need to keep minimum backups
+            if [[ $kept_count -ge $CLOUD_MIN_BACKUP_COUNT ]]; then
+                files_to_delete+=("$filename")
+            else
+                kept_count=$((kept_count + 1))
+            fi
+        else
+            kept_count=$((kept_count + 1))
+        fi
+    done <<< "$backup_list"
+
+    # Delete old files
+    local delete_count=${#files_to_delete[@]}
+    if [[ $delete_count -eq 0 ]]; then
+        echo "No old backups to delete"
+        return 0
+    fi
+
+    echo ""
+    echo "Files to delete: $delete_count"
+
+    for filename in "${files_to_delete[@]}"; do
+        if [[ "$dry_run" == "true" ]]; then
+            echo "  [DRY RUN] Would delete: $filename"
+        else
+            echo "  Deleting: $filename"
+            if rclone deletefile "${full_path}/${filename}" 2>/dev/null; then
+                deleted_count=$((deleted_count + 1))
+            else
+                echo "    Failed to delete: $filename"
+            fi
+        fi
+    done
+
+    echo ""
+    if [[ "$dry_run" == "true" ]]; then
+        echo "Would delete $delete_count files"
+    else
+        echo "Deleted $deleted_count files"
+    fi
+
+    return 0
+}
+
+# Get cloud backup statistics
+# Returns: JSON-formatted statistics
+cloud_get_stats() {
+    if [[ "${CLOUD_ENABLED:-false}" != "true" ]]; then
+        echo '{"enabled": false}'
+        return 0
+    fi
+
+    local cloud_remote="${CLOUD_REMOTE_NAME}"
+    local cloud_path="${CLOUD_BACKUP_PATH}"
+    local full_path="${cloud_remote}:${cloud_path}"
+
+    # Get size and count
+    local size_output
+    size_output=$(rclone size "$full_path" 2>/dev/null) || {
+        echo '{"enabled": true, "error": "Failed to get stats"}'
+        return 1
+    }
+
+    local total_size=$(echo "$size_output" | grep "Total size:" | awk '{print $3, $4}')
+    local total_count=$(echo "$size_output" | grep "Total objects:" | awk '{print $3}')
+
+    echo "{\"enabled\": true, \"size\": \"$total_size\", \"count\": $total_count, \"retention_days\": $CLOUD_RETENTION_DAYS}"
 }

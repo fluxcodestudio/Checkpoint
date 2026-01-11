@@ -1,0 +1,22 @@
+{
+  "name": "backup-update",
+  "description": "Update the Checkpoint backup system to the latest version",
+  "version": "2.3.0",
+  "author": "Checkpoint",
+  "triggers": [
+    "/backup-update",
+    "/checkpoint-update"
+  ],
+  "arguments": [
+    {
+      "name": "check-only",
+      "description": "Only check for updates without installing",
+      "required": false,
+      "default": false
+    }
+  ],
+  "examples": [
+    "/backup-update",
+    "/backup-update --check-only"
+  ]
+}

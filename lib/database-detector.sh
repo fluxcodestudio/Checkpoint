@@ -2,7 +2,7 @@
 # ==============================================================================
 # Checkpoint - Universal Database Detector
 # ==============================================================================
-# Version: 2.2.0
+# Version: 2.3.0
 # Description: Auto-detect databases (local and remote) across all types
 #              - SQLite, PostgreSQL, MySQL, MongoDB
 #              - Detects from files, environment variables, running processes

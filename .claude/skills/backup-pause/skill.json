@@ -1,0 +1,30 @@
+{
+  "name": "backup-pause",
+  "description": "Pause or resume automatic backups for the current project",
+  "version": "2.3.0",
+  "author": "Checkpoint",
+  "triggers": [
+    "/backup-pause",
+    "/backup-resume",
+    "/checkpoint-pause"
+  ],
+  "arguments": [
+    {
+      "name": "action",
+      "description": "Action: pause, resume, or status",
+      "required": false,
+      "default": "toggle"
+    },
+    {
+      "name": "duration",
+      "description": "Pause duration in minutes (default: until resumed)",
+      "required": false
+    }
+  ],
+  "examples": [
+    "/backup-pause",
+    "/backup-pause 60",
+    "/backup-resume",
+    "/backup-pause status"
+  ]
+}

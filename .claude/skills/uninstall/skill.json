@@ -1,0 +1,30 @@
+{
+  "name": "uninstall",
+  "description": "Uninstall the Checkpoint backup system from the current project",
+  "version": "2.3.0",
+  "author": "Checkpoint",
+  "triggers": [
+    "/backup-uninstall",
+    "/checkpoint-uninstall",
+    "/uninstall-backup"
+  ],
+  "arguments": [
+    {
+      "name": "keep-data",
+      "description": "Keep backup data after uninstalling (default: true)",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "force",
+      "description": "Skip confirmation prompt",
+      "required": false,
+      "default": false
+    }
+  ],
+  "examples": [
+    "/backup-uninstall",
+    "/backup-uninstall --force",
+    "/backup-uninstall --no-keep-data"
+  ]
+}

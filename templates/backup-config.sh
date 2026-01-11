@@ -135,6 +135,35 @@ BACKUP_LOCAL_NOTES=true
 BACKUP_LOCAL_DATABASES=true
 
 # ==============================================================================
+# CLOUD BACKUP (via rclone)
+# ==============================================================================
+
+# Enable cloud backup (true/false)
+# Requires rclone to be installed and configured
+CLOUD_ENABLED=false
+
+# Cloud provider remote name (as configured in rclone)
+# Run 'rclone config' to set up a remote
+CLOUD_REMOTE_NAME=""
+
+# Path on cloud storage for backups
+# e.g., "checkpoint-backups/project-name"
+CLOUD_BACKUP_PATH=""
+
+# Cloud backup retention in days (default: 30)
+# Backups older than this will be automatically deleted
+CLOUD_RETENTION_DAYS=30
+
+# Minimum number of cloud backups to keep (default: 5)
+# Even if older than retention period, keep at least this many
+CLOUD_MIN_BACKUP_COUNT=5
+
+# What to sync to cloud
+CLOUD_SYNC_DATABASES=true   # Sync database backups
+CLOUD_SYNC_CRITICAL=true    # Sync critical files (.env, credentials)
+CLOUD_SYNC_FILES=false      # Sync all file backups (can be large)
+
+# ==============================================================================
 # FILE SIZE LIMITS
 # ==============================================================================
 

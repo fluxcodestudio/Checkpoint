@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2025-01-06
+
+### Added
+
+**Claude Code Skills Integration** - Full slash command support
+
+- `/checkpoint` - Launch backup dashboard or execute quick actions
+- `/backup-update` - Update Checkpoint to latest version
+- `/backup-pause` - Pause/resume automatic backups with optional duration
+- `/backup-uninstall` - Safely remove Checkpoint from project
+
+**Comprehensive Test Suite** - Phase 4 testing complete
+
+- `test-github-push.sh` - GitHub auto-push feature tests (8 tests)
+- `test-concurrent-backups.sh` - Lock mechanism stress tests (10 tests)
+- `test-interrupted-backup.sh` - Recovery and cleanup tests (10 tests)
+- `test-database-types.sh` - Multi-database detection tests (15 tests)
+- `test-large-files.sh` - File size limit tests (15 tests)
+
+**Cloud Backup Rotation** - Automatic cleanup of old cloud backups
+
+- `CLOUD_RETENTION_DAYS` config option (default: 30)
+- Automatic deletion of cloud backups older than retention period
+- Minimum backup count protection
+- `backup-cleanup.sh --cloud` for manual cloud cleanup
+
+**Installer Improvements** - More robust installation
+
+- Automatic rollback on installation failure
+- PATH validation with shell-specific instructions
+- Improved dependency verification
+- Clear error messages with recovery steps
+
+### Changed
+
+- Updated all version references to 2.3.0
+- Improved PLAN.md and TODO.md with comprehensive task tracking
+- Enhanced documentation for new features
+
+### Technical Details
+
+- 4 new Claude Code skills in `.claude/skills/`
+- 5 new test files with 58+ test cases
+- Cloud rotation in `lib/cloud-backup.sh`
+- Installer improvements in `bin/install-global.sh`
+- All changes backward compatible
+
 ## [2.2.2] - 2025-12-26
 
 ### Fixed

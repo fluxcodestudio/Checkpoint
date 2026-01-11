@@ -40,11 +40,14 @@ OPTIONS:
     --recommendations       Show recommendations only
     --database-only         Clean only database backups
     --files-only            Clean only archived files
+    --cloud                 Clean cloud backups (rotate old backups)
     --help, -h              Show this help message
 
 EXAMPLES:
     backup-cleanup.sh                    # Preview cleanup for current project
     backup-cleanup.sh --auto             # Execute cleanup
+    backup-cleanup.sh --cloud            # Clean old cloud backups
+    backup-cleanup.sh --cloud --dry-run  # Preview cloud cleanup
     backup-cleanup.sh /path/to/project   # Clean specific project
 
 EXIT CODES:
@@ -78,6 +81,7 @@ PREVIEW_MODE=false
 RECOMMENDATIONS_MODE=false
 DATABASE_ONLY=false
 FILES_ONLY=false
+CLOUD_ONLY=false
 OLDER_THAN=""
 KEEP_LAST=""
 RECLAIM_SPACE=""
@@ -103,6 +107,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --files-only)
             FILES_ONLY=true
+            shift
+            ;;
+        --cloud)
+            CLOUD_ONLY=true
             shift
             ;;
         --older-than)
@@ -580,6 +588,35 @@ echo ""
 color_cyan "Project: $PROJECT_NAME"
 color_cyan "Backups: $BACKUP_DIR"
 echo ""
+
+# Cloud cleanup mode
+if [ "$CLOUD_ONLY" = "true" ]; then
+    color_bold "Cloud Backup Cleanup"
+    echo ""
+
+    # Load cloud backup library
+    CLOUD_LIB="$LIB_DIR/cloud-backup.sh"
+    if [[ -f "$CLOUD_LIB" ]]; then
+        source "$CLOUD_LIB"
+
+        # Run cloud rotation
+        if [ "$DRY_RUN" = "true" ]; then
+            cloud_rotate_backups "true"
+        else
+            cloud_rotate_backups "false"
+        fi
+
+        # Show cloud stats
+        echo ""
+        color_cyan "Cloud Backup Statistics:"
+        cloud_get_stats
+    else
+        color_red "Cloud backup library not found"
+        exit 1
+    fi
+
+    exit 0
+fi
 
 # Recommendations mode
 if [ "$RECOMMENDATIONS_MODE" = "true" ]; then

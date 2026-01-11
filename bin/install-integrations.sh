@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checkpoint - Integration Wizard Installer
-# Version: 1.2.0
+# Version: 2.3.0
 # Detects available platforms and installs selected integrations
 
 set -eo pipefail

@@ -13,6 +13,47 @@ PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # Load dependency manager
 source "$PACKAGE_DIR/lib/dependency-manager.sh"
 
+# ==============================================================================
+# ROLLBACK SUPPORT (v2.3.0)
+# ==============================================================================
+
+BACKUP_DIR=""
+INSTALL_FAILED=false
+
+# Create backup of existing installation
+backup_existing_installation() {
+    local lib_dir="$1"
+    if [[ -d "$lib_dir" ]]; then
+        BACKUP_DIR="$lib_dir.backup.$(date +%Y%m%d_%H%M%S)"
+        echo "Backing up existing installation to: $BACKUP_DIR"
+        cp -r "$lib_dir" "$BACKUP_DIR"
+        return 0
+    fi
+    return 0
+}
+
+# Rollback to previous installation on failure
+rollback_installation() {
+    if [[ -n "$BACKUP_DIR" ]] && [[ -d "$BACKUP_DIR" ]]; then
+        echo ""
+        echo "⚠️  Installation failed. Rolling back to previous version..."
+        local lib_dir="${BACKUP_DIR%.backup.*}"
+        rm -rf "$lib_dir" 2>/dev/null || true
+        mv "$BACKUP_DIR" "$lib_dir"
+        echo "✅ Rollback complete"
+    fi
+}
+
+# Cleanup backup on successful installation
+cleanup_backup() {
+    if [[ -n "$BACKUP_DIR" ]] && [[ -d "$BACKUP_DIR" ]]; then
+        rm -rf "$BACKUP_DIR"
+    fi
+}
+
+# Trap for rollback on error
+trap 'if [[ "$INSTALL_FAILED" == "true" ]]; then rollback_installation; fi' EXIT
+
 echo "═══════════════════════════════════════════════"
 echo "Checkpoint - Global Installation"
 echo "═══════════════════════════════════════════════"
@@ -20,9 +61,6 @@ echo ""
 echo "This will install Checkpoint system-wide."
 echo "Commands will be available in all projects."
 echo ""
-
-# Load dependency manager
-source "$PACKAGE_DIR/lib/dependency-manager.sh"
 
 # ==============================================================================
 # CHECK BASH VERSION (for TUI dashboard features)
@@ -74,6 +112,13 @@ BIN_DIR="$INSTALL_PREFIX/bin"
 LIB_DIR="$INSTALL_PREFIX/lib/checkpoint"
 
 echo ""
+
+# Backup existing installation if upgrading
+backup_existing_installation "$LIB_DIR"
+
+# Mark installation as in progress (for rollback on failure)
+INSTALL_FAILED=true
+
 echo "Creating directories..."
 mkdir -p "$BIN_DIR"
 mkdir -p "$LIB_DIR/bin"
@@ -276,6 +321,35 @@ else
     echo "  2. Run: backup-now"
     echo "  3. Follow the configuration wizard"
     echo ""
+fi
+
+# ==============================================================================
+# INSTALLATION SUCCESS
+# ==============================================================================
+
+# Mark installation as successful (prevents rollback)
+INSTALL_FAILED=false
+
+# Clean up backup of previous installation
+cleanup_backup
+
+# ==============================================================================
+# PATH VALIDATION
+# ==============================================================================
+
+if [[ "$INSTALL_PREFIX" == "$HOME/.local" ]]; then
+    if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+        echo ""
+        echo "⚠️  WARNING: ~/.local/bin is not in your PATH"
+        echo ""
+        echo "Add this to your shell profile (~/.bashrc, ~/.zshrc, etc.):"
+        echo ""
+        echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
+        echo ""
+        echo "Then reload your shell:"
+        echo "    source ~/.bashrc  # or ~/.zshrc"
+        echo ""
+    fi
 fi
 
 echo "To uninstall:"

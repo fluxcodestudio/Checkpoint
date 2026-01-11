@@ -1,0 +1,25 @@
+{
+  "name": "checkpoint",
+  "description": "Launch the Checkpoint backup dashboard to view status, manage backups, and configure settings",
+  "version": "2.3.0",
+  "author": "Checkpoint",
+  "triggers": [
+    "/checkpoint",
+    "/backup-dashboard",
+    "/backup-status"
+  ],
+  "arguments": [
+    {
+      "name": "action",
+      "description": "Optional action: status, now, cleanup, restore",
+      "required": false,
+      "default": "dashboard"
+    }
+  ],
+  "examples": [
+    "/checkpoint",
+    "/checkpoint status",
+    "/checkpoint now",
+    "/checkpoint cleanup"
+  ]
+}

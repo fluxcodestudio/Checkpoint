@@ -1,235 +1,287 @@
-# Checkpoint v2.2.2 - Critical Fixes Plan
+# Checkpoint v2.3.0 - Comprehensive Completion Plan
 
-**Date:** 2025-12-26
-**Version:** 2.2.1 → 2.2.2
-**Scope:** Fix 23 identified issues across 5 severity categories
+**Date:** 2025-12-27
+**Version:** 2.2.2 → 2.3.0
+**Scope:** Complete all gaps, create missing components, verify fixes
 
 ---
 
 ## Executive Summary
 
-Critical system review identified bugs, edge cases, and architectural gaps that need addressing. This plan prioritizes fixes by severity and implements them systematically.
+Comprehensive audit revealed critical gaps in the system:
+- 4 missing Claude Code skills
+- 5 missing Phase 4 test files
+- Version inconsistencies
+- Cloud backup rotation not implemented
+- Installer lacking robustness
+- Fixes claimed but unverified
+
+This plan addresses ALL gaps to achieve production-ready status.
 
 ---
 
-## Phase 1: Critical Bugs (Immediate)
+## Phase 1: Missing Claude Code Skills (CRITICAL)
 
-### 1.1 Uninitialized Variable `backup_errors`
-**File:** `bin/backup-now.sh`
-**Problem:** Variable used at lines 423, 443, 447 without initialization
-**Solution:** Add `backup_errors=0` initialization after `init_backup_state` call (line 405)
-**Risk:** Script crash with `set -u`
+### 1.1 Create checkpoint skill
+**Location:** `.claude/skills/checkpoint/`
+**Files:**
+- `skill.json` - Skill metadata and configuration
+- `run.sh` - Execute checkpoint dashboard
 
-### 1.2 Race Condition in Lock Acquisition
-**File:** `bin/backup-daemon.sh`
-**Problem:** Gap between `mkdir` and PID write allows race condition
-**Solution:**
-- Write PID to temp file first
-- Atomically move into lock directory
-- Or use `flock` if available
-**Risk:** Duplicate backups, lock corruption
+### 1.2 Create backup-update skill
+**Location:** `.claude/skills/backup-update/`
+**Files:**
+- `skill.json` - Skill metadata
+- `run.sh` - Update backup system to latest version
 
-### 1.3 Temp File Cleanup on Failure
-**File:** `bin/backup-daemon.sh`
-**Problem:** SQLite temp backup left in `/tmp` if gzip fails
-**Solution:**
-- Use `mktemp` for secure temp file
-- Add trap to clean up on exit/error
-- Move cleanup to finally block
-**Risk:** Sensitive data exposure in world-readable `/tmp`
+### 1.3 Create backup-pause skill
+**Location:** `.claude/skills/backup-pause/`
+**Files:**
+- `skill.json` - Skill metadata
+- `run.sh` - Pause/resume backup operations
 
----
-
-## Phase 2: High Priority Issues
-
-### 2.1 Database Backup Verification
-**File:** `lib/database-detector.sh`
-**Problem:** No verification that compressed backup is valid
-**Solution:** Add `gunzip -t "$backup_file"` after each database backup
-**Risk:** Corrupted backups undetected
-
-### 2.2 Timestamp Collision Prevention
-**File:** `bin/backup-now.sh`
-**Problem:** Same-second backups overwrite each other
-**Solution:** Add PID or random suffix: `${timestamp}_$$` or `${timestamp}_${RANDOM}`
-**Risk:** Lost backup versions
-
-### 2.3 File Size Limits
-**Files:** `bin/backup-now.sh`, `templates/backup-config.sh`
-**Problem:** Huge files (logs, videos) fill storage
-**Solution:**
-- Add `MAX_BACKUP_FILE_SIZE` config (default: 100MB)
-- Skip files exceeding limit with warning
-- Add `BACKUP_LARGE_FILES` override option
-**Risk:** Storage exhaustion
-
-### 2.4 Symlink Handling
-**File:** `bin/backup-now.sh`
-**Problem:** `cp` follows symlinks, can backup system files or loop
-**Solution:**
-- Use `cp -P` to not follow symlinks
-- Or skip symlinks entirely with `-type f` (already in find)
-- Add symlink detection and warning
-**Risk:** Security issue, infinite loops
-
-### 2.5 LaunchAgent Orphan Detection
-**Files:** `bin/backup-daemon.sh`, `bin/uninstall.sh`
-**Problem:** Deleted projects leave orphan LaunchAgents
-**Solution:**
-- Daemon checks if PROJECT_DIR exists, self-disables if not
-- Uninstall removes all LaunchAgents for project
-- Add `backup-cleanup --orphans` command
-**Risk:** Wasted resources, error noise
+### 1.4 Create uninstall skill
+**Location:** `.claude/skills/uninstall/`
+**Files:**
+- `skill.json` - Skill metadata
+- `run.sh` - Uninstall backup system from project
 
 ---
 
-## Phase 3: Medium Priority Issues
+## Phase 2: Phase 4 Test Suite (HIGH)
 
-### 3.1 First Backup Detection Fix
-**File:** `bin/backup-now.sh`
-**Problem:** `.DS_Store` in empty directory breaks detection
-**Solution:** Filter `.DS_Store` and other system files in emptiness check:
-```bash
-if [ -z "$(ls -A "$FILES_DIR" 2>/dev/null | grep -v '^\\.DS_Store$')" ]; then
-```
-
-### 3.2 Backup Configuration Self-Backup
-**File:** `bin/backup-now.sh`
-**Problem:** Deleted config = system breaks, no recovery
-**Solution:** Always backup `.backup-config.sh` to `FILES_DIR/`
-
-### 3.3 Database Exit Code Verification
-**File:** `lib/database-detector.sh`
-**Problem:** `pg_dump`/`mysqldump` failures not properly detected
-**Solution:** Capture exit codes explicitly, fail on non-zero
-
-### 3.4 UTC Timestamps for Consistency
-**Files:** Multiple
-**Problem:** Local time causes issues when traveling
-**Solution:** Use `date -u` for all backup timestamps
-**Note:** Keep human-readable local time in logs
-
----
-
-## Phase 4: Testing Gaps
-
-### 4.1 GitHub Auto-Push Tests
+### 2.1 test-github-push.sh
 **Location:** `tests/integration/test-github-push.sh`
-**Coverage:**
+**Test Cases:**
 - Push with unpushed commits
-- Push with no commits
+- Push with no commits (should skip)
 - Push interval enforcement
 - Authentication failure handling
+- Remote URL validation
 
-### 4.2 Concurrent Backup Tests
+### 2.2 test-concurrent-backups.sh
 **Location:** `tests/stress/test-concurrent-backups.sh`
-**Coverage:**
+**Test Cases:**
 - Two backups starting simultaneously
-- Lock acquisition race
+- Lock acquisition race condition
 - Stale lock cleanup
+- PID file validation
+- Lock timeout handling
 
-### 4.3 Interrupted Backup Tests
+### 2.3 test-interrupted-backup.sh
 **Location:** `tests/stress/test-interrupted-backup.sh`
-**Coverage:**
+**Test Cases:**
 - Kill during file copy
 - Kill during database backup
 - State consistency after crash
+- Partial file cleanup
+- Resume after interruption
 
-### 4.4 Multi-Database Tests
+### 2.4 test-database-types.sh
 **Location:** `tests/integration/test-database-types.sh`
-**Coverage:**
-- PostgreSQL detection and backup
-- MySQL detection and backup
-- MongoDB detection and backup
+**Test Cases:**
+- SQLite detection and backup
+- PostgreSQL detection (mock)
+- MySQL detection (mock)
+- MongoDB detection (mock)
+- Backup verification
 
-### 4.5 Large File Tests
+### 2.5 test-large-files.sh
 **Location:** `tests/stress/test-large-files.sh`
-**Coverage:**
-- Files > MAX_BACKUP_FILE_SIZE
+**Test Cases:**
+- Files > MAX_BACKUP_FILE_SIZE (100MB)
+- Skip behavior with warning
+- BACKUP_LARGE_FILES override
 - Binary file handling
-- Very deep directory structures
+- Deep directory structures
 
 ---
 
-## Phase 5: Architectural Improvements (v2.3 Candidates)
+## Phase 3: Version Consistency (HIGH)
 
-### 5.1 Additional Trigger Layers
-**Options:**
-- Git hooks (pre-commit, post-commit) - install by default
-- File watcher (fswatch) - optional
-- Shorter daemon interval (15 min option)
+### 3.1 Align all version references
+**Files to Update:**
+- `VERSION` - Already 2.3.0
+- `CHANGELOG.md` - Add 2.3.0 section
+- `README.md` - Update version badges
+- `bin/backup-status.sh` - Version display
+- `PLAN.md` - This file
+- `TODO.md` - Update references
 
-### 5.2 Health Monitoring
-**Solution:**
-- Heartbeat file updated on each backup
-- Stale detection (no backup in 2+ hours)
-- Notification on health issues
-- `backup-status --health` command
+---
 
-### 5.3 Sensitive File Encryption
-**Solution:**
-- Optional encryption for cloud uploads
-- Use `gpg` or `openssl` for `.env`, credentials
-- Key management strategy
+## Phase 4: Cloud Backup Rotation (MEDIUM)
+
+### 4.1 Implement cloud retention policy
+**File:** `lib/cloud-backup.sh`
+**Features:**
+- `CLOUD_RETENTION_DAYS` config option (default: 30)
+- Delete old cloud backups after retention period
+- Skip deletion if below minimum count
+- Log rotation actions
+
+### 4.2 Add cloud cleanup command
+**File:** `bin/backup-cleanup.sh`
+**Features:**
+- `--cloud` flag for cloud-only cleanup
+- `--dry-run` for preview
+- Statistics on space reclaimed
+
+---
+
+## Phase 5: Installer Robustness (MEDIUM)
+
+### 5.1 Add rollback on failure
+**File:** `bin/install-global.sh`
+**Features:**
+- Backup existing installation before upgrade
+- Rollback to previous version on failure
+- Clear error messages
+
+### 5.2 Add PATH validation
+**File:** `bin/install-global.sh`
+**Features:**
+- Check if `~/.local/bin` is in PATH
+- Provide instructions to add to PATH
+- Verify commands accessible after install
+
+### 5.3 Improve dependency checks
+**File:** `bin/install-global.sh`
+**Features:**
+- Validate each dependency installed correctly
+- Fail fast with clear error message
+- Suggest installation commands
+
+---
+
+## Phase 6: Verify Claimed Fixes (HIGH)
+
+### 6.1 Test backup_errors initialization
+- Verify variable initialized before use
+- Run with `set -u` and confirm no errors
+
+### 6.2 Test atomic lock mechanism
+- Run two backups simultaneously
+- Verify only one acquires lock
+- Check PID file is correct
+
+### 6.3 Test temp file cleanup
+- Simulate gzip failure
+- Verify temp files cleaned up
+- Check no data left in /tmp
+
+### 6.4 Test database verification
+- Create intentionally corrupted backup
+- Verify gunzip -t catches it
+- Check error reported
+
+### 6.5 Test timestamp collision
+- Run rapid backups
+- Verify unique filenames with PID suffix
+- No overwrites
+
+### 6.6 Test symlink handling
+- Create symlink to system file
+- Verify skipped with warning
+- No data from symlink target
+
+### 6.7 Test orphan detection
+- Remove project directory
+- Run daemon
+- Verify self-disable and cleanup
+
+### 6.8 Test .DS_Store filtering
+- Create directory with only .DS_Store
+- Verify detected as empty/first backup
+
+### 6.9 Test config self-backup
+- Verify .backup-config.sh in backup
+- Delete and restore
+- System works after restore
+
+### 6.10 Test UTC timestamps
+- Set USE_UTC_TIMESTAMPS=true
+- Verify backup filenames use UTC
+- Compare with local time
 
 ---
 
 ## Implementation Order
 
-1. **Critical Bugs (Phase 1)** - Today
-   - 1.1 → 1.2 → 1.3
+1. **Phase 1: Skills** (30 min)
+   - Create 4 skill directories
+   - Add skill.json and run.sh for each
 
-2. **High Priority (Phase 2)** - Today
-   - 2.1 → 2.2 → 2.3 → 2.4 → 2.5
+2. **Phase 2: Tests** (1 hour)
+   - Create 5 test files
+   - Implement test cases
 
-3. **Medium Priority (Phase 3)** - Today
-   - 3.1 → 3.2 → 3.3 → 3.4
+3. **Phase 3: Versions** (10 min)
+   - Update all version references
 
-4. **Testing (Phase 4)** - After fixes
-   - Run existing tests
-   - Add new test files
+4. **Phase 4: Cloud Rotation** (30 min)
+   - Implement retention policy
+   - Add cleanup command
 
-5. **Architecture (Phase 5)** - v2.3
-   - Separate release
+5. **Phase 5: Installer** (30 min)
+   - Add rollback mechanism
+   - Add PATH validation
+   - Improve dependency checks
+
+6. **Phase 6: Verification** (1 hour)
+   - Run all verification tests
+   - Fix any failures
 
 ---
 
-## Version Bump
+## Files to Create
 
-After all Phase 1-3 fixes:
-- Update VERSION to 2.2.2
-- Update CHANGELOG.md
-- Create git tag v2.2.2
-
----
+| File | Purpose |
+|------|---------|
+| `.claude/skills/checkpoint/skill.json` | Checkpoint skill config |
+| `.claude/skills/checkpoint/run.sh` | Checkpoint skill runner |
+| `.claude/skills/backup-update/skill.json` | Update skill config |
+| `.claude/skills/backup-update/run.sh` | Update skill runner |
+| `.claude/skills/backup-pause/skill.json` | Pause skill config |
+| `.claude/skills/backup-pause/run.sh` | Pause skill runner |
+| `.claude/skills/uninstall/skill.json` | Uninstall skill config |
+| `.claude/skills/uninstall/run.sh` | Uninstall skill runner |
+| `tests/integration/test-github-push.sh` | GitHub push tests |
+| `tests/stress/test-concurrent-backups.sh` | Concurrency tests |
+| `tests/stress/test-interrupted-backup.sh` | Interruption tests |
+| `tests/integration/test-database-types.sh` | Database type tests |
+| `tests/stress/test-large-files.sh` | Large file tests |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `bin/backup-now.sh` | Bugs #1, #5, #6, #7, #9, #11 |
-| `bin/backup-daemon.sh` | Bugs #2, #3, #8 |
-| `lib/database-detector.sh` | Issues #4, #12 |
-| `lib/backup-lib.sh` | Issue #13 (UTC timestamps) |
-| `templates/backup-config.sh` | Issue #6 (MAX_FILE_SIZE) |
-| `bin/uninstall.sh` | Issue #8 (orphan cleanup) |
+| `CHANGELOG.md` | Add 2.3.0 section |
+| `README.md` | Update version references |
+| `lib/cloud-backup.sh` | Add retention/rotation |
+| `bin/backup-cleanup.sh` | Add --cloud flag |
+| `bin/install-global.sh` | Add rollback, PATH check |
+
+---
+
+## Success Criteria
+
+- [ ] 4 Claude Code skills created and functional
+- [ ] 5 Phase 4 test files created
+- [ ] All tests pass
+- [ ] Version consistent across all files (2.3.0)
+- [ ] Cloud backup rotation implemented
+- [ ] Installer has rollback and validation
+- [ ] All v2.2.2 fixes verified working
+- [ ] Git commit and push complete
 
 ---
 
 ## Rollback Plan
 
 If issues arise:
-1. Git revert to v2.2.1
-2. Re-run global install
-3. Document failure for fix
+1. Git revert to previous commit
+2. Document failure
+3. Fix and retry
 
 ---
-
-## Success Criteria
-
-- [ ] All 3 critical bugs fixed
-- [ ] All 5 high priority issues fixed
-- [ ] All 5 medium priority issues fixed
-- [ ] Existing tests pass (164/164)
-- [ ] New tests added for GitHub push, concurrency
-- [ ] Version bumped to 2.2.2
