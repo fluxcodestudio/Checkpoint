@@ -577,6 +577,49 @@ EOF
 fi
 
 # ==============================================================================
+# INSTALL CLAUDE CODE HOOKS (if enabled)
+# ==============================================================================
+
+if [ "${HOOKS_ENABLED:-false}" = "true" ]; then
+    echo "Installing Claude Code hooks..."
+
+    # Create .claude/hooks directory
+    mkdir -p "$PROJECT_DIR/.claude/hooks"
+
+    # Copy hook scripts
+    cp "$PACKAGE_DIR/.claude/hooks/backup-on-stop.sh" "$PROJECT_DIR/.claude/hooks/"
+    cp "$PACKAGE_DIR/.claude/hooks/backup-on-edit.sh" "$PROJECT_DIR/.claude/hooks/"
+    cp "$PACKAGE_DIR/.claude/hooks/backup-on-commit.sh" "$PROJECT_DIR/.claude/hooks/"
+
+    # Make hooks executable
+    chmod +x "$PROJECT_DIR/.claude/hooks/"*.sh
+
+    # Merge hooks into existing .claude/settings.json or create new one
+    CLAUDE_SETTINGS="$PROJECT_DIR/.claude/settings.json"
+    HOOKS_TEMPLATE="$PACKAGE_DIR/templates/claude-settings.json"
+
+    if [ -f "$CLAUDE_SETTINGS" ]; then
+        # Backup existing settings
+        cp "$CLAUDE_SETTINGS" "$CLAUDE_SETTINGS.backup.$(date +%Y%m%d%H%M%S)"
+
+        # Merge hooks into existing settings using jq
+        if command -v jq &> /dev/null; then
+            jq -s '.[0] * .[1]' "$CLAUDE_SETTINGS" "$HOOKS_TEMPLATE" > "$CLAUDE_SETTINGS.tmp"
+            mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"
+        else
+            echo "  Warning: jq not found, cannot merge hooks into existing settings"
+            echo "  Manually add hooks from $HOOKS_TEMPLATE to $CLAUDE_SETTINGS"
+        fi
+    else
+        # Create new settings file
+        mkdir -p "$PROJECT_DIR/.claude"
+        cp "$HOOKS_TEMPLATE" "$CLAUDE_SETTINGS"
+    fi
+
+    echo "  Claude Code hooks installed (${HOOKS_TRIGGERS:-stop,edit,commit})"
+fi
+
+# ==============================================================================
 # CONFIGURE CLAUDE CODE HOOKS
 # ==============================================================================
 
