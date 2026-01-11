@@ -18,7 +18,7 @@ None
 - [ ] **Phase 2: Activity Triggers** - Debounced file watching with 60s threshold
 - [x] **Phase 3: Claude Code Integration** - Event triggers for conversation end, file changes, commits
 - [x] **Phase 4: Fallback Chain** - Cloud folder → rclone API → local queue reliability
-- [ ] **Phase 5: Tiered Retention** - Hourly/daily/weekly/monthly snapshot management
+- [x] **Phase 5: Tiered Retention** - Hourly/daily/weekly/monthly snapshot management
 - [ ] **Phase 6: Dashboard & Monitoring** - Status bar indicator, all-projects view, restore capability
 
 ## Phase Details
@@ -71,7 +71,7 @@ Plans:
 
 Plans:
 - [x] 05-01: Retention policy engine
-- [ ] 05-02: Cleanup and pruning automation
+- [x] 05-02: Cleanup and pruning automation
 
 ### Phase 6: Dashboard & Monitoring
 **Goal**: Status bar indicator, all-projects dashboard, sub-minute restore capability
@@ -95,5 +95,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Activity Triggers | 2/2 | Complete | 2026-01-11 |
 | 3. Claude Code Integration | 2/2 | Complete | 2026-01-11 |
 | 4. Fallback Chain | 2/2 | Complete | 2026-01-11 |
-| 5. Tiered Retention | 1/2 | In progress | - |
+| 5. Tiered Retention | 2/2 | Complete | 2026-01-11 |
 | 6. Dashboard & Monitoring | 0/3 | Not started | - |
