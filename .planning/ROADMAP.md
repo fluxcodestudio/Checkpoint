@@ -36,12 +36,11 @@ Plans:
 ### Phase 2: Activity Triggers
 **Goal**: Watch for file changes and trigger backups after 60s of inactivity (debouncing)
 **Depends on**: Phase 1
-**Research**: Likely (fswatch/inotify patterns for pure bash)
-**Research topics**: fswatch usage on macOS, efficient debouncing in bash, excluding patterns (node_modules, .git)
-**Plans**: TBD
+**Research**: Complete
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: File watcher implementation with debouncing
+- [x] 02-01: File watcher implementation with debouncing
 - [ ] 02-02: Integration with backup engine
 
 ### Phase 3: Claude Code Integration
@@ -94,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Cloud Destination Setup | 2/2 | Complete | 2026-01-11 |
-| 2. Activity Triggers | 0/2 | Not started | - |
+| 2. Activity Triggers | 1/2 | In progress | - |
 | 3. Claude Code Integration | 0/2 | Not started | - |
 | 4. Fallback Chain | 0/2 | Not started | - |
 | 5. Tiered Retention | 0/2 | Not started | - |
