@@ -135,8 +135,36 @@ BACKUP_LOCAL_NOTES=true
 BACKUP_LOCAL_DATABASES=true
 
 # ==============================================================================
+# CLOUD FOLDER DESTINATION (auto-sync via desktop app)
+# ==============================================================================
+
+# Enable cloud folder backup (true/false)
+# When enabled, backups write to a cloud-synced folder (Dropbox/GDrive/iCloud/OneDrive)
+# This provides automatic cloud backup via the desktop sync app - no API calls needed
+CLOUD_FOLDER_ENABLED=false
+
+# Cloud folder path (auto-detected if empty)
+# Examples:
+#   "$HOME/Dropbox/Backups/Checkpoint"
+#   "$HOME/Google Drive/Backups/Checkpoint"
+#   "$HOME/Library/Mobile Documents/com~apple~CloudDocs/Backups/Checkpoint"
+# Leave empty to auto-detect first available cloud folder
+CLOUD_FOLDER_PATH=""
+
+# Project subfolder within cloud backup (uses PROJECT_NAME by default)
+# Backups will be stored at: $CLOUD_FOLDER_PATH/$CLOUD_PROJECT_FOLDER/
+CLOUD_PROJECT_FOLDER="${PROJECT_NAME:-$(basename "$PROJECT_DIR")}"
+
+# Keep local backup in addition to cloud folder (true/false)
+# If true, maintains backup in both PROJECT/backups/ and cloud folder
+# If false, only backs up to cloud folder (saves local disk space)
+CLOUD_FOLDER_ALSO_LOCAL=true
+
+# ==============================================================================
 # CLOUD BACKUP (via rclone)
 # ==============================================================================
+# Note: Cloud folder backup (above) is preferred when available.
+# rclone is used as fallback when cloud folder is unavailable or for additional remotes.
 
 # Enable cloud backup (true/false)
 # Requires rclone to be installed and configured
