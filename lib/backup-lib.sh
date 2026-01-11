@@ -2485,8 +2485,9 @@ _ensure_cloud_backup_loaded() {
 # Sets PRIMARY_* and optionally SECONDARY_* destination variables
 # Returns: 0 on success, 1 on failure
 resolve_backup_destinations() {
-    # Ensure cloud detector is loaded
+    # Ensure cloud detector and rclone functions are loaded
     _ensure_cloud_detector_loaded
+    _ensure_cloud_backup_loaded
 
     # Read cloud config with defaults
     local cloud_enabled="${CLOUD_FOLDER_ENABLED:-false}"
@@ -2562,24 +2563,69 @@ resolve_backup_destinations() {
 
     # Build cloud backup directory path
     CLOUD_BACKUP_DIR="$cloud_root/Backups/Checkpoint/$project_folder"
+    export CLOUD_BACKUP_DIR
 
-    # Set primary to cloud
-    PRIMARY_BACKUP_DIR="$CLOUD_BACKUP_DIR"
-    PRIMARY_FILES_DIR="$PRIMARY_BACKUP_DIR/files"
-    PRIMARY_ARCHIVED_DIR="$PRIMARY_BACKUP_DIR/archived"
-    PRIMARY_DATABASE_DIR="$PRIMARY_BACKUP_DIR/databases"
+    # Three-tier fallback: cloud folder → rclone API → local
+    # TIER 1: Cloud folder available and healthy - use it as primary
+    if check_cloud_folder_health; then
+        # Set primary to cloud
+        PRIMARY_BACKUP_DIR="$CLOUD_BACKUP_DIR"
+        PRIMARY_FILES_DIR="$PRIMARY_BACKUP_DIR/files"
+        PRIMARY_ARCHIVED_DIR="$PRIMARY_BACKUP_DIR/archived"
+        PRIMARY_DATABASE_DIR="$PRIMARY_BACKUP_DIR/databases"
 
-    # Set secondary to local if also_local is true
-    if [[ "$also_local" == "true" ]]; then
-        SECONDARY_BACKUP_DIR="$local_backup_dir"
-        SECONDARY_FILES_DIR="$SECONDARY_BACKUP_DIR/files"
-        SECONDARY_ARCHIVED_DIR="$SECONDARY_BACKUP_DIR/archived"
-        SECONDARY_DATABASE_DIR="$SECONDARY_BACKUP_DIR/databases"
-    else
+        # Set secondary to local if also_local is true
+        if [[ "$also_local" == "true" ]]; then
+            SECONDARY_BACKUP_DIR="$local_backup_dir"
+            SECONDARY_FILES_DIR="$SECONDARY_BACKUP_DIR/files"
+            SECONDARY_ARCHIVED_DIR="$SECONDARY_BACKUP_DIR/archived"
+            SECONDARY_DATABASE_DIR="$SECONDARY_BACKUP_DIR/databases"
+        else
+            SECONDARY_BACKUP_DIR=""
+            SECONDARY_FILES_DIR=""
+            SECONDARY_ARCHIVED_DIR=""
+            SECONDARY_DATABASE_DIR=""
+        fi
+
+    # TIER 2: Cloud folder unavailable but rclone configured - try direct API
+    elif [[ "${CLOUD_ENABLED:-false}" == "true" ]] && check_rclone_installed 2>/dev/null; then
+        backup_log "Cloud folder unavailable, attempting rclone API fallback" "WARN"
+
+        # Use local as primary, rclone will sync asynchronously
+        PRIMARY_BACKUP_DIR="$local_backup_dir"
+        PRIMARY_FILES_DIR="$PRIMARY_BACKUP_DIR/files"
+        PRIMARY_ARCHIVED_DIR="$PRIMARY_BACKUP_DIR/archived"
+        PRIMARY_DATABASE_DIR="$PRIMARY_BACKUP_DIR/databases"
+
+        # Mark for rclone sync after backup completes
+        export RCLONE_SYNC_PENDING=true
+
         SECONDARY_BACKUP_DIR=""
         SECONDARY_FILES_DIR=""
         SECONDARY_ARCHIVED_DIR=""
         SECONDARY_DATABASE_DIR=""
+
+        export PRIMARY_BACKUP_DIR PRIMARY_FILES_DIR PRIMARY_ARCHIVED_DIR PRIMARY_DATABASE_DIR
+        export SECONDARY_BACKUP_DIR SECONDARY_FILES_DIR SECONDARY_ARCHIVED_DIR SECONDARY_DATABASE_DIR
+        return 0
+
+    # TIER 3: Neither available - local only
+    else
+        backup_log "Cloud folder unavailable, using local backup only" "WARN"
+
+        PRIMARY_BACKUP_DIR="$local_backup_dir"
+        PRIMARY_FILES_DIR="$PRIMARY_BACKUP_DIR/files"
+        PRIMARY_ARCHIVED_DIR="$PRIMARY_BACKUP_DIR/archived"
+        PRIMARY_DATABASE_DIR="$PRIMARY_BACKUP_DIR/databases"
+
+        SECONDARY_BACKUP_DIR=""
+        SECONDARY_FILES_DIR=""
+        SECONDARY_ARCHIVED_DIR=""
+        SECONDARY_DATABASE_DIR=""
+
+        export PRIMARY_BACKUP_DIR PRIMARY_FILES_DIR PRIMARY_ARCHIVED_DIR PRIMARY_DATABASE_DIR
+        export SECONDARY_BACKUP_DIR SECONDARY_FILES_DIR SECONDARY_ARCHIVED_DIR SECONDARY_DATABASE_DIR
+        return 0
     fi
 
     export CLOUD_BACKUP_DIR
