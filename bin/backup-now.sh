@@ -266,6 +266,29 @@ init_state_dirs
 # Ensure STATE_DIR is set for error logging
 STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
 
+# ==============================================================================
+# RESOLVE BACKUP DESTINATIONS (Cloud folder routing)
+# ==============================================================================
+
+# Resolve cloud folder destination (if enabled)
+resolve_backup_destinations
+
+# Create backup directories in resolved destinations
+if ! ensure_backup_dirs; then
+    log_error "Failed to create backup directories"
+    exit 2
+fi
+
+# Log destination info
+if [[ -n "${CLOUD_BACKUP_DIR:-}" ]]; then
+    log_verbose "   Backup destination: $PRIMARY_BACKUP_DIR (cloud)"
+    if [[ -n "${SECONDARY_BACKUP_DIR:-}" ]]; then
+        log_verbose "   Also backing up to: $SECONDARY_BACKUP_DIR (local)"
+    fi
+else
+    log_verbose "   Backup destination: $PRIMARY_BACKUP_DIR (local)"
+fi
+
 # Set defaults for optional config variables (compatibility with older configs)
 DRIVE_VERIFICATION_ENABLED="${DRIVE_VERIFICATION_ENABLED:-false}"
 DRIVE_MARKER_FILE="${DRIVE_MARKER_FILE:-}"
@@ -278,9 +301,11 @@ DB_PATH="${DB_PATH:-}"
 DB_TYPE="${DB_TYPE:-none}"
 DB_STATE_FILE="${DB_STATE_FILE:-$BACKUP_DIR/.backup-state}"
 BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-backup-time}"
-DATABASE_DIR="${DATABASE_DIR:-$BACKUP_DIR/databases}"
-FILES_DIR="${FILES_DIR:-$BACKUP_DIR/files}"
-ARCHIVED_DIR="${ARCHIVED_DIR:-$BACKUP_DIR/archived}"
+
+# Use resolved destinations (from resolve_backup_destinations) or fall back to legacy paths
+DATABASE_DIR="${PRIMARY_DATABASE_DIR:-${DATABASE_DIR:-$BACKUP_DIR/databases}}"
+FILES_DIR="${PRIMARY_FILES_DIR:-${FILES_DIR:-$BACKUP_DIR/files}}"
+ARCHIVED_DIR="${PRIMARY_ARCHIVED_DIR:-${ARCHIVED_DIR:-$BACKUP_DIR/archived}}"
 LOG_FILE="${LOG_FILE:-$BACKUP_DIR/backup.log}"
 
 # ==============================================================================
@@ -353,6 +378,17 @@ if [ $preflight_errors -gt 0 ]; then
     exit 1
 fi
 
+log_info ""
+
+# Display backup destination
+if [[ -n "${CLOUD_BACKUP_DIR:-}" ]]; then
+    log_info "📂 Backing up to: ${COLOR_CYAN}$PRIMARY_BACKUP_DIR${COLOR_RESET} (cloud)"
+    if [[ -n "${SECONDARY_BACKUP_DIR:-}" ]]; then
+        log_info "   Also backing up locally: ${COLOR_CYAN}$SECONDARY_BACKUP_DIR${COLOR_RESET}"
+    fi
+else
+    log_info "📂 Backing up to: ${COLOR_CYAN}$PRIMARY_BACKUP_DIR${COLOR_RESET}"
+fi
 log_info ""
 
 # ==============================================================================
@@ -773,6 +809,18 @@ if [ "$DATABASE_ONLY" = false ]; then
             archived_file="$ARCHIVED_DIR/${file}.${timestamp}"
             archived_dir=$(dirname "$archived_file")
 
+            # Secondary destination paths (for dual-write)
+            secondary_file=""
+            secondary_dir=""
+            secondary_archived_file=""
+            secondary_archived_dir=""
+            if [[ -n "${SECONDARY_FILES_DIR:-}" ]]; then
+                secondary_file="$SECONDARY_FILES_DIR/$file"
+                secondary_dir=$(dirname "$secondary_file")
+                secondary_archived_file="$SECONDARY_ARCHIVED_DIR/${file}.${timestamp}"
+                secondary_archived_dir=$(dirname "$secondary_archived_file")
+            fi
+
             mkdir -p "$current_dir"
 
             # Check if file changed
@@ -789,8 +837,84 @@ if [ "$DATABASE_ONLY" = false ]; then
                         if [ "$VERBOSE" = true ]; then
                             log_verbose "      • Backed up: $file"
                         fi
+
+                        # Dual-write to secondary if configured
+                        if [[ -n "$secondary_file" ]]; then
+                            mkdir -p "$secondary_dir"
+                            if [[ -f "$secondary_file" ]]; then
+                                mkdir -p "$secondary_archived_dir"
+                                mv "$secondary_file" "$secondary_archived_file" 2>/dev/null || true
+                            fi
+                            cp "$current_file" "$secondary_file" 2>/dev/null || \
+                                log_verbose "      ⚠ Secondary copy failed: $file"
+                        fi
                     else
-                        # Copy failed after retries - track in JSON state
+                        # Primary copy failed - try secondary as fallback
+                        if [[ -n "$secondary_file" ]]; then
+                            mkdir -p "$secondary_dir"
+                            if copy_with_retry "$file" "$secondary_file" 3; then
+                                log_warn "      ⚠ Primary failed, saved to secondary: $file"
+                                file_count=$((file_count + 1))
+                                BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
+                            else
+                                # Both failed
+                                error_code="${COPY_FAILURE_REASON:-copy_failed}"
+                                add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "Check cloud folder accessibility" 3
+                                log_error "      ✗ Failed: $file ($error_code)"
+                            fi
+                        else
+                            # No secondary, primary failed
+                            error_code="${COPY_FAILURE_REASON:-copy_failed}"
+                            suggested_fix=""
+
+                            case "$error_code" in
+                                "permission_denied")
+                                    suggested_fix="Run: chmod +r \"$file\" or check file permissions"
+                                    ;;
+                                "disk_full")
+                                    suggested_fix="Free disk space or move backups to larger drive"
+                                    ;;
+                                *)
+                                    suggested_fix="Check file accessibility and try again"
+                                    ;;
+                            esac
+
+                            add_file_failure "$file" "$error_code" "Copy failed after 3 retries" "$suggested_fix" 3
+                            log_error "      ✗ Failed: $file ($error_code)"
+                        fi
+                    fi
+                fi
+            else
+                # Copy with retry logic (3 attempts)
+                if copy_with_retry "$file" "$current_file" 3; then
+                    file_count=$((file_count + 1))
+                    BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
+                    if [ "$VERBOSE" = true ]; then
+                        log_verbose "      • New file: $file"
+                    fi
+
+                    # Dual-write to secondary if configured
+                    if [[ -n "$secondary_file" ]]; then
+                        mkdir -p "$secondary_dir"
+                        cp "$current_file" "$secondary_file" 2>/dev/null || \
+                            log_verbose "      ⚠ Secondary copy failed: $file"
+                    fi
+                else
+                    # Primary copy failed - try secondary as fallback
+                    if [[ -n "$secondary_file" ]]; then
+                        mkdir -p "$secondary_dir"
+                        if copy_with_retry "$file" "$secondary_file" 3; then
+                            log_warn "      ⚠ Primary failed, saved to secondary: $file"
+                            file_count=$((file_count + 1))
+                            BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
+                        else
+                            # Both failed
+                            error_code="${COPY_FAILURE_REASON:-copy_failed}"
+                            add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "Check cloud folder accessibility" 3
+                            log_error "      ✗ Failed: $file ($error_code)"
+                        fi
+                    else
+                        # No secondary, primary failed
                         error_code="${COPY_FAILURE_REASON:-copy_failed}"
                         suggested_fix=""
 
@@ -809,34 +933,6 @@ if [ "$DATABASE_ONLY" = false ]; then
                         add_file_failure "$file" "$error_code" "Copy failed after 3 retries" "$suggested_fix" 3
                         log_error "      ✗ Failed: $file ($error_code)"
                     fi
-                fi
-            else
-                # Copy with retry logic (3 attempts)
-                if copy_with_retry "$file" "$current_file" 3; then
-                    file_count=$((file_count + 1))
-                    BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
-                    if [ "$VERBOSE" = true ]; then
-                        log_verbose "      • New file: $file"
-                    fi
-                else
-                    # Copy failed after retries - track in JSON state
-                    error_code="${COPY_FAILURE_REASON:-copy_failed}"
-                    suggested_fix=""
-
-                    case "$error_code" in
-                        "permission_denied")
-                            suggested_fix="Run: chmod +r \"$file\" or check file permissions"
-                            ;;
-                        "disk_full")
-                            suggested_fix="Free disk space or move backups to larger drive"
-                            ;;
-                        *)
-                            suggested_fix="Check file accessibility and try again"
-                            ;;
-                    esac
-
-                    add_file_failure "$file" "$error_code" "Copy failed after 3 retries" "$suggested_fix" 3
-                    log_error "      ✗ Failed: $file ($error_code)"
                 fi
             fi
 
