@@ -2430,5 +2430,159 @@ get_github_push_status() {
     fi
 }
 
+# ==============================================================================
+# CLOUD FOLDER DESTINATION RESOLUTION
+# ==============================================================================
+
+# Source cloud folder detector if not already loaded
+_ensure_cloud_detector_loaded() {
+    if [[ -z "${CLOUD_DETECTOR_LOADED:-}" ]]; then
+        local lib_dir="${LIB_DIR:-$(dirname "${BASH_SOURCE[0]}")}"
+        if [[ -f "$lib_dir/cloud-folder-detector.sh" ]]; then
+            source "$lib_dir/cloud-folder-detector.sh"
+            export CLOUD_DETECTOR_LOADED=1
+        fi
+    fi
+}
+
+# Resolve backup destinations based on cloud folder configuration
+# Sets PRIMARY_* and optionally SECONDARY_* destination variables
+# Returns: 0 on success, 1 on failure
+resolve_backup_destinations() {
+    # Ensure cloud detector is loaded
+    _ensure_cloud_detector_loaded
+
+    # Read cloud config with defaults
+    local cloud_enabled="${CLOUD_FOLDER_ENABLED:-false}"
+    local cloud_path="${CLOUD_FOLDER_PATH:-}"
+    local project_folder="${CLOUD_PROJECT_FOLDER:-${PROJECT_NAME:-Checkpoint}}"
+    local also_local="${CLOUD_FOLDER_ALSO_LOCAL:-false}"
+
+    # Default to local backup directory
+    local local_backup_dir="${BACKUP_DIR:-$PROJECT_DIR/backups}"
+
+    if [[ "$cloud_enabled" != "true" ]]; then
+        # Cloud disabled - use local backup directory
+        PRIMARY_BACKUP_DIR="$local_backup_dir"
+        SECONDARY_BACKUP_DIR=""
+
+        # Set primary subdirectories
+        PRIMARY_FILES_DIR="$PRIMARY_BACKUP_DIR/files"
+        PRIMARY_ARCHIVED_DIR="$PRIMARY_BACKUP_DIR/archived"
+        PRIMARY_DATABASE_DIR="$PRIMARY_BACKUP_DIR/databases"
+
+        # Clear secondary
+        SECONDARY_FILES_DIR=""
+        SECONDARY_ARCHIVED_DIR=""
+        SECONDARY_DATABASE_DIR=""
+
+        export PRIMARY_BACKUP_DIR PRIMARY_FILES_DIR PRIMARY_ARCHIVED_DIR PRIMARY_DATABASE_DIR
+        export SECONDARY_BACKUP_DIR SECONDARY_FILES_DIR SECONDARY_ARCHIVED_DIR SECONDARY_DATABASE_DIR
+
+        return 0
+    fi
+
+    # Cloud enabled - resolve cloud folder path
+    local cloud_root=""
+
+    if [[ -n "$cloud_path" ]]; then
+        # User specified a cloud folder path - validate it
+        if [[ -d "$cloud_path" && -w "$cloud_path" ]]; then
+            cloud_root="$cloud_path"
+        else
+            # Specified path invalid - log warning and fall back to auto-detect
+            backup_log "Cloud folder path not valid or writable: $cloud_path - attempting auto-detect" "WARN"
+            cloud_path=""
+        fi
+    fi
+
+    if [[ -z "$cloud_root" ]]; then
+        # Auto-detect cloud folder
+        if command -v get_first_cloud_folder &>/dev/null; then
+            cloud_root=$(get_first_cloud_folder 2>/dev/null)
+        fi
+
+        if [[ -z "$cloud_root" ]]; then
+            # No cloud folder available - fall back to local
+            backup_log "No cloud folder detected - falling back to local backup" "WARN"
+
+            PRIMARY_BACKUP_DIR="$local_backup_dir"
+            SECONDARY_BACKUP_DIR=""
+
+            PRIMARY_FILES_DIR="$PRIMARY_BACKUP_DIR/files"
+            PRIMARY_ARCHIVED_DIR="$PRIMARY_BACKUP_DIR/archived"
+            PRIMARY_DATABASE_DIR="$PRIMARY_BACKUP_DIR/databases"
+
+            SECONDARY_FILES_DIR=""
+            SECONDARY_ARCHIVED_DIR=""
+            SECONDARY_DATABASE_DIR=""
+
+            export PRIMARY_BACKUP_DIR PRIMARY_FILES_DIR PRIMARY_ARCHIVED_DIR PRIMARY_DATABASE_DIR
+            export SECONDARY_BACKUP_DIR SECONDARY_FILES_DIR SECONDARY_ARCHIVED_DIR SECONDARY_DATABASE_DIR
+
+            return 0
+        fi
+    fi
+
+    # Build cloud backup directory path
+    CLOUD_BACKUP_DIR="$cloud_root/Backups/Checkpoint/$project_folder"
+
+    # Set primary to cloud
+    PRIMARY_BACKUP_DIR="$CLOUD_BACKUP_DIR"
+    PRIMARY_FILES_DIR="$PRIMARY_BACKUP_DIR/files"
+    PRIMARY_ARCHIVED_DIR="$PRIMARY_BACKUP_DIR/archived"
+    PRIMARY_DATABASE_DIR="$PRIMARY_BACKUP_DIR/databases"
+
+    # Set secondary to local if also_local is true
+    if [[ "$also_local" == "true" ]]; then
+        SECONDARY_BACKUP_DIR="$local_backup_dir"
+        SECONDARY_FILES_DIR="$SECONDARY_BACKUP_DIR/files"
+        SECONDARY_ARCHIVED_DIR="$SECONDARY_BACKUP_DIR/archived"
+        SECONDARY_DATABASE_DIR="$SECONDARY_BACKUP_DIR/databases"
+    else
+        SECONDARY_BACKUP_DIR=""
+        SECONDARY_FILES_DIR=""
+        SECONDARY_ARCHIVED_DIR=""
+        SECONDARY_DATABASE_DIR=""
+    fi
+
+    export CLOUD_BACKUP_DIR
+    export PRIMARY_BACKUP_DIR PRIMARY_FILES_DIR PRIMARY_ARCHIVED_DIR PRIMARY_DATABASE_DIR
+    export SECONDARY_BACKUP_DIR SECONDARY_FILES_DIR SECONDARY_ARCHIVED_DIR SECONDARY_DATABASE_DIR
+
+    return 0
+}
+
+# Ensure backup directories exist in both primary and secondary destinations
+# Creates: files/, archived/, databases/ subdirectories
+# Returns: 0 on success, 1 if primary creation fails
+ensure_backup_dirs() {
+    local create_errors=0
+
+    # Create primary directories (required)
+    if [[ -n "${PRIMARY_BACKUP_DIR:-}" ]]; then
+        mkdir -p "$PRIMARY_FILES_DIR" 2>/dev/null || create_errors=$((create_errors + 1))
+        mkdir -p "$PRIMARY_ARCHIVED_DIR" 2>/dev/null || create_errors=$((create_errors + 1))
+        mkdir -p "$PRIMARY_DATABASE_DIR" 2>/dev/null || create_errors=$((create_errors + 1))
+
+        if [[ $create_errors -gt 0 ]]; then
+            backup_log "Failed to create primary backup directories in $PRIMARY_BACKUP_DIR" "ERROR"
+            return 1
+        fi
+    fi
+
+    # Create secondary directories (optional, warn on failure)
+    if [[ -n "${SECONDARY_BACKUP_DIR:-}" ]]; then
+        mkdir -p "$SECONDARY_FILES_DIR" 2>/dev/null || \
+            backup_log "Failed to create secondary files directory: $SECONDARY_FILES_DIR" "WARN"
+        mkdir -p "$SECONDARY_ARCHIVED_DIR" 2>/dev/null || \
+            backup_log "Failed to create secondary archived directory: $SECONDARY_ARCHIVED_DIR" "WARN"
+        mkdir -p "$SECONDARY_DATABASE_DIR" 2>/dev/null || \
+            backup_log "Failed to create secondary database directory: $SECONDARY_DATABASE_DIR" "WARN"
+    fi
+
+    return 0
+}
+
 # Library loaded successfully
 export BACKUP_LIB_LOADED=1
