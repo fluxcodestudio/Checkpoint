@@ -27,11 +27,11 @@ None
 **Goal**: Configure master backup folder in user's cloud-synced directory (Dropbox/GDrive) so backups auto-sync to cloud without API calls
 **Depends on**: Nothing (first phase)
 **Research**: Unlikely (using user's existing cloud folder, no API integration)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Detect cloud folder locations and configure destination
-- [ ] 01-02: Migrate existing backup infrastructure to use cloud destination
+- [ ] 01-01: Cloud folder detection and configuration
+- [ ] 01-02: Backup destination routing to cloud folder
 
 ### Phase 2: Activity Triggers
 **Goal**: Watch for file changes and trigger backups after 60s of inactivity (debouncing)
