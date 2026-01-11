@@ -41,7 +41,7 @@ Plans:
 
 Plans:
 - [x] 02-01: File watcher implementation with debouncing
-- [ ] 02-02: Integration with backup engine
+- [x] 02-02: Integration with backup engine
 
 ### Phase 3: Claude Code Integration
 **Goal**: Trigger backups on Claude Code events (conversation end, file changes, commits)
@@ -93,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Cloud Destination Setup | 2/2 | Complete | 2026-01-11 |
-| 2. Activity Triggers | 1/2 | In progress | - |
+| 2. Activity Triggers | 2/2 | Complete | 2026-01-11 |
 | 3. Claude Code Integration | 0/2 | Not started | - |
 | 4. Fallback Chain | 0/2 | Not started | - |
 | 5. Tiered Retention | 0/2 | Not started | - |
