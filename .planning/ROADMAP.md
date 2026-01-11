@@ -70,7 +70,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 05-01: Retention policy engine
+- [x] 05-01: Retention policy engine
 - [ ] 05-02: Cleanup and pruning automation
 
 ### Phase 6: Dashboard & Monitoring
@@ -95,5 +95,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. Activity Triggers | 2/2 | Complete | 2026-01-11 |
 | 3. Claude Code Integration | 2/2 | Complete | 2026-01-11 |
 | 4. Fallback Chain | 2/2 | Complete | 2026-01-11 |
-| 5. Tiered Retention | 0/2 | Not started | - |
+| 5. Tiered Retention | 1/2 | In progress | - |
 | 6. Dashboard & Monitoring | 0/3 | Not started | - |
