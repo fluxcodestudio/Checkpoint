@@ -142,3 +142,117 @@ should_keep_as_representative() {
 
     [[ "$timestamp" == "$oldest" ]]
 }
+
+# ==============================================================================
+# PRUNING CANDIDATE IDENTIFICATION
+# ==============================================================================
+
+# Find pruning candidates in a directory using tiered retention
+# Args: $1 = directory path, $2 = pattern (e.g., "*.db.gz" or "*")
+# Returns: List of files to prune (one per line)
+find_tiered_pruning_candidates() {
+    local dir="$1"
+    local pattern="${2:-*}"
+    local temp_dir=$(mktemp -d)
+    local candidates_file="$temp_dir/candidates"
+    local grouped_file="$temp_dir/grouped"
+
+    # Build list of all files with timestamps
+    touch "$grouped_file"
+
+    while IFS= read -r file; do
+        local basename=$(basename "$file")
+        local timestamp=$(extract_timestamp "$basename")
+
+        if [[ -z "$timestamp" ]]; then
+            # No timestamp found - use file mtime
+            timestamp=$(stat -f "%Sm" -t "%Y%m%d_%H%M%S" "$file" 2>/dev/null || date +"%Y%m%d_%H%M%S")
+        fi
+
+        local tier=$(classify_retention_tier "$timestamp")
+
+        case "$tier" in
+            hourly)
+                # Keep all hourly snapshots
+                ;;
+            daily)
+                local key=$(get_day_key "$timestamp")
+                echo "$key $timestamp $file" >> "$grouped_file"
+                ;;
+            weekly)
+                local key=$(get_week_key "$timestamp")
+                echo "$key $timestamp $file" >> "$grouped_file"
+                ;;
+            monthly)
+                local key=$(get_month_key "$timestamp")
+                echo "$key $timestamp $file" >> "$grouped_file"
+                ;;
+            expired)
+                # Always prune expired
+                echo "$file"
+                ;;
+        esac
+    done < <(find "$dir" -name "$pattern" -type f 2>/dev/null | sort)
+
+    # For each tier group, keep only the oldest (first) and prune the rest
+    if [[ -s "$grouped_file" ]]; then
+        # Sort by key, then by timestamp to get oldest first
+        sort -t' ' -k1,1 -k2,2 "$grouped_file" > "$temp_dir/sorted"
+
+        local prev_key=""
+        while IFS=' ' read -r key timestamp file; do
+            if [[ "$key" == "$prev_key" ]]; then
+                # Not the oldest in this group - prune it
+                echo "$file"
+            fi
+            prev_key="$key"
+        done < "$temp_dir/sorted"
+    fi
+
+    rm -rf "$temp_dir"
+}
+
+# Get retention statistics for a directory
+# Args: $1 = directory path
+# Returns: tier counts as "hourly:N daily:N weekly:N monthly:N expired:N"
+get_retention_stats() {
+    local dir="$1"
+    local hourly=0 daily=0 weekly=0 monthly=0 expired=0
+
+    while IFS= read -r file; do
+        local basename=$(basename "$file")
+        local timestamp=$(extract_timestamp "$basename")
+
+        if [[ -z "$timestamp" ]]; then
+            timestamp=$(stat -f "%Sm" -t "%Y%m%d_%H%M%S" "$file" 2>/dev/null || date +"%Y%m%d_%H%M%S")
+        fi
+
+        local tier=$(classify_retention_tier "$timestamp")
+
+        case "$tier" in
+            hourly) ((hourly++)) ;;
+            daily) ((daily++)) ;;
+            weekly) ((weekly++)) ;;
+            monthly) ((monthly++)) ;;
+            expired) ((expired++)) ;;
+        esac
+    done < <(find "$dir" -type f 2>/dev/null)
+
+    echo "hourly:$hourly daily:$daily weekly:$weekly monthly:$monthly expired:$expired"
+}
+
+# Calculate space that would be freed by tiered pruning
+# Args: $1 = directory path, $2 = pattern
+# Returns: bytes
+calculate_tiered_savings() {
+    local dir="$1"
+    local pattern="${2:-*}"
+    local total=0
+
+    while IFS= read -r file; do
+        local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+        total=$((total + size))
+    done < <(find_tiered_pruning_candidates "$dir" "$pattern")
+
+    echo "$total"
+}
