@@ -81,7 +81,7 @@ Plans:
 
 Plans:
 - [x] 06-01: Status bar indicator implementation
-- [ ] 06-02: All-projects dashboard view
+- [x] 06-02: All-projects dashboard view
 - [ ] 06-03: Restore interface and capability
 
 ## Progress
@@ -96,4 +96,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 3. Claude Code Integration | 2/2 | Complete | 2026-01-11 |
 | 4. Fallback Chain | 2/2 | Complete | 2026-01-11 |
 | 5. Tiered Retention | 2/2 | Complete | 2026-01-11 |
-| 6. Dashboard & Monitoring | 1/3 | In progress | - |
+| 6. Dashboard & Monitoring | 2/3 | In progress | - |
