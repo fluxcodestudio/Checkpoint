@@ -1,6 +1,11 @@
 #!/bin/bash
-# ClaudeCode Project Backups - Configuration Template
+# ClaudeCode Project Backups - Configuration Template v1.1
 # Copy this to your project root as .backup-config.sh and customize
+#
+# v1.1 Features: Tiered retention, alerts/notifications, quiet hours, performance optimizations
+
+# Configuration version (for migration detection)
+CONFIG_VERSION="1.1"
 
 # ==============================================================================
 # PROJECT CONFIGURATION
@@ -53,6 +58,10 @@ DB_RETENTION_DAYS=30
 # Archived file retention (in days)
 # How long to keep old file versions in archived/
 FILE_RETENTION_DAYS=60
+
+# Tiered retention (Phase 5) - smart space management
+# Keeps: all backups <24h, hourly 1-7d, daily 7-30d, weekly 30-90d, monthly 90d+
+TIERED_RETENTION_ENABLED=true
 
 # ==============================================================================
 # BACKUP TRIGGERS
@@ -136,7 +145,7 @@ BACKUP_LOCAL_DATABASES=true
 # Enable cloud folder backup (true/false)
 # When enabled, backups write to a cloud-synced folder (Dropbox/GDrive/iCloud/OneDrive)
 # This provides automatic cloud backup via the desktop sync app - no API calls needed
-CLOUD_FOLDER_ENABLED=false
+CLOUD_FOLDER_ENABLED=true
 
 # Cloud folder path (auto-detected if empty)
 # Examples:
