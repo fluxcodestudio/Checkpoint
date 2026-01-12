@@ -2571,6 +2571,13 @@ config_validate_value() {
     return 0
 }
 
+# Get configuration file path for current project
+# Returns: Path to .backup-config.sh in project root
+get_config_path() {
+    local project_dir="${PROJECT_ROOT:-$PWD}"
+    echo "$project_dir/.backup-config.sh"
+}
+
 # Get a configuration value by key
 config_get_value() {
     local key="$1"

@@ -251,9 +251,97 @@ mode_validate() {
     echo "Validating configuration..."
     echo ""
 
-    if config_validate_file "$(get_config_path)" "$strict"; then
+    local errors=0
+    local warnings=0
+    local config_file
+    config_file="$(get_config_path)"
+
+    # Run base validation first
+    if ! config_validate_file "$config_file" "$strict"; then
+        errors=$((errors + 1))
+    fi
+
+    # Additional validation for Phase 5-8 options
+    echo ""
+    echo "Validating extended options..."
+
+    # Source config to get raw variable values (for options not in schema)
+    if [[ -f "$config_file" ]]; then
+        source "$config_file" 2>/dev/null
+    fi
+
+    # Validate alert thresholds (use raw var names from config)
+    local warning_hours="${ALERT_WARNING_HOURS:-24}"
+    local error_hours="${ALERT_ERROR_HOURS:-72}"
+
+    if [[ -n "$warning_hours" ]] && ! [[ "$warning_hours" =~ ^[0-9]+$ ]]; then
+        color_red "✗ ALERT_WARNING_HOURS must be a positive integer (got: $warning_hours)"
+        errors=$((errors + 1))
+    elif [[ -n "$warning_hours" ]] && [[ "$warning_hours" -le 0 ]]; then
+        color_red "✗ ALERT_WARNING_HOURS must be greater than 0 (got: $warning_hours)"
+        errors=$((errors + 1))
+    fi
+
+    if [[ -n "$error_hours" ]] && ! [[ "$error_hours" =~ ^[0-9]+$ ]]; then
+        color_red "✗ ALERT_ERROR_HOURS must be a positive integer (got: $error_hours)"
+        errors=$((errors + 1))
+    elif [[ -n "$warning_hours" ]] && [[ -n "$error_hours" ]] && \
+         [[ "$warning_hours" =~ ^[0-9]+$ ]] && [[ "$error_hours" =~ ^[0-9]+$ ]] && \
+         [[ "$error_hours" -le "$warning_hours" ]]; then
+        color_yellow "⚠ ALERT_ERROR_HOURS ($error_hours) should be > ALERT_WARNING_HOURS ($warning_hours)"
+        warnings=$((warnings + 1))
+    fi
+
+    # Validate quiet hours format
+    local quiet_hours="${QUIET_HOURS:-}"
+    if [[ -n "$quiet_hours" ]]; then
+        if ! [[ "$quiet_hours" =~ ^[0-9]{1,2}-[0-9]{1,2}$ ]]; then
+            color_red "✗ QUIET_HOURS format invalid (expected: HH-HH, got: $quiet_hours)"
+            errors=$((errors + 1))
+        else
+            # Validate hour ranges (0-23)
+            local start_hour end_hour
+            start_hour="${quiet_hours%-*}"
+            end_hour="${quiet_hours#*-}"
+            if [[ "$start_hour" -gt 23 ]] || [[ "$end_hour" -gt 23 ]]; then
+                color_red "✗ QUIET_HOURS hours must be 0-23 (got: $quiet_hours)"
+                errors=$((errors + 1))
+            fi
+        fi
+    fi
+
+    # Validate notification sound
+    local notify_sound="${NOTIFY_SOUND:-}"
+    if [[ -n "$notify_sound" ]]; then
+        case "$notify_sound" in
+            default|Basso|Glass|Hero|Pop|none)
+                # Valid sound
+                ;;
+            *)
+                color_red "✗ NOTIFY_SOUND must be one of: default, Basso, Glass, Hero, Pop, none (got: $notify_sound)"
+                errors=$((errors + 1))
+                ;;
+        esac
+    fi
+
+    # Validate cloud folder exists if enabled
+    local cloud_enabled="${CLOUD_FOLDER_ENABLED:-false}"
+    local cloud_path="${CLOUD_FOLDER_PATH:-}"
+    if [[ "$cloud_enabled" == "true" && -n "$cloud_path" && ! -d "$cloud_path" ]]; then
+        color_yellow "⚠ Cloud folder does not exist: $cloud_path"
+        warnings=$((warnings + 1))
+    fi
+
+    # Summary
+    echo ""
+    if [[ $errors -eq 0 && $warnings -eq 0 ]]; then
+        color_green "✅ Extended validation passed"
+        return 0
+    elif [[ $errors -eq 0 ]]; then
+        color_yellow "⚠ Extended validation passed with $warnings warning(s)"
         return 0
     else
+        color_red "❌ Extended validation failed: $errors error(s), $warnings warning(s)"
         return 1
     fi
 }
