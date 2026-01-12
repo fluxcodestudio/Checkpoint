@@ -1,5 +1,30 @@
 # Project Milestones: Checkpoint
 
+## v1.2 Dashboard UX (Shipped: 2026-01-12)
+
+**Delivered:** Unified configuration experience with settings menu and setup wizard launcher directly in dashboard.
+
+**Phases completed:** 10 (2 plans total)
+
+**Key accomplishments:**
+
+- Settings submenu in dashboard with view/edit for alerts, quiet hours, notifications
+- Direct setup wizard launcher from main menu
+- Both dialog (TUI) and text fallback implementations
+
+**Stats:**
+
+- 1 file modified (+230 lines)
+- 59,860 lines of bash (+230 from v1.1)
+- 1 phase, 2 plans
+- Same day as v1.1 (2026-01-12)
+
+**Git range:** `feat(10-01)`
+
+**What's next:** Project stable
+
+---
+
 ## v1.1 Polish & Performance (Shipped: 2026-01-12)
 
 **Delivered:** Performance optimizations (3x change detection, O(1) file comparison, 10x cleanup), enhanced monitoring (error codes, dashboard panels, configurable alerts), and improved configuration UX (wizard, validation, help).

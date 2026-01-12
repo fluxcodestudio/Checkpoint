@@ -40,13 +40,14 @@ Backups happen automatically and invisibly — developer never loses work and ne
 - Configurable alert thresholds and quiet hours — v1.1
 - Extended configuration validation — v1.1
 - Topic-based help command — v1.1
+- Settings menu in dashboard for unified configuration UX — v1.2
+- Setup wizard launcher from dashboard — v1.2
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Settings menu in dashboard for unified configuration UX
-- [ ] Launch config wizard option from dashboard
+(None — v1.2 complete, project stable)
 
 ### Out of Scope
 
@@ -57,8 +58,8 @@ Backups happen automatically and invisibly — developer never loses work and ne
 
 ## Context
 
-**Current state (v1.1 shipped):**
-- 59,630 lines of bash code
+**Current state (v1.2 shipped):**
+- 59,860 lines of bash code
 - Pure bash implementation (lib/*.sh, bin/*.sh)
 - Layered architecture: CLI → Orchestration → Service → Integration → Storage
 - Cloud sync via desktop apps (Dropbox/GDrive folder)
@@ -104,5 +105,7 @@ PROJECT/backups/
 | Quiet hours overnight format (22-07) | Natural representation of overnight ranges | ✓ Good — intuitive |
 | Critical errors bypass quiet hours | Safety first — don't miss real problems | ✓ Good — sensible default |
 
+| Reuse backup-config in dashboard | No code duplication, wizard saves permanently | ✓ Good — maintainable |
+
 ---
-*Last updated: 2026-01-12 after v1.1 milestone*
+*Last updated: 2026-01-12 after v1.2 milestone*
