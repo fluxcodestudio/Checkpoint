@@ -65,6 +65,96 @@ check_drive() {
 }
 
 # ==============================================================================
+# ALERT CONFIGURATION
+# ==============================================================================
+
+# Health thresholds (hours without backup)
+# Can be overridden in .backup-config.sh
+: "${ALERT_WARNING_HOURS:=24}"
+: "${ALERT_ERROR_HOURS:=72}"
+
+# Notification preferences
+# Can be overridden in .backup-config.sh
+: "${NOTIFY_ON_SUCCESS:=false}"         # Only notify success after recovery
+: "${NOTIFY_ON_WARNING:=true}"          # Notify on stale backups
+: "${NOTIFY_ON_ERROR:=true}"            # Notify on failures
+: "${NOTIFY_ESCALATION_HOURS:=3}"       # Hours between repeated alerts
+: "${NOTIFY_SOUND:=default}"            # default, Basso, Glass, Hero, Pop, or none
+
+# Per-project notification override
+# Set in project's .backup-config.sh
+: "${PROJECT_NOTIFY_ENABLED:=true}"     # Enable/disable for this project
+
+# ==============================================================================
+# QUIET HOURS
+# ==============================================================================
+
+# Quiet hours suppress non-critical notifications
+# Format: START_HOUR-END_HOUR in 24h format (e.g., "22-07" = 10pm to 7am)
+: "${QUIET_HOURS:=}"                    # Empty = no quiet hours
+: "${QUIET_HOURS_BLOCK_ERRORS:=false}"  # Still notify critical errors during quiet hours
+
+# Check if currently in quiet hours
+# Returns: 0 if in quiet hours, 1 if not
+is_quiet_hours() {
+    local quiet_hours="${QUIET_HOURS:-}"
+
+    # No quiet hours configured
+    [[ -z "$quiet_hours" ]] && return 1
+
+    # Parse start and end hours
+    local start_hour="${quiet_hours%%-*}"
+    local end_hour="${quiet_hours##*-}"
+
+    # Validate format
+    if ! [[ "$start_hour" =~ ^[0-9]+$ ]] || ! [[ "$end_hour" =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+
+    local current_hour
+    current_hour=$(date +%H)
+    current_hour=${current_hour#0}  # Remove leading zero
+
+    # Handle overnight quiet hours (e.g., 22-07)
+    if [[ $start_hour -gt $end_hour ]]; then
+        # Quiet if after start OR before end
+        if [[ $current_hour -ge $start_hour ]] || [[ $current_hour -lt $end_hour ]]; then
+            return 0
+        fi
+    else
+        # Normal range (e.g., 09-17)
+        if [[ $current_hour -ge $start_hour ]] && [[ $current_hour -lt $end_hour ]]; then
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+# Check if notification should be sent (considering quiet hours and preferences)
+# Args: $1 = urgency level (critical, high, medium, low)
+should_notify() {
+    local urgency="${1:-medium}"
+
+    # Check if notifications enabled for this project
+    if [[ "${PROJECT_NOTIFY_ENABLED:-true}" != "true" ]]; then
+        return 1
+    fi
+
+    # Always notify critical if configured to bypass quiet hours
+    if [[ "$urgency" == "critical" ]] && [[ "${QUIET_HOURS_BLOCK_ERRORS:-false}" != "true" ]]; then
+        return 0
+    fi
+
+    # Check quiet hours
+    if is_quiet_hours; then
+        return 1  # Suppress notification
+    fi
+
+    return 0
+}
+
+# ==============================================================================
 # ERROR CODES AND SUGGESTED FIXES
 # ==============================================================================
 
@@ -187,19 +277,38 @@ map_error_to_code() {
 # ==============================================================================
 
 # Send native macOS notification
-# Args: $1 = title, $2 = message, $3 = sound (optional)
+# Args: $1 = title, $2 = message, $3 = sound (optional), $4 = urgency (optional: critical, high, medium, low)
 send_notification() {
     local title="$1"
     local message="$2"
     local sound="${3:-default}"
+    local urgency="${4:-medium}"
 
     # Only send if notifications are enabled (default: true)
     if [ "${NOTIFICATIONS_ENABLED:-true}" = false ]; then
         return 0
     fi
 
+    # Check if should notify (quiet hours, preferences)
+    if ! should_notify "$urgency"; then
+        # Log suppressed notification
+        echo "[$(date)] Notification suppressed (quiet hours): $title" >> "${BACKUP_LOG_FILE:-/dev/null}" 2>/dev/null || true
+        return 0
+    fi
+
+    # Handle sound preference
+    if [[ "${NOTIFY_SOUND:-default}" == "none" ]]; then
+        sound=""
+    elif [[ "${NOTIFY_SOUND:-default}" != "default" ]]; then
+        sound="${NOTIFY_SOUND}"
+    fi
+
     # Use osascript for native macOS notifications (no dependencies)
-    osascript -e "display notification \"$message\" with title \"$title\" sound name \"$sound\"" 2>/dev/null || true
+    if [[ -n "$sound" ]]; then
+        osascript -e "display notification \"$message\" with title \"$title\" sound name \"$sound\"" 2>/dev/null || true
+    else
+        osascript -e "display notification \"$message\" with title \"$title\"" 2>/dev/null || true
+    fi
 }
 
 # Send backup failure notification (with spam prevention + escalation)
@@ -214,6 +323,11 @@ notify_backup_failure() {
     local project_state_dir="$state_dir/$project_name"
     local failure_state="$project_state_dir/.last-backup-failed"
     local failure_log="$project_state_dir/.last-backup-failures"
+
+    # Check if error notifications enabled
+    if [[ "${NOTIFY_ON_ERROR:-true}" != "true" ]]; then
+        return 0
+    fi
 
     mkdir -p "$project_state_dir" 2>/dev/null || true
 
@@ -244,7 +358,8 @@ notify_backup_failure() {
         send_notification \
             "⚠️ Checkpoint Backup Incomplete" \
             "${PROJECT_NAME}: $summary Fix: $short_fix" \
-            "Basso"
+            "Basso" \
+            "critical"
 
         # Mark as failed with timestamp, counts, error code, and LLM prompt
         echo "$(date +%s)|$error_count|$succeeded_files|$total_files|$first_error_code|$llm_prompt" > "$failure_state"
@@ -259,8 +374,9 @@ notify_backup_failure() {
         now=$(date +%s)
         local time_since_first=$((now - first_failure_time))
 
-        # Escalate every 3 hours (10800 seconds)
-        local escalation_interval=10800
+        # Use configurable escalation interval (default 3 hours)
+        local escalation_hours=${NOTIFY_ESCALATION_HOURS:-3}
+        local escalation_interval=$((escalation_hours * 3600))
         local escalation_marker="$project_state_dir/.last-backup-escalation"
         local last_escalation=0
 
@@ -278,7 +394,8 @@ notify_backup_failure() {
             send_notification \
                 "🚨 Checkpoint Still Incomplete" \
                 "${PROJECT_NAME}: $first_error_code for $((time_since_first / 3600))h. $short_fix" \
-                "Basso"
+                "Basso" \
+                "high"
 
             echo "$now" > "$escalation_marker"
         fi

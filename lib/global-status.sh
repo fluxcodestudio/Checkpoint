@@ -28,7 +28,9 @@ fi
 # HEALTH THRESHOLDS
 # ==============================================================================
 
-# Hours without backup before warning/error
+# Hours without backup before warning/error (global defaults)
+# These can be overridden per-project via ALERT_WARNING_HOURS/ALERT_ERROR_HOURS
+# in project's .backup-config.sh
 : "${HEALTH_WARNING_HOURS:=24}"
 : "${HEALTH_ERROR_HOURS:=72}"
 
@@ -136,8 +138,21 @@ get_project_health() {
         return
     fi
 
-    local warning_threshold=$((HEALTH_WARNING_HOURS * 3600))
-    local error_threshold=$((HEALTH_ERROR_HOURS * 3600))
+    # Load project-specific thresholds if available
+    local config_file="$project_path/.backup-config.sh"
+    local warning_hours=${HEALTH_WARNING_HOURS:-24}
+    local error_hours=${HEALTH_ERROR_HOURS:-72}
+
+    if [[ -f "$config_file" ]]; then
+        local project_warning project_error
+        project_warning=$(source "$config_file" 2>/dev/null; echo "${ALERT_WARNING_HOURS:-}")
+        project_error=$(source "$config_file" 2>/dev/null; echo "${ALERT_ERROR_HOURS:-}")
+        [[ -n "$project_warning" ]] && warning_hours="$project_warning"
+        [[ -n "$project_error" ]] && error_hours="$project_error"
+    fi
+
+    local warning_threshold=$((warning_hours * 3600))
+    local error_threshold=$((error_hours * 3600))
 
     if [[ $age -gt $error_threshold ]]; then
         echo "error"
