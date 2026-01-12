@@ -13,6 +13,23 @@
 # ==============================================================================
 
 # ==============================================================================
+# PATH INITIALIZATION
+# ==============================================================================
+
+# Derive FILES_DIR and ARCHIVED_DIR from BACKUP_DIR if not already set
+init_restore_paths() {
+    if [[ -z "${FILES_DIR:-}" ]] && [[ -n "${BACKUP_DIR:-}" ]]; then
+        FILES_DIR="$BACKUP_DIR/files"
+    fi
+    if [[ -z "${ARCHIVED_DIR:-}" ]] && [[ -n "${BACKUP_DIR:-}" ]]; then
+        ARCHIVED_DIR="$BACKUP_DIR/archived"
+    fi
+}
+
+# Auto-initialize when sourced (if BACKUP_DIR is available)
+init_restore_paths
+
+# ==============================================================================
 # TIME PARSING FUNCTIONS
 # ==============================================================================
 

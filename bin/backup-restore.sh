@@ -67,8 +67,102 @@ EOF
     exit 0
 fi
 
+# ==============================================================================
+# COMMAND LINE ARGUMENTS (parse before loading config)
+# ==============================================================================
+
+DRY_RUN=false
+LIST_MODE=false
+TIMELINE_MODE=false
+SHOW_ALL=false
+RESTORE_TYPE=""
+RESTORE_TARGET=""
+RESTORE_VERSION=""
+RESTORE_AT=""
+EXPLICIT_PROJECT_DIR=""
+
+# Parse all arguments first
+args=("$@")
+i=0
+while [[ $i -lt ${#args[@]} ]]; do
+    case "${args[$i]}" in
+        --dry-run)
+            DRY_RUN=true
+            ;;
+        --list)
+            LIST_MODE=true
+            ;;
+        --all)
+            SHOW_ALL=true
+            ;;
+        timeline)
+            TIMELINE_MODE=true
+            i=$((i + 1))
+            [[ $i -lt ${#args[@]} ]] && RESTORE_TARGET="${args[$i]}"
+            ;;
+        database)
+            RESTORE_TYPE="database"
+            ;;
+        file)
+            RESTORE_TYPE="file"
+            i=$((i + 1))
+            [[ $i -lt ${#args[@]} ]] && RESTORE_TARGET="${args[$i]}"
+            ;;
+        --at)
+            i=$((i + 1))
+            [[ $i -lt ${#args[@]} ]] && RESTORE_AT="${args[$i]}"
+            ;;
+        --version)
+            i=$((i + 1))
+            [[ $i -lt ${#args[@]} ]] && RESTORE_VERSION="${args[$i]}"
+            ;;
+        --help|-h)
+            cat <<EOF
+Checkpoint - Restore Wizard
+
+Usage:
+  backup-restore.sh [options] [mode]
+
+Modes:
+  (interactive)              Launch interactive wizard
+  timeline PATH              Show file timeline with version history
+  database                   Restore latest database
+  database --at "DATETIME"   Restore database from specific time
+  file PATH                  Restore specific file
+  file PATH --at "DATETIME"  Restore file to point in time
+  --list                     List all available backups
+
+Options:
+  --dry-run                  Preview restore without executing
+  --all                      Show full history (with timeline)
+  --help                     Show this help message
+
+Examples:
+  backup-restore.sh
+  backup-restore.sh timeline src/config.js
+  backup-restore.sh file src/config.js --at "2 hours ago"
+  backup-restore.sh database --at "2025-12-24 10:00"
+  backup-restore.sh --list
+
+Date/Time Formats:
+  "2 hours ago", "yesterday", "last week"
+  "2025-12-24 10:00", "2025-12-24"
+
+EOF
+            exit 0
+            ;;
+        *)
+            # Treat as project directory if it looks like a path
+            if [[ -z "$EXPLICIT_PROJECT_DIR" ]] && [[ -d "${args[$i]}" ]]; then
+                EXPLICIT_PROJECT_DIR="${args[$i]}"
+            fi
+            ;;
+    esac
+    i=$((i + 1))
+done
+
 # Find and load configuration
-PROJECT_DIR="${1:-$PWD}"
+PROJECT_DIR="${EXPLICIT_PROJECT_DIR:-$PWD}"
 CONFIG_FILE="$PROJECT_DIR/.backup-config.sh"
 
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -80,94 +174,10 @@ fi
 
 source "$CONFIG_FILE"
 
-# ==============================================================================
-# COMMAND LINE ARGUMENTS
-# ==============================================================================
-
-DRY_RUN=false
-LIST_MODE=false
-TIMELINE_MODE=false
-SHOW_ALL=false
-RESTORE_TYPE=""
-RESTORE_TARGET=""
-RESTORE_VERSION=""
-RESTORE_AT=""
-
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --dry-run)
-            DRY_RUN=true
-            shift
-            ;;
-        --list)
-            LIST_MODE=true
-            shift
-            ;;
-        --all)
-            SHOW_ALL=true
-            shift
-            ;;
-        timeline)
-            TIMELINE_MODE=true
-            RESTORE_TARGET="${2:-}"
-            shift 2 2>/dev/null || shift
-            ;;
-        database)
-            RESTORE_TYPE="database"
-            shift
-            ;;
-        file)
-            RESTORE_TYPE="file"
-            RESTORE_TARGET="${2:-}"
-            shift 2 2>/dev/null || shift
-            ;;
-        --at)
-            RESTORE_AT="${2:-}"
-            shift 2 2>/dev/null || shift
-            ;;
-        --version)
-            RESTORE_VERSION="${2:-}"
-            shift 2 2>/dev/null || shift
-            ;;
-        --help|-h)
-            cat <<EOF
-Checkpoint - Restore Wizard
-
-Usage:
-  backup-restore.sh [options] [mode]
-
-Modes:
-  (interactive)              Launch interactive wizard
-  database                   Restore latest database
-  database --at "DATETIME"   Restore database from specific time
-  file PATH                  Restore specific file
-  file PATH --version N      Restore specific version
-  --list                     List all available backups
-
-Options:
-  --dry-run                  Preview restore without executing
-  --help                     Show this help message
-
-Examples:
-  backup-restore.sh
-  backup-restore.sh database
-  backup-restore.sh database --at "2025-12-24 10:00"
-  backup-restore.sh file src/config.js
-  backup-restore.sh file src/config.js --version 3
-  backup-restore.sh --list
-
-Date/Time Formats:
-  "2 days ago", "yesterday", "last week"
-  "2025-12-24 10:00", "2025-12-24"
-
-EOF
-            exit 0
-            ;;
-        *)
-            shift
-            ;;
-    esac
-done
+# Initialize restore paths after config is loaded
+if type init_restore_paths &>/dev/null; then
+    init_restore_paths
+fi
 
 # ==============================================================================
 # TIMELINE FUNCTIONS
@@ -187,7 +197,7 @@ show_file_timeline() {
     # Check if file has any backups
     local version_count=0
     while IFS='|' read -r mtime size path type; do
-        [[ -n "$mtime" ]] && ((version_count++))
+        [[ -n "$mtime" ]] && version_count=$((version_count + 1))
     done < <(list_file_versions "$filepath")
 
     if [[ $version_count -eq 0 ]]; then
@@ -212,7 +222,7 @@ show_file_timeline() {
 
     while IFS='|' read -r mtime size path type; do
         [[ -z "$mtime" ]] && continue
-        ((count++))
+        count=$((count + 1))
 
         [[ $count -gt $max_count ]] && continue
 
@@ -495,7 +505,7 @@ list_all_backups() {
         local count=0
         list_database_backups_sorted "$DATABASE_DIR" | while IFS='|' read -r created relative size filename path; do
             printf "  %-25s %-20s %10s\n" "$created" "($relative)" "$size"
-            ((count++))
+            count=$((count + 1))
         done
 
         local total=$(find "$DATABASE_DIR" -name "*.db.gz" -type f 2>/dev/null | wc -l | tr -d ' ')
@@ -634,7 +644,7 @@ restore_database_from_list() {
     while IFS='|' read -r created relative size filename path; do
         printf "  [%2d] %-25s %-20s %10s\n" "$index" "$created" "($relative)" "$size"
         backups+=("$path")
-        ((index++))
+        index=$((index + 1))
 
         [ $index -gt 20 ] && break
     done < <(list_database_backups_sorted "$DATABASE_DIR")
@@ -819,7 +829,7 @@ restore_file_interactive() {
     while IFS='|' read -r mtime version created relative size path; do
         printf "  [%2d] %-12s %-25s %-20s %10s\n" "$index" "$version" "$created" "($relative)" "$size"
         versions+=("$path")
-        ((index++))
+        index=$((index + 1))
     done < <(list_file_versions_sorted "$file_path" "$FILES_DIR" "$ARCHIVED_DIR")
 
     echo ""
