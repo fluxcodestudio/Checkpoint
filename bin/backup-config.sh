@@ -30,6 +30,7 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LIBBACKUP_PATH="$PROJECT_ROOT/lib/backup-lib.sh"
+CLOUD_DETECTOR_PATH="$PROJECT_ROOT/lib/cloud-folder-detector.sh"
 
 # Load backup library
 if [[ -f "$LIBBACKUP_PATH" ]]; then
@@ -37,6 +38,11 @@ if [[ -f "$LIBBACKUP_PATH" ]]; then
 else
     echo "Error: Cannot find backup library at: $LIBBACKUP_PATH" >&2
     exit 1
+fi
+
+# Load cloud folder detector (optional - for wizard)
+if [[ -f "$CLOUD_DETECTOR_PATH" ]]; then
+    source "$CLOUD_DETECTOR_PATH"
 fi
 
 # ==============================================================================
@@ -458,6 +464,132 @@ mode_wizard() {
         config_set_value "backup_targets.ide_settings" "true"
     else
         config_set_value "backup_targets.ide_settings" "false"
+    fi
+
+    # Cloud folder
+    echo ""
+    color_cyan "Cloud Backup"
+    echo ""
+    echo "Cloud folder backup syncs via your desktop app (Dropbox, Google Drive, iCloud)."
+    echo "This is the recommended backup destination for automatic cloud protection."
+    echo ""
+
+    if confirm "Enable cloud folder backup? (recommended)" "y"; then
+        # Try to detect cloud folder
+        local detected_folder=""
+        if type get_first_cloud_folder &>/dev/null; then
+            detected_folder="$(get_first_cloud_folder 2>/dev/null || echo "")"
+        fi
+
+        if [[ -n "$detected_folder" ]]; then
+            echo ""
+            color_green "Detected cloud folder: $detected_folder"
+            if confirm "Use detected folder?" "y"; then
+                config_set_value "cloud_folder.enabled" "true"
+                config_set_value "cloud_folder.path" "$detected_folder"
+            else
+                local custom_path
+                custom_path="$(prompt "Enter cloud folder path" "$HOME/Dropbox/Backups/Checkpoint")"
+                config_set_value "cloud_folder.enabled" "true"
+                config_set_value "cloud_folder.path" "$custom_path"
+            fi
+        else
+            echo ""
+            color_yellow "No cloud folder auto-detected."
+            local cloud_path
+            cloud_path="$(prompt "Enter cloud folder path (or leave empty to skip)" "")"
+            if [[ -n "$cloud_path" ]]; then
+                config_set_value "cloud_folder.enabled" "true"
+                config_set_value "cloud_folder.path" "$cloud_path"
+            else
+                config_set_value "cloud_folder.enabled" "false"
+            fi
+        fi
+
+        if [[ "$(config_get_value "cloud_folder.enabled" 2>/dev/null)" == "true" ]]; then
+            if confirm "Also keep local backup copy?" "y"; then
+                config_set_value "cloud_folder.also_local" "true"
+            else
+                config_set_value "cloud_folder.also_local" "false"
+            fi
+        fi
+    else
+        config_set_value "cloud_folder.enabled" "false"
+    fi
+
+    # Alerts and notifications
+    echo ""
+    color_cyan "Alerts & Notifications"
+    echo ""
+    echo "Configure when to receive backup status notifications."
+    echo ""
+
+    echo "When should you be warned about stale backups?"
+    echo "  1) After 12 hours (aggressive)"
+    echo "  2) After 24 hours (recommended)"
+    echo "  3) After 48 hours (relaxed)"
+    local warning_choice
+    warning_choice="$(prompt "Select option [1-3]" "2")"
+
+    local warning_hours=24
+    case "$warning_choice" in
+        "1") warning_hours=12 ;;
+        "2") warning_hours=24 ;;
+        "3") warning_hours=48 ;;
+    esac
+    config_set_value "alerts.warning_hours" "$warning_hours"
+
+    # Error threshold is typically 3x warning
+    local error_hours=$((warning_hours * 3))
+    config_set_value "alerts.error_hours" "$error_hours"
+
+    echo ""
+    if confirm "Enable quiet hours? (suppress notifications during sleep)" "n"; then
+        echo ""
+        echo "Quiet hours format: START-END in 24-hour time"
+        echo "Example: 22-07 (10pm to 7am)"
+        local quiet_hours
+        quiet_hours="$(prompt "Enter quiet hours" "22-07")"
+        config_set_value "alerts.quiet_hours" "$quiet_hours"
+    else
+        config_set_value "alerts.quiet_hours" ""
+    fi
+
+    # Claude Code hooks (optional)
+    echo ""
+    color_cyan "Claude Code Integration (Optional)"
+    echo ""
+    echo "Automatically trigger backups from Claude Code events."
+    echo "Requires Claude Code CLI to be installed."
+    echo ""
+
+    # Check if claude command exists
+    if command -v claude &>/dev/null; then
+        if confirm "Enable Claude Code backup hooks?" "y"; then
+            config_set_value "hooks.enabled" "true"
+
+            echo ""
+            echo "Which events should trigger backups?"
+            echo "  1) All events (conversation end, file edits, commits)"
+            echo "  2) Conversation end only"
+            echo "  3) File edits and commits only"
+            local hook_choice
+            hook_choice="$(prompt "Select option [1-3]" "1")"
+
+            local triggers="stop,edit,commit"
+            case "$hook_choice" in
+                "1") triggers="stop,edit,commit" ;;
+                "2") triggers="stop" ;;
+                "3") triggers="edit,commit" ;;
+            esac
+            config_set_value "hooks.triggers" "$triggers"
+        else
+            config_set_value "hooks.enabled" "false"
+        fi
+    else
+        color_dim "Claude Code CLI not detected - skipping hooks setup"
+        color_dim "Install Claude Code and run 'backup-config set hooks.enabled true' later"
+        config_set_value "hooks.enabled" "false"
     fi
 
     # Apply core settings
