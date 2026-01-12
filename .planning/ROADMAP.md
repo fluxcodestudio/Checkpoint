@@ -12,6 +12,7 @@ None
 
 - ✅ [v1.0 Automated Backup System](milestones/v1.0-ROADMAP.md) (Phases 1-6) — SHIPPED 2026-01-11
 - ✅ [v1.1 Polish & Performance](milestones/v1.1-ROADMAP.md) (Phases 7-9) — SHIPPED 2026-01-12
+- 🚧 **v1.2 Dashboard UX** — Phase 10 (in progress)
 
 ## Completed Milestones
 
@@ -44,6 +45,25 @@ None
 
 </details>
 
+### 🚧 v1.2 Dashboard UX (In Progress)
+
+**Milestone Goal:** Unify configuration experience by adding settings access directly in the dashboard.
+
+**Constraints:**
+- Reuse existing backup-config functionality (no duplication)
+- Maintain TUI consistency with current dashboard style
+
+#### Phase 10: Dashboard Settings Integration
+
+**Goal**: Add settings menu and wizard launcher to dashboard for unified UX
+**Depends on**: v1.1 complete
+**Research**: No (internal integration)
+**Plans**: 2 plans
+
+Plans:
+- [ ] 10-01: Add "Settings" menu to dashboard with key options
+- [ ] 10-02: Add "Launch config wizard" quick action
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -57,3 +77,4 @@ None
 | 7. Performance Optimization | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 8. Monitoring Enhancements | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 9. Configuration UX | v1.1 | 3/3 | Complete | 2026-01-12 |
+| 10. Dashboard Settings Integration | v1.2 | 0/2 | Not started | - |

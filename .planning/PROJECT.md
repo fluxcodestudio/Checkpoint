@@ -45,7 +45,8 @@ Backups happen automatically and invisibly — developer never loses work and ne
 
 <!-- Current scope. Building toward these. -->
 
-(None — v1.1 complete, project stable)
+- [ ] Settings menu in dashboard for unified configuration UX
+- [ ] Launch config wizard option from dashboard
 
 ### Out of Scope
 

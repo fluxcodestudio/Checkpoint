@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-12)
 
 **Core value:** Backups happen automatically and invisibly — developer never loses work and never thinks about backups.
-**Current focus:** Project stable — v1.1 shipped
+**Current focus:** v1.2 Dashboard UX — Phase 10: Dashboard Settings Integration
 
 ## Current Position
 
-Phase: 9 of 9 (all phases complete)
-Plan: All complete
-Status: v1.1 milestone shipped
-Last activity: 2026-01-12 — v1.1 milestone complete
+Phase: 10 of 10 (Dashboard Settings Integration)
+Plan: 0 of 2 in current phase
+Status: Ready to plan
+Last activity: 2026-01-12 — Created v1.2 milestone
 
-Progress: ██████████ 100% (v1.1 shipped)
+Progress: █████████░ 90%
 
 ## Performance Metrics
 
