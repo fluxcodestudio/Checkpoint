@@ -301,6 +301,7 @@ DB_PATH="${DB_PATH:-}"
 DB_TYPE="${DB_TYPE:-none}"
 DB_STATE_FILE="${DB_STATE_FILE:-$BACKUP_DIR/.backup-state}"
 BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-backup-time}"
+BACKUP_USE_HASH_COMPARE="${BACKUP_USE_HASH_COMPARE:-true}"
 
 # Use resolved destinations (from resolve_backup_destinations) or fall back to legacy paths
 DATABASE_DIR="${PRIMARY_DATABASE_DIR:-${DATABASE_DIR:-$BACKUP_DIR/databases}}"
@@ -825,7 +826,21 @@ if [ "$DATABASE_ONLY" = false ]; then
 
             # Check if file changed
             if [ -f "$current_file" ]; then
-                if ! cmp -s "$file" "$current_file"; then
+                # Use hash comparison if enabled, fall back to cmp
+                files_are_identical=false
+                if [ "$BACKUP_USE_HASH_COMPARE" = "true" ]; then
+                    # Try hash-based comparison first (faster for large files)
+                    if files_identical_hash "$file" "$current_file" 2>/dev/null; then
+                        files_are_identical=true
+                    fi
+                else
+                    # Use byte-by-byte comparison (fallback)
+                    if cmp -s "$file" "$current_file"; then
+                        files_are_identical=true
+                    fi
+                fi
+
+                if [ "$files_are_identical" = "false" ]; then
                     mkdir -p "$archived_dir"
                     mv "$current_file" "$archived_file"
                     archived_count=$((archived_count + 1))
