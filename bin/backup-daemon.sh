@@ -555,6 +555,22 @@ if [ $DIFF -lt $BACKUP_INTERVAL ]; then
     exit 0
 fi
 
+# Fast early-exit: check if any changes exist before full detection
+cd "$PROJECT_DIR" || exit 1
+if type has_changes &>/dev/null && ! has_changes; then
+    # No git/file changes - skip file backup entirely
+    # Still check database (it has its own change detection)
+    if db_changed; then
+        backup_database
+    else
+        log "ℹ️  No changes detected (database or files)"
+        log "═══════════════════════════════════════════════"
+        # Update timestamp to prevent immediate re-check
+        echo "$NOW" > "$BACKUP_TIME_STATE"
+        exit 0
+    fi
+fi
+
 # Perform backup
 if db_changed; then
     backup_database
