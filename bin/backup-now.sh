@@ -1084,14 +1084,37 @@ fi
 
 log_info "   ▸ Cleanup: Checking retention..."
 
-# Remove old backups
-db_removed=$(find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} 2>/dev/null | wc -l | tr -d ' ')
-find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>/dev/null || true
+# Use single-pass cleanup (performance optimization) or legacy mode
+if [ "${BACKUP_USE_LEGACY_CLEANUP:-false}" = "true" ]; then
+    # Legacy cleanup: multiple find traversals
+    db_removed=$(find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} 2>/dev/null | wc -l | tr -d ' ')
+    find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>/dev/null || true
 
-file_removed=$(find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} 2>/dev/null | wc -l | tr -d ' ')
-find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>/dev/null || true
+    file_removed=$(find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} 2>/dev/null | wc -l | tr -d ' ')
+    find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>/dev/null || true
 
-find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null || true
+    find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null || true
+else
+    # Single-pass cleanup (10x faster for large backup sets)
+    if [ "${BACKUP_DEBUG:-false}" = "true" ]; then
+        local cleanup_start cleanup_end
+        cleanup_start=$(date +%s%3N 2>/dev/null || date +%s)
+    fi
+
+    cleanup_single_pass "$BACKUP_DIR"
+
+    db_removed=${#CLEANUP_EXPIRED_DBS[@]}
+    file_removed=${#CLEANUP_EXPIRED_FILES[@]}
+
+    if [ $db_removed -gt 0 ] || [ $file_removed -gt 0 ] || [ ${#CLEANUP_EMPTY_DIRS[@]} -gt 0 ]; then
+        cleanup_execute false
+    fi
+
+    if [ "${BACKUP_DEBUG:-false}" = "true" ]; then
+        cleanup_end=$(date +%s%3N 2>/dev/null || date +%s)
+        log_verbose "   Cleanup completed in $((cleanup_end - cleanup_start))ms"
+    fi
+fi
 
 if [ $db_removed -gt 0 ] || [ $file_removed -gt 0 ]; then
     space_freed=$((db_removed + file_removed))

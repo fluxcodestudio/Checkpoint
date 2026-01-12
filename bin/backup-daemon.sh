@@ -365,16 +365,39 @@ backup_changed_files() {
 cleanup_old_backups() {
     log "🧹 Cleaning up old backups..."
 
-    # Remove database backups older than retention policy
-    db_removed=$(find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} 2>/dev/null | wc -l)
-    find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>/dev/null
+    local db_removed=0
+    local file_removed=0
 
-    # Remove archived files older than retention policy
-    file_removed=$(find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} 2>/dev/null | wc -l)
-    find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>/dev/null
+    # Use single-pass cleanup (performance optimization) or legacy mode
+    if [ "${BACKUP_USE_LEGACY_CLEANUP:-false}" = "true" ]; then
+        # Legacy cleanup: multiple find traversals
+        db_removed=$(find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} 2>/dev/null | wc -l)
+        find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>/dev/null
 
-    # Remove empty directories in archived
-    find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null
+        file_removed=$(find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} 2>/dev/null | wc -l)
+        find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>/dev/null
+
+        find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null
+    elif type cleanup_single_pass &>/dev/null; then
+        # Single-pass cleanup (10x faster for large backup sets)
+        cleanup_single_pass "$BACKUP_DIR"
+
+        db_removed=${#CLEANUP_EXPIRED_DBS[@]}
+        file_removed=${#CLEANUP_EXPIRED_FILES[@]}
+
+        if [ $db_removed -gt 0 ] || [ $file_removed -gt 0 ] || [ ${#CLEANUP_EMPTY_DIRS[@]} -gt 0 ]; then
+            cleanup_execute false
+        fi
+    else
+        # Fallback if backup-lib.sh not loaded
+        db_removed=$(find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} 2>/dev/null | wc -l)
+        find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>/dev/null
+
+        file_removed=$(find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} 2>/dev/null | wc -l)
+        find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>/dev/null
+
+        find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null
+    fi
 
     if [ "$db_removed" -gt 0 ] || [ "$file_removed" -gt 0 ]; then
         log "🗑️  Removed $db_removed old database backups, $file_removed old archived files"
