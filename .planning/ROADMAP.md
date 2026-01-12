@@ -45,10 +45,12 @@ None
 **Goal**: Faster backups, lower resource usage, smarter change detection
 **Depends on**: v1.0 complete
 **Research**: Unlikely (internal optimization patterns)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: TBD (run /gsd:plan-phase 7 to break down)
+- [ ] 07-01: Parallelize git change detection + early exit
+- [ ] 07-02: Hash-based file comparison with caching
+- [ ] 07-03: Single-pass cleanup consolidation
 
 #### Phase 8: Monitoring Enhancements
 
@@ -80,6 +82,6 @@ Plans:
 | 4. Fallback Chain | v1.0 | 2/2 | Complete | 2026-01-11 |
 | 5. Tiered Retention | v1.0 | 2/2 | Complete | 2026-01-11 |
 | 6. Dashboard & Monitoring | v1.0 | 3/3 | Complete | 2026-01-11 |
-| 7. Performance Optimization | v1.1 | 0/? | Not started | - |
+| 7. Performance Optimization | v1.1 | 0/3 | Not started | - |
 | 8. Monitoring Enhancements | v1.1 | 0/? | Not started | - |
 | 9. Configuration UX | v1.1 | 0/? | Not started | - |
