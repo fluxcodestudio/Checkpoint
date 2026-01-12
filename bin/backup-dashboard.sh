@@ -188,6 +188,8 @@ display_action_menu() {
     echo "  [1] Backup all projects now"
     echo "  [2] Select project for details"
     echo "  [3] Cleanup old backups (preview)"
+    echo "  [4] Settings"
+    echo "  [5] Setup wizard"
     echo "  [q] Quit"
     echo ""
 }
@@ -207,12 +209,16 @@ run_interactive() {
                 "1" "Backup all projects now" \
                 "2" "Select project for details" \
                 "3" "Cleanup old backups (preview)" \
+                "4" "Settings" \
+                "5" "Setup wizard" \
                 "q" "Quit")
 
             case "$choice" in
                 1) backup_all_projects ;;
                 2) select_project_interactive ;;
                 3) cleanup_preview_all ;;
+                4) settings_menu_interactive ;;
+                5) launch_setup_wizard ;;
                 q|"") break ;;
             esac
         else
@@ -224,6 +230,8 @@ run_interactive() {
                 1) backup_all_projects ;;
                 2) select_project_text ;;
                 3) cleanup_preview_all ;;
+                4) settings_menu_text ;;
+                5) launch_setup_wizard ;;
                 q|Q) break ;;
                 *) echo "Invalid option" ;;
             esac
@@ -681,6 +689,228 @@ display_project_detail() {
     echo "    [l] Cleanup preview"
     echo "    [q] Back to dashboard"
     echo ""
+}
+
+# ==============================================================================
+# SETTINGS MENU
+# ==============================================================================
+
+# Get backup-config script path
+get_config_script() {
+    echo "$SCRIPT_DIR/backup-config.sh"
+}
+
+# Display current settings summary
+display_settings_summary() {
+    echo ""
+    echo "═══════════════════════════════════════════════════════════════════════════"
+    echo "                           CURRENT SETTINGS"
+    echo "═══════════════════════════════════════════════════════════════════════════"
+    echo ""
+
+    # Alert settings
+    echo "  Alert Thresholds:"
+    echo "    Warning after:  ${ALERT_WARNING_HOURS:-24} hours"
+    echo "    Error after:    ${ALERT_ERROR_HOURS:-72} hours"
+    echo ""
+
+    # Notification settings
+    echo "  Notifications:"
+    echo "    On success:     ${NOTIFY_ON_SUCCESS:-false}"
+    echo "    On warning:     ${NOTIFY_ON_WARNING:-true}"
+    echo "    On error:       ${NOTIFY_ON_ERROR:-true}"
+    echo "    Sound:          ${NOTIFY_SOUND:-default}"
+    echo "    Escalation:     every ${NOTIFY_ESCALATION_HOURS:-3} hours"
+    echo ""
+
+    # Quiet hours
+    local quiet="${QUIET_HOURS:-}"
+    if [[ -n "$quiet" ]]; then
+        echo "  Quiet Hours:      $quiet (errors bypass: ${QUIET_HOURS_BLOCK_ERRORS:-false})"
+    else
+        echo "  Quiet Hours:      Not configured"
+    fi
+    echo ""
+
+    # Cloud settings
+    echo "  Cloud Backup:"
+    echo "    Enabled:        ${CLOUD_FOLDER_ENABLED:-true}"
+    if [[ -n "${CLOUD_FOLDER_PATH:-}" ]]; then
+        echo "    Path:           $CLOUD_FOLDER_PATH"
+    fi
+    echo ""
+    echo "───────────────────────────────────────────────────────────────────────────"
+}
+
+# Settings submenu (dialog version)
+settings_menu_interactive() {
+    while true; do
+        local choice
+        choice=$(show_menu "Settings" "Configure Checkpoint:" \
+            "1" "View current settings" \
+            "2" "Edit alert thresholds" \
+            "3" "Edit quiet hours" \
+            "4" "Edit notifications" \
+            "5" "Launch setup wizard" \
+            "b" "Back to dashboard")
+
+        case "$choice" in
+            1)
+                clear_screen
+                display_settings_summary
+                wait_keypress
+                ;;
+            2) edit_alert_thresholds ;;
+            3) edit_quiet_hours ;;
+            4) edit_notifications ;;
+            5) launch_setup_wizard ;;
+            b|"") break ;;
+        esac
+    done
+}
+
+# Settings submenu (text version)
+settings_menu_text() {
+    while true; do
+        clear_screen
+        display_settings_summary
+        echo ""
+        echo "  Settings:"
+        echo "    [1] Edit alert thresholds"
+        echo "    [2] Edit quiet hours"
+        echo "    [3] Edit notifications"
+        echo "    [4] Launch setup wizard"
+        echo "    [b] Back to dashboard"
+        echo ""
+        read -p "  Choose option: " choice
+
+        case "$choice" in
+            1) edit_alert_thresholds ;;
+            2) edit_quiet_hours ;;
+            3) edit_notifications ;;
+            4) launch_setup_wizard ;;
+            b|B) break ;;
+            *) echo "  Invalid option" ;;
+        esac
+    done
+}
+
+# Edit alert thresholds
+edit_alert_thresholds() {
+    if has_dialog; then
+        local warning_hours
+        warning_hours=$(show_inputbox "Alert Thresholds" "Hours before WARNING state (current: ${ALERT_WARNING_HOURS:-24}):" "${ALERT_WARNING_HOURS:-24}")
+        [[ -z "$warning_hours" ]] && return
+
+        local error_hours
+        error_hours=$(show_inputbox "Alert Thresholds" "Hours before ERROR state (current: ${ALERT_ERROR_HOURS:-72}):" "${ALERT_ERROR_HOURS:-72}")
+        [[ -z "$error_hours" ]] && return
+
+        if [[ "$warning_hours" =~ ^[0-9]+$ ]] && [[ "$error_hours" =~ ^[0-9]+$ ]]; then
+            export ALERT_WARNING_HOURS="$warning_hours"
+            export ALERT_ERROR_HOURS="$error_hours"
+            show_msgbox "Success" "Alert thresholds updated:\nWarning: $warning_hours hours\nError: $error_hours hours\n\nNote: Run setup wizard to save permanently."
+        else
+            show_msgbox "Error" "Invalid input. Hours must be positive integers."
+        fi
+    else
+        echo ""
+        read -p "  Hours before WARNING (current: ${ALERT_WARNING_HOURS:-24}): " warning_hours
+        read -p "  Hours before ERROR (current: ${ALERT_ERROR_HOURS:-72}): " error_hours
+
+        if [[ "$warning_hours" =~ ^[0-9]+$ ]] && [[ "$error_hours" =~ ^[0-9]+$ ]]; then
+            export ALERT_WARNING_HOURS="$warning_hours"
+            export ALERT_ERROR_HOURS="$error_hours"
+            echo "  ✓ Alert thresholds updated (run wizard to save permanently)"
+        else
+            echo "  ✗ Invalid input"
+        fi
+        wait_keypress
+    fi
+}
+
+# Edit quiet hours
+edit_quiet_hours() {
+    if has_dialog; then
+        local quiet_hours
+        quiet_hours=$(show_inputbox "Quiet Hours" "Format: HH-HH (e.g., 22-07 for 10pm-7am)\nLeave empty to disable.\nCurrent: ${QUIET_HOURS:-not set}" "${QUIET_HOURS:-}")
+
+        if [[ -z "$quiet_hours" ]]; then
+            export QUIET_HOURS=""
+            show_msgbox "Success" "Quiet hours disabled."
+        elif [[ "$quiet_hours" =~ ^[0-9]{1,2}-[0-9]{1,2}$ ]]; then
+            export QUIET_HOURS="$quiet_hours"
+            show_msgbox "Success" "Quiet hours set to: $quiet_hours\n\nNote: Run setup wizard to save permanently."
+        else
+            show_msgbox "Error" "Invalid format. Use HH-HH (e.g., 22-07)"
+        fi
+    else
+        echo ""
+        echo "  Format: HH-HH (e.g., 22-07 for 10pm-7am)"
+        echo "  Leave empty to disable quiet hours."
+        read -p "  Quiet hours (current: ${QUIET_HOURS:-not set}): " quiet_hours
+
+        if [[ -z "$quiet_hours" ]]; then
+            export QUIET_HOURS=""
+            echo "  ✓ Quiet hours disabled"
+        elif [[ "$quiet_hours" =~ ^[0-9]{1,2}-[0-9]{1,2}$ ]]; then
+            export QUIET_HOURS="$quiet_hours"
+            echo "  ✓ Quiet hours set (run wizard to save permanently)"
+        else
+            echo "  ✗ Invalid format"
+        fi
+        wait_keypress
+    fi
+}
+
+# Edit notification settings
+edit_notifications() {
+    if has_dialog; then
+        local sound
+        sound=$(show_menu "Notification Sound" "Select notification sound:" \
+            "default" "System default" \
+            "Basso" "Basso (error-like)" \
+            "Glass" "Glass (subtle)" \
+            "Hero" "Hero (achievement)" \
+            "Pop" "Pop (notification)" \
+            "none" "No sound")
+
+        if [[ -n "$sound" ]]; then
+            export NOTIFY_SOUND="$sound"
+            show_msgbox "Success" "Notification sound set to: $sound\n\nNote: Run setup wizard to save permanently."
+        fi
+    else
+        echo ""
+        echo "  Notification sounds: default, Basso, Glass, Hero, Pop, none"
+        read -p "  Sound (current: ${NOTIFY_SOUND:-default}): " sound
+
+        if [[ "$sound" =~ ^(default|Basso|Glass|Hero|Pop|none)$ ]]; then
+            export NOTIFY_SOUND="$sound"
+            echo "  ✓ Sound set (run wizard to save permanently)"
+        else
+            echo "  ✗ Invalid sound option"
+        fi
+        wait_keypress
+    fi
+}
+
+# Launch full setup wizard
+launch_setup_wizard() {
+    local config_script
+    config_script=$(get_config_script)
+
+    if [[ -x "$config_script" ]]; then
+        clear_screen
+        "$config_script" wizard
+        wait_keypress
+    else
+        if has_dialog; then
+            show_msgbox "Error" "Configuration script not found:\n$config_script"
+        else
+            echo "  Error: Configuration script not found: $config_script"
+            wait_keypress
+        fi
+    fi
 }
 
 # ==============================================================================
