@@ -72,8 +72,15 @@ if [[ -f "$CLOUD_LIB" ]] && [[ "${CLOUD_ENABLED:-false}" == "true" ]]; then
     source "$CLOUD_LIB"
 fi
 
-# Load retention policy library (for tiered cleanup)
+# Load library files
 LIB_DIR="$SCRIPT_DIR/../lib"
+
+# Core backup library (provides has_changes, get_changed_files_fast)
+if [ -f "$LIB_DIR/backup-lib.sh" ]; then
+    source "$LIB_DIR/backup-lib.sh"
+fi
+
+# Retention policy library (for tiered cleanup)
 if [ -f "$LIB_DIR/retention-policy.sh" ]; then
     source "$LIB_DIR/retention-policy.sh"
 fi
@@ -253,14 +260,15 @@ backup_changed_files() {
     # Get list of CHANGED files to backup
     changed_files=$(mktemp)
 
-    # Modified tracked files
-    git diff --name-only >> "$changed_files" 2>/dev/null || true
-
-    # Staged files
-    git diff --cached --name-only >> "$changed_files" 2>/dev/null || true
-
-    # Untracked files (not in .gitignore)
-    git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+    # Use parallel git detection if function available (from backup-lib.sh)
+    if type get_changed_files_fast &>/dev/null; then
+        get_changed_files_fast "$changed_files"
+    else
+        # Fallback: sequential git commands
+        git diff --name-only >> "$changed_files" 2>/dev/null || true
+        git diff --cached --name-only >> "$changed_files" 2>/dev/null || true
+        git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+    fi
 
     # Add critical gitignored files (if enabled)
     if [ "$BACKUP_ENV_FILES" = true ]; then
