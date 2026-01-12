@@ -300,9 +300,89 @@ EOF
 }
 
 # ==============================================================================
+# PROJECT ERROR EXTRACTION
+# ==============================================================================
+
+# Get backup directory for a project
+# Args: $1 = project path
+# Returns: backup directory path
+get_project_backup_dir() {
+    local project_path="$1"
+    local config_file="$project_path/.backup-config.sh"
+
+    if [[ -f "$config_file" ]]; then
+        (
+            source "$config_file" 2>/dev/null
+            echo "${BACKUP_DIR:-$project_path/backups}"
+        )
+    else
+        echo "$project_path/backups"
+    fi
+}
+
+# Get recent errors for a project from backup state
+# Args: $1 = project path, $2 = max errors (default 5)
+# Returns: One error per line in format: error_code:file_path
+get_project_errors() {
+    local project_path="$1"
+    local max_errors="${2:-5}"
+    local project_name
+    project_name=$(basename "$project_path")
+    local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
+    local state_file="$state_dir/$project_name/last-backup.json"
+
+    if [[ ! -f "$state_file" ]]; then
+        return
+    fi
+
+    # Extract failures from JSON (grep-based, no jq dependency)
+    # Failure format: {"type":"file","path":"...","error_code":"...","error_message":"...","suggested_fix":"..."}
+    local in_failures=false
+    local count=0
+    local current_code=""
+    local current_path=""
+
+    while IFS= read -r line; do
+        # Detect start of failures array
+        if [[ "$line" =~ \"failures\"[[:space:]]*:[[:space:]]*\[ ]]; then
+            in_failures=true
+            continue
+        fi
+
+        if [[ "$in_failures" == "true" ]]; then
+            # End of failures array
+            if [[ "$line" =~ ^[[:space:]]*\] ]]; then
+                break
+            fi
+
+            # Extract error_code from line
+            if [[ "$line" =~ \"error_code\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+                current_code="${BASH_REMATCH[1]}"
+            fi
+
+            # Extract path from line
+            if [[ "$line" =~ \"path\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+                current_path="${BASH_REMATCH[1]}"
+            fi
+
+            # If we have both, output and reset
+            if [[ -n "$current_code" && -n "$current_path" ]]; then
+                echo "$current_code:$current_path"
+                current_code=""
+                current_path=""
+                ((count++))
+                [[ $count -ge $max_errors ]] && break
+            fi
+        fi
+    done < "$state_file"
+}
+
+# ==============================================================================
 # EXPORT FUNCTIONS
 # ==============================================================================
 
+export -f get_project_backup_dir
+export -f get_project_errors
 export -f get_project_backup_age
 export -f has_project_errors
 export -f get_project_health

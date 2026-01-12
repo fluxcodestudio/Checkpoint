@@ -16,25 +16,13 @@ source "$LIB_DIR/projects-registry.sh"
 source "$LIB_DIR/global-status.sh"
 source "$LIB_DIR/dashboard-ui.sh"
 source "$LIB_DIR/retention-policy.sh"
+source "$LIB_DIR/backup-lib.sh"
 
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
 
-# Get backup directory for a project
-get_project_backup_dir() {
-    local project_path="$1"
-    local config_file="$project_path/.backup-config.sh"
-
-    if [[ -f "$config_file" ]]; then
-        (
-            source "$config_file" 2>/dev/null
-            echo "${BACKUP_DIR:-$project_path/backups}"
-        )
-    else
-        echo "$project_path/backups"
-    fi
-}
+# Note: get_project_backup_dir is now in global-status.sh
 
 # Get storage usage for a project
 get_project_storage() {
@@ -403,6 +391,45 @@ cleanup_preview_all() {
 }
 
 # ==============================================================================
+# ERROR PANEL DISPLAY
+# ==============================================================================
+
+# Display error details panel for a project
+# Shows recent errors with descriptions and suggested fixes
+display_error_panel() {
+    local project_path="$1"
+    local name
+    name=$(basename "$project_path")
+
+    echo ""
+    echo "  Error Details"
+    echo "  ────────────────────────────────────────────────"
+
+    local errors
+    errors=$(get_project_errors "$project_path" 5)
+
+    if [[ -z "$errors" ]]; then
+        echo "  No recent errors"
+        return
+    fi
+
+    while IFS= read -r error; do
+        [[ -z "$error" ]] && continue
+        local code="${error%%:*}"
+        local file="${error#*:}"
+        local desc
+        desc=$(get_error_description "$code")
+        local fix
+        fix=$(get_error_suggestion "$code")
+
+        echo "  [$code] $desc"
+        printf "    File: %s\n" "$file"
+        printf "    Fix:  %s\n" "$fix"
+        echo ""
+    done <<< "$errors"
+}
+
+# ==============================================================================
 # DETAILED PROJECT VIEW
 # ==============================================================================
 
@@ -510,6 +537,11 @@ display_project_detail() {
         done
     else
         echo "    No activity log found"
+    fi
+
+    # Error details panel (only if project has errors)
+    if has_project_errors "$project_path"; then
+        display_error_panel "$project_path"
     fi
 
     echo ""
