@@ -367,12 +367,16 @@ if [ $preflight_errors -gt 0 ]; then
     log_error ""
     log_error "Pre-flight checks failed ($preflight_errors errors)"
 
-    # Determine specific error message
+    # Determine specific error code and message
     if [ "$DRIVE_VERIFICATION_ENABLED" = "true" ] && ! check_drive; then
-        notify_backup_failure "$preflight_errors" "0" "0"  # No files attempted yet
+        local error_code
+        error_code=$(map_error_to_code "drive_disconnected")
+        notify_backup_failure "$preflight_errors" "0" "0" "$error_code"
         echo "Error: Drive not connected: $DRIVE_MARKER_FILE" > "$STATE_DIR/.last-backup-failures"
     else
-        notify_backup_failure "$preflight_errors" "0" "0"  # No files attempted yet
+        local error_code
+        error_code=$(map_error_to_code "config_invalid")
+        notify_backup_failure "$preflight_errors" "0" "0" "$error_code"
         echo "Pre-flight checks failed" > "$STATE_DIR/.last-backup-failures"
     fi
 
@@ -872,27 +876,18 @@ if [ "$DATABASE_ONLY" = false ]; then
                                 file_count=$((file_count + 1))
                                 BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
                             else
-                                # Both failed
-                                error_code="${COPY_FAILURE_REASON:-copy_failed}"
-                                add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "Check cloud folder accessibility" 3
+                                # Both failed - use standardized error codes
+                                local raw_code="${COPY_FAILURE_REASON:-copy_failed}"
+                                error_code=$(map_error_to_code "$raw_code")
+                                suggested_fix=$(get_error_suggestion "$error_code")
+                                add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "$suggested_fix" 3
                                 log_error "      ✗ Failed: $file ($error_code)"
                             fi
                         else
-                            # No secondary, primary failed
-                            error_code="${COPY_FAILURE_REASON:-copy_failed}"
-                            suggested_fix=""
-
-                            case "$error_code" in
-                                "permission_denied")
-                                    suggested_fix="Run: chmod +r \"$file\" or check file permissions"
-                                    ;;
-                                "disk_full")
-                                    suggested_fix="Free disk space or move backups to larger drive"
-                                    ;;
-                                *)
-                                    suggested_fix="Check file accessibility and try again"
-                                    ;;
-                            esac
+                            # No secondary, primary failed - use standardized error codes
+                            local raw_code="${COPY_FAILURE_REASON:-copy_failed}"
+                            error_code=$(map_error_to_code "$raw_code")
+                            suggested_fix=$(get_error_suggestion "$error_code")
 
                             add_file_failure "$file" "$error_code" "Copy failed after 3 retries" "$suggested_fix" 3
                             log_error "      ✗ Failed: $file ($error_code)"
@@ -923,27 +918,18 @@ if [ "$DATABASE_ONLY" = false ]; then
                             file_count=$((file_count + 1))
                             BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
                         else
-                            # Both failed
-                            error_code="${COPY_FAILURE_REASON:-copy_failed}"
-                            add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "Check cloud folder accessibility" 3
+                            # Both failed - use standardized error codes
+                            local raw_code="${COPY_FAILURE_REASON:-copy_failed}"
+                            error_code=$(map_error_to_code "$raw_code")
+                            suggested_fix=$(get_error_suggestion "$error_code")
+                            add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "$suggested_fix" 3
                             log_error "      ✗ Failed: $file ($error_code)"
                         fi
                     else
-                        # No secondary, primary failed
-                        error_code="${COPY_FAILURE_REASON:-copy_failed}"
-                        suggested_fix=""
-
-                        case "$error_code" in
-                            "permission_denied")
-                                suggested_fix="Run: chmod +r \"$file\" or check file permissions"
-                                ;;
-                            "disk_full")
-                                suggested_fix="Free disk space or move backups to larger drive"
-                                ;;
-                            *)
-                                suggested_fix="Check file accessibility and try again"
-                                ;;
-                        esac
+                        # No secondary, primary failed - use standardized error codes
+                        local raw_code="${COPY_FAILURE_REASON:-copy_failed}"
+                        error_code=$(map_error_to_code "$raw_code")
+                        suggested_fix=$(get_error_suggestion "$error_code")
 
                         add_file_failure "$file" "$error_code" "Copy failed after 3 retries" "$suggested_fix" 3
                         log_error "      ✗ Failed: $file ($error_code)"
@@ -966,15 +952,23 @@ if [ "$DATABASE_ONLY" = false ]; then
             backup_file="$FILES_DIR/$file"
 
             if [ ! -f "$backup_file" ]; then
-                # File missing from backup
-                add_file_failure "$file" "file_missing" "File missing from backup" "File was deleted during backup (ignore if intentional)" 0
+                # File missing from backup - use standardized error code
+                local error_code
+                error_code=$(map_error_to_code "file_missing")
+                local suggested_fix
+                suggested_fix=$(get_error_suggestion "$error_code")
+                add_file_failure "$file" "$error_code" "File missing from backup" "$suggested_fix" 0
                 log_error "      ✗ Verification failed: $file (missing from backup)"
             else
                 # Check size matches
                 actual_size=$(stat -f%z "$backup_file" 2>/dev/null || echo "0")
                 if [ "$actual_size" != "$expected_size" ]; then
-                    # Size mismatch - file may be corrupted or modified during backup
-                    add_file_failure "$file" "size_mismatch" "Size: expected $expected_size, got $actual_size" "File was modified during backup. Retry backup to capture current version" 0
+                    # Size mismatch - use standardized error code
+                    local error_code
+                    error_code=$(map_error_to_code "size_mismatch")
+                    local suggested_fix
+                    suggested_fix=$(get_error_suggestion "$error_code")
+                    add_file_failure "$file" "$error_code" "Size: expected $expected_size, got $actual_size" "$suggested_fix" 0
                     log_error "      ✗ Verification failed: $file (size mismatch: expected $expected_size, got $actual_size)"
                 fi
             fi

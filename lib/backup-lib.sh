@@ -203,11 +203,12 @@ send_notification() {
 }
 
 # Send backup failure notification (with spam prevention + escalation)
-# Args: $1 = error count, $2 = total files attempted, $3 = files succeeded
+# Args: $1 = error count, $2 = total files attempted, $3 = files succeeded, $4 = first error code (optional)
 notify_backup_failure() {
     local error_count="$1"
     local total_files="${2:-0}"
     local succeeded_files="${3:-0}"
+    local first_error_code="${4:-EUNK000}"
     local state_dir="${STATE_DIR:-$HOME/.claudecode-backups/state}"
     local project_name="${PROJECT_NAME:-unknown}"
     local project_state_dir="$state_dir/$project_name"
@@ -225,25 +226,37 @@ notify_backup_failure() {
         done < "$failure_log"
     fi
 
+    # Get actionable fix for first error
+    local first_fix
+    first_fix=$(get_error_suggestion "$first_error_code")
+    local error_desc
+    error_desc=$(get_error_description "$first_error_code")
+
     # Check if this is a new failure or escalation
     if [ ! -f "$failure_state" ]; then
-        # FIRST FAILURE - notify immediately with details
+        # FIRST FAILURE - notify immediately with details and actionable fix
         local summary="$succeeded_files/$total_files files backed up. $error_count FAILED."
+
+        # Include first actionable fix in notification (truncated for display)
+        local short_fix="${first_fix:0:50}"
+        [[ ${#first_fix} -gt 50 ]] && short_fix="${short_fix}..."
 
         send_notification \
             "⚠️ Checkpoint Backup Incomplete" \
-            "${PROJECT_NAME}: $summary Run 'backup-failures' for LLM prompt." \
+            "${PROJECT_NAME}: $summary Fix: $short_fix" \
             "Basso"
 
-        # Mark as failed with timestamp, counts, and LLM prompt
-        echo "$(date +%s)|$error_count|$succeeded_files|$total_files|$llm_prompt" > "$failure_state"
+        # Mark as failed with timestamp, counts, error code, and LLM prompt
+        echo "$(date +%s)|$error_count|$succeeded_files|$total_files|$first_error_code|$llm_prompt" > "$failure_state"
 
         # Also write LLM prompt to separate file for easy access
         echo "$llm_prompt" > "$project_state_dir/.last-backup-llm-prompt"
     else
         # EXISTING FAILURE - check if we should escalate
-        local first_failure_time=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f1)
-        local now=$(date +%s)
+        local first_failure_time
+        first_failure_time=$(cat "$failure_state" 2>/dev/null | cut -d'|' -f1)
+        local now
+        now=$(date +%s)
         local time_since_first=$((now - first_failure_time))
 
         # Escalate every 3 hours (10800 seconds)
@@ -258,10 +271,13 @@ notify_backup_failure() {
         local time_since_escalation=$((now - last_escalation))
 
         if [ $time_since_escalation -ge $escalation_interval ]; then
-            # ESCALATION - remind user with counts
+            # ESCALATION - remind user with error code and fix
+            local short_fix="${first_fix:0:40}"
+            [[ ${#first_fix} -gt 40 ]] && short_fix="${short_fix}..."
+
             send_notification \
                 "🚨 Checkpoint Still Incomplete" \
-                "${PROJECT_NAME}: $error_count files failing for $((time_since_first / 3600))h. Run 'backup-failures' to fix." \
+                "${PROJECT_NAME}: $first_error_code for $((time_since_first / 3600))h. $short_fix" \
                 "Basso"
 
             echo "$now" > "$escalation_marker"
