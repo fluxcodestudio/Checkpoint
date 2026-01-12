@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An automatic, redundant backup system for development projects that protects code and databases without manual intervention. Backs up locally and to cloud (Dropbox/GDrive), maintains version history, and integrates seamlessly with Claude Code workflows.
+An automatic, redundant backup system for development projects that protects code and databases without manual intervention. Backs up locally and to cloud (Dropbox/GDrive), maintains version history with tiered retention, and integrates seamlessly with Claude Code workflows via event triggers.
 
 ## Core Value
 
@@ -12,32 +12,32 @@ Backups happen automatically and invisibly — developer never loses work and ne
 
 ### Validated
 
-<!-- Shipped and confirmed valuable. Inferred from existing codebase. -->
+<!-- Shipped and confirmed valuable. -->
 
-- ✓ Core backup engine (backup-now, status, restore) — existing
-- ✓ Background daemon with hourly backups (launchd/cron) — existing
-- ✓ Database detection and backup (SQLite, PostgreSQL, MySQL, MongoDB) — existing
-- ✓ Cloud backup via rclone (40+ providers) — existing
-- ✓ File version archiving — existing
-- ✓ State tracking with JSON — existing
-- ✓ Native macOS/Linux notifications — existing
-- ✓ Claude Code skills (/checkpoint, pause, update) — existing
-- ✓ Per-project and global installation modes — existing
-- ✓ Platform integrations (git, shell, vim, vscode, tmux) — existing
+- Core backup engine (backup-now, status, restore) — existing
+- Background daemon with hourly backups (launchd/cron) — existing
+- Database detection and backup (SQLite, PostgreSQL, MySQL, MongoDB) — existing
+- Cloud backup via rclone (40+ providers) — existing
+- File version archiving — existing
+- State tracking with JSON — existing
+- Native macOS/Linux notifications — existing
+- Claude Code skills (/checkpoint, pause, update) — existing
+- Per-project and global installation modes — existing
+- Platform integrations (git, shell, vim, vscode, tmux) — existing
+- Cloud folder as primary backup destination (Dropbox/GDrive) — v1.0
+- Activity-based backup triggers with 60s debouncing — v1.0
+- Claude Code event triggers (conversation end, file changes, commits) — v1.0
+- Offline fallback chain: cloud folder → rclone API → local queue — v1.0
+- Tiered snapshot retention (hourly/daily/weekly/monthly) — v1.0
+- Status bar indicator for backup health — v1.0
+- All-projects dashboard view — v1.0
+- Sub-minute restore capability from any point in last week — v1.0
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Activity-based backup triggers (debounced file watching)
-- [ ] Claude Code event triggers (conversation end, file changes, commits)
-- [ ] Master backup folder in cloud-synced directory (Dropbox/GDrive folder)
-- [ ] Offline fallback chain: cloud folder → direct API → local queue
-- [ ] Tiered snapshot retention (hourly/daily/weekly/monthly)
-- [ ] Status bar indicator for backup health
-- [ ] All-projects dashboard view
-- [ ] Sub-minute restore capability from any point in last week
-- [ ] Non-interference guarantee (never impacts Claude Code operation)
+(None — v1.0 complete, planning next milestone)
 
 ### Out of Scope
 
@@ -48,14 +48,16 @@ Backups happen automatically and invisibly — developer never loses work and ne
 
 ## Context
 
-**Existing codebase state:**
+**Current state (v1.0 shipped):**
+- 58,315 lines of bash code
 - Pure bash implementation (lib/*.sh, bin/*.sh)
 - Layered architecture: CLI → Orchestration → Service → Integration → Storage
-- Already has cloud backup infrastructure via rclone
-- Already has daemon support and notification systems
-- Claude Code skills already integrated
+- Cloud sync via desktop apps (Dropbox/GDrive folder)
+- API fallback via rclone (40+ providers)
+- Tiered retention (hourly/daily/weekly/monthly)
+- Claude Code hook integration
 
-**Backup architecture (existing):**
+**Backup architecture:**
 ```
 PROJECT/backups/
 ├── files/           # Current file versions (UNCOMPRESSED mirror)
@@ -65,34 +67,25 @@ PROJECT/backups/
 └── databases/       # Database dumps (COMPRESSED .db.gz)
     └── mydb_20260103_120000.db.gz
 ```
-- Files: Uncompressed copies, directory structure preserved
-- When file changes: current → archived with timestamp, new version → files/
-- Databases: Always compressed (gzip) — full dumps, not incremental
-- Retention: files=60 days, databases=30 days
-
-**Key insight from user:**
-Cloud sync services (Dropbox, GDrive) have local folders that auto-sync. Writing to these folders = automatic cloud backup without API calls. Direct API (rclone) is fallback only.
-
-**Smart batching approach:**
-Professional backup services use debouncing (wait N seconds after last change) rather than backing up on every file write. This captures natural "pause points" in development without creating excessive snapshots.
 
 ## Constraints
 
 - **Platform**: macOS only — simplifies launchd integration, notification APIs
-- **Non-interference**: Backup system must never impact Claude Code operation — runs independently, no file locking, no git conflicts
-- **Architecture**: Stay within pure bash paradigm — no Python/Node dependencies for core functionality
+- **Non-interference**: Backup system must never impact Claude Code operation
+- **Architecture**: Pure bash, no Python/Node dependencies for core functionality
 
 ## Key Decisions
 
-<!-- Decisions that constrain future work. Add throughout project lifecycle. -->
-
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Cloud folder as primary destination | User's Dropbox/GDrive folder auto-syncs via desktop app — simpler than API calls | — Pending |
-| Debounce-based triggers (60s) | Captures natural pause points without excessive snapshots | — Pending |
-| Tiered retention | Granular recent history, compressed older history — like Time Machine | — Pending |
-| Fallback chain priority | Cloud folder → rclone API → local queue — maximize reliability | — Pending |
-| macOS only for v1 | Reduces complexity, user's primary platform | — Pending |
+| Cloud folder as primary destination | User's Dropbox/GDrive folder auto-syncs via desktop app | ✓ Good — zero API calls, instant sync |
+| Debounce-based triggers (60s) | Captures natural pause points without excessive snapshots | ✓ Good — balances granularity and efficiency |
+| Tiered retention | Granular recent history, compressed older history — like Time Machine | ✓ Good — efficient storage use |
+| Fallback chain priority | Cloud folder → rclone API → local queue — maximize reliability | ✓ Good — no backup ever lost |
+| macOS only for v1 | Reduces complexity, user's primary platform | ✓ Good — faster delivery |
+| Health thresholds: >24h warning, >72h error | Balance between alerting and noise | ✓ Good — reasonable defaults |
+| Use $((var + 1)) not ((var++)) | set -e compatibility (0++ returns exit 1) | ✓ Good — bash portability |
+| Derive FILES_DIR from BACKUP_DIR | Config order independence | ✓ Good — simpler config |
 
 ---
-*Last updated: 2026-01-10 after initialization*
+*Last updated: 2026-01-11 after v1.0 milestone*
