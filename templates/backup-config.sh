@@ -250,6 +250,43 @@ LOG_FILE="$BACKUP_DIR/backup.log"
 FALLBACK_LOG="$HOME/.claudecode-backups/logs/${PROJECT_NAME}/backup-fallback.log"
 
 # ==============================================================================
+# ALERTS AND NOTIFICATIONS
+# ==============================================================================
+
+# Alert thresholds (when backup is considered stale)
+# Warning state: backup older than this many hours
+ALERT_WARNING_HOURS=24
+
+# Error state: backup older than this many hours
+ALERT_ERROR_HOURS=72
+
+# Notification preferences
+NOTIFY_ON_SUCCESS=false      # Notify after successful backup (useful after fixing issues)
+NOTIFY_ON_WARNING=true       # Notify when backup becomes stale (warning threshold)
+NOTIFY_ON_ERROR=true         # Notify on backup failures
+
+# Escalation: hours between repeated notifications for same issue
+NOTIFY_ESCALATION_HOURS=3
+
+# Notification sound: default, Basso, Glass, Hero, Pop, none
+NOTIFY_SOUND="default"
+
+# Per-project notification override (set to false to silence this project)
+PROJECT_NOTIFY_ENABLED=true
+
+# ==============================================================================
+# QUIET HOURS
+# ==============================================================================
+
+# Suppress non-critical notifications during quiet hours
+# Format: START-END in 24-hour time (e.g., "22-07" for 10pm to 7am)
+# Leave empty to disable quiet hours
+QUIET_HOURS=""
+
+# Block even critical errors during quiet hours (default: false = critical errors always notify)
+QUIET_HOURS_BLOCK_ERRORS=false
+
+# ==============================================================================
 # STATE FILES (coordination between daemon and hooks)
 # ==============================================================================
 
