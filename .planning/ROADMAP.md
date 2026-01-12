@@ -73,6 +73,7 @@ Plans:
 
 Plans:
 - [x] 09-01: Update configuration template with Phase 8 options
+- [x] 09-02: Enhance wizard with cloud, alerts, and hooks sections
 
 ## Progress
 
@@ -86,4 +87,4 @@ Plans:
 | 6. Dashboard & Monitoring | v1.0 | 3/3 | Complete | 2026-01-11 |
 | 7. Performance Optimization | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 8. Monitoring Enhancements | v1.1 | 3/3 | Complete | 2026-01-12 |
-| 9. Configuration UX | v1.1 | 1/? | In progress | - |
+| 9. Configuration UX | v1.1 | 2/3 | In progress | - |
