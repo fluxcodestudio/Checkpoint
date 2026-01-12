@@ -1018,6 +1018,106 @@ get_dir_size_bytes() {
 }
 
 # ==============================================================================
+# HASH-BASED FILE COMPARISON
+# ==============================================================================
+
+# Get file hash (uses mtime-based cache for performance)
+# Args: $1 = file path
+# Returns: SHA256 hash (64 chars) on stdout, returns 1 on error
+# Cache format: filepath|mtime|sha256hash (pipe-delimited)
+get_file_hash() {
+    local file="$1"
+    local hash_cache="${BACKUP_DIR:-.}/.hash-cache"
+    local file_mtime file_hash cached_line cached_mtime cached_hash
+
+    # Validate file exists
+    [ ! -f "$file" ] && return 1
+
+    # Get current mtime (macOS format)
+    file_mtime=$(stat -f%m "$file" 2>/dev/null) || return 1
+
+    # Check cache for existing hash
+    if [ -f "$hash_cache" ]; then
+        # Escape special regex chars in file path for grep
+        local escaped_file
+        escaped_file=$(printf '%s' "$file" | sed 's/[[\.*^$()+?{|\\]/\\&/g')
+        cached_line=$(grep "^${escaped_file}|" "$hash_cache" 2>/dev/null | head -1) || true
+        if [ -n "$cached_line" ]; then
+            cached_mtime=$(echo "$cached_line" | cut -d'|' -f2)
+            cached_hash=$(echo "$cached_line" | cut -d'|' -f3)
+            if [ "$file_mtime" = "$cached_mtime" ] && [ -n "$cached_hash" ]; then
+                echo "$cached_hash"
+                return 0
+            fi
+        fi
+    fi
+
+    # Compute new hash (macOS uses shasum, not sha256sum)
+    file_hash=$(shasum -a 256 "$file" 2>/dev/null | cut -d' ' -f1) || return 1
+
+    # Validate hash looks correct (64 hex chars)
+    if [ ${#file_hash} -ne 64 ]; then
+        return 1
+    fi
+
+    # Update cache atomically
+    local tmp_cache
+    tmp_cache=$(mktemp 2>/dev/null) || return 1
+
+    # Ensure cache directory exists
+    mkdir -p "$(dirname "$hash_cache")" 2>/dev/null || true
+
+    # Remove old entry for this file (if any) and add new one
+    if [ -f "$hash_cache" ]; then
+        local escaped_file
+        escaped_file=$(printf '%s' "$file" | sed 's/[[\.*^$()+?{|\\]/\\&/g')
+        grep -v "^${escaped_file}|" "$hash_cache" 2>/dev/null > "$tmp_cache" || true
+    fi
+    echo "${file}|${file_mtime}|${file_hash}" >> "$tmp_cache"
+
+    # Atomic replace
+    mv "$tmp_cache" "$hash_cache" 2>/dev/null || {
+        rm -f "$tmp_cache"
+        # Still return hash even if cache update fails
+        echo "$file_hash"
+        return 0
+    }
+
+    echo "$file_hash"
+    return 0
+}
+
+# Fast file comparison using size check + hash comparison
+# Args: $1 = file1, $2 = file2
+# Returns: 0 if files are identical, 1 if different or error
+files_identical_hash() {
+    local file1="$1"
+    local file2="$2"
+
+    # Both files must exist
+    [ ! -f "$file1" ] && return 1
+    [ ! -f "$file2" ] && return 1
+
+    # Quick size check first (very fast, eliminates most differences)
+    local size1 size2
+    size1=$(stat -f%z "$file1" 2>/dev/null) || return 1
+    size2=$(stat -f%z "$file2" 2>/dev/null) || return 1
+
+    # Different sizes = definitely different
+    if [ "$size1" != "$size2" ]; then
+        return 1
+    fi
+
+    # Same size - compare hashes
+    local hash1 hash2
+    hash1=$(get_file_hash "$file1") || return 1
+    hash2=$(get_file_hash "$file2") || return 1
+
+    # Compare hashes
+    [ "$hash1" = "$hash2" ]
+}
+
+# ==============================================================================
 # COMPONENT HEALTH CHECKS
 # ==============================================================================
 
