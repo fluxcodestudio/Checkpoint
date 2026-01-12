@@ -10,7 +10,8 @@ None
 
 ## Milestones
 
-- [v1.0 Automated Backup System](milestones/v1.0-ROADMAP.md) (Phases 1-6) — SHIPPED 2026-01-11
+- ✅ [v1.0 Automated Backup System](milestones/v1.0-ROADMAP.md) (Phases 1-6) — SHIPPED 2026-01-11
+- 🚧 **v1.1 Polish & Performance** — Phases 7-9 (in progress)
 
 ## Completed Milestones
 
@@ -30,6 +31,45 @@ None
 
 </details>
 
+### 🚧 v1.1 Polish & Performance (In Progress)
+
+**Milestone Goal:** Improve the v1.0 foundation with optimizations, better observability, and easier configuration.
+
+**Constraints:**
+- Stay within pure bash paradigm (no new language dependencies)
+- Maintain backwards compatibility with v1.0 configurations
+- Non-interference guarantee remains critical
+
+#### Phase 7: Performance Optimization
+
+**Goal**: Faster backups, lower resource usage, smarter change detection
+**Depends on**: v1.0 complete
+**Research**: Unlikely (internal optimization patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01: TBD (run /gsd:plan-phase 7 to break down)
+
+#### Phase 8: Monitoring Enhancements
+
+**Goal**: Better alerts, richer dashboard, clearer error reporting
+**Depends on**: Phase 7
+**Research**: Unlikely (internal patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 08-01: TBD
+
+#### Phase 9: Configuration UX
+
+**Goal**: Guided setup wizard, more options, better defaults
+**Depends on**: Phase 8
+**Research**: Unlikely (established patterns)
+**Plans**: TBD
+
+Plans:
+- [ ] 09-01: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -40,3 +80,6 @@ None
 | 4. Fallback Chain | v1.0 | 2/2 | Complete | 2026-01-11 |
 | 5. Tiered Retention | v1.0 | 2/2 | Complete | 2026-01-11 |
 | 6. Dashboard & Monitoring | v1.0 | 3/3 | Complete | 2026-01-11 |
+| 7. Performance Optimization | v1.1 | 0/? | Not started | - |
+| 8. Monitoring Enhancements | v1.1 | 0/? | Not started | - |
+| 9. Configuration UX | v1.1 | 0/? | Not started | - |
