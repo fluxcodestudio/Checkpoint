@@ -1929,6 +1929,122 @@ delete_files_batch() {
 }
 
 # ==============================================================================
+# SINGLE-PASS CLEANUP (Performance Optimization)
+# ==============================================================================
+# Replaces multiple find traversals with single-pass scanning
+# Uses BSD stat -f (macOS compatible) instead of GNU find -printf
+
+# Global arrays to hold cleanup scan results
+CLEANUP_EXPIRED_DBS=()
+CLEANUP_EXPIRED_FILES=()
+CLEANUP_EMPTY_DIRS=()
+
+# Single-pass cleanup scanner - replaces multiple find operations
+# Usage: cleanup_single_pass [backup_dir]
+cleanup_single_pass() {
+    local backup_dir="${1:-$BACKUP_DIR}"
+    local db_retention="${DB_RETENTION_DAYS:-30}"
+    local file_retention="${FILE_RETENTION_DAYS:-7}"
+    local archived_dir="${backup_dir}/archived"
+    local database_dir="${backup_dir}/databases"
+
+    # Reset global arrays
+    CLEANUP_EXPIRED_DBS=()
+    CLEANUP_EXPIRED_FILES=()
+    CLEANUP_EMPTY_DIRS=()
+
+    local now
+    now=$(date +%s)
+    local db_cutoff=$((now - db_retention * 86400))
+    local file_cutoff=$((now - file_retention * 86400))
+
+    # Single traversal for databases
+    if [ -d "$database_dir" ]; then
+        while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            local file mtime
+            file="${line%|*}"
+            mtime="${line##*|}"
+            [ -n "$mtime" ] && [ "$mtime" -lt "$db_cutoff" ] 2>/dev/null && CLEANUP_EXPIRED_DBS+=("$file")
+        done < <(find "$database_dir" -name "*.db.gz" -type f -exec stat -f "%N|%m" {} \; 2>/dev/null)
+    fi
+
+    # Single traversal for archived files + empty dirs
+    if [ -d "$archived_dir" ]; then
+        while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            local path type_char mtime
+            # Parse: path|type|mtime (e.g., "/path/file|Regular File|1234567890")
+            path="${line%%|*}"
+            local rest="${line#*|}"
+            type_char="${rest%%|*}"
+            mtime="${rest##*|}"
+
+            if [[ "$type_char" == "Regular File" ]]; then
+                [ -n "$mtime" ] && [ "$mtime" -lt "$file_cutoff" ] 2>/dev/null && CLEANUP_EXPIRED_FILES+=("$path")
+            elif [[ "$type_char" == "Directory" ]]; then
+                # Check if empty (skip archived_dir itself)
+                if [ "$path" != "$archived_dir" ] && [ -z "$(ls -A "$path" 2>/dev/null)" ]; then
+                    CLEANUP_EMPTY_DIRS+=("$path")
+                fi
+            fi
+        done < <(find "$archived_dir" \( -type f -o -type d \) -exec stat -f "%N|%HT|%m" {} \; 2>/dev/null)
+    fi
+
+    # Report counts (only if debug enabled or verbose)
+    if [ "${BACKUP_DEBUG:-false}" = "true" ]; then
+        echo "Cleanup scan: ${#CLEANUP_EXPIRED_DBS[@]} expired DBs, ${#CLEANUP_EXPIRED_FILES[@]} expired files, ${#CLEANUP_EMPTY_DIRS[@]} empty dirs"
+    fi
+}
+
+# Execute cleanup based on single-pass scan results
+# Usage: cleanup_execute [dry_run]
+cleanup_execute() {
+    local dry_run="${1:-false}"
+    local deleted=0
+
+    # Delete expired database backups
+    for f in "${CLEANUP_EXPIRED_DBS[@]}"; do
+        [ -z "$f" ] && continue
+        if [ "$dry_run" = "true" ]; then
+            echo "Would delete DB: $f"
+            continue
+        fi
+        rm -f "$f" && deleted=$((deleted + 1))
+    done
+
+    # Delete expired archived files
+    for f in "${CLEANUP_EXPIRED_FILES[@]}"; do
+        [ -z "$f" ] && continue
+        if [ "$dry_run" = "true" ]; then
+            echo "Would delete file: $f"
+            continue
+        fi
+        rm -f "$f" && deleted=$((deleted + 1))
+    done
+
+    # Delete empty dirs deepest-first (sort by path length descending)
+    if [ ${#CLEANUP_EMPTY_DIRS[@]} -gt 0 ]; then
+        local sorted_dirs
+        sorted_dirs=$(printf '%s\n' "${CLEANUP_EMPTY_DIRS[@]}" | awk '{print length, $0}' | sort -rn | cut -d' ' -f2-)
+        while IFS= read -r d; do
+            [ -z "$d" ] && continue
+            if [ "$dry_run" = "true" ]; then
+                echo "Would remove dir: $d"
+                continue
+            fi
+            rmdir "$d" 2>/dev/null && deleted=$((deleted + 1))
+        done <<< "$sorted_dirs"
+    fi
+
+    if [ "$dry_run" != "true" ] && [ "${BACKUP_DEBUG:-false}" = "true" ]; then
+        echo "Cleanup complete: $deleted items removed"
+    fi
+
+    return 0
+}
+
+# ==============================================================================
 # CLEANUP RECOMMENDATIONS
 # ==============================================================================
 
