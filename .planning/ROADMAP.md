@@ -57,10 +57,12 @@ Plans:
 **Goal**: Better alerts, richer dashboard, clearer error reporting
 **Depends on**: Phase 7
 **Research**: Unlikely (internal patterns)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01: Structured error codes with fix suggestions
+- [ ] 08-02: Dashboard error panel and health trends
+- [ ] 08-03: Configurable alerts and quiet hours
 
 #### Phase 9: Configuration UX
 
