@@ -1,5 +1,35 @@
 # Project Milestones: Checkpoint
 
+## v1.1 Polish & Performance (Shipped: 2026-01-12)
+
+**Delivered:** Performance optimizations (3x change detection, O(1) file comparison, 10x cleanup), enhanced monitoring (error codes, dashboard panels, configurable alerts), and improved configuration UX (wizard, validation, help).
+
+**Phases completed:** 7-9 (9 plans total)
+
+**Key accomplishments:**
+
+- Parallel git change detection with early-exit optimization (~3x faster)
+- Hash-based file comparison with mtime caching (O(1) for unchanged files)
+- Single-pass cleanup consolidation (10x faster for large archives)
+- Structured error codes with 15 error types and fix suggestions
+- Dashboard error panel with quick-fix commands and health trends
+- Configurable alerts, quiet hours, and per-project notification controls
+- Extended configuration validation for Phase 5-8 options
+- Topic-based help command for alerts, cloud, hooks, retention
+
+**Stats:**
+
+- 27 files modified
+- 59,630 lines of bash (+1,315 from v1.0)
+- 3 phases, 9 plans
+- 1 day from start to ship (2026-01-11 → 2026-01-12)
+
+**Git range:** `feat(07-01)` → `feat(09-03)`
+
+**What's next:** v1.2 or project stable
+
+---
+
 ## v1.0 Automated Backup System (Shipped: 2026-01-11)
 
 **Delivered:** Full automatic backup system with cloud sync, activity triggers, Claude Code integration, fallback reliability, tiered retention, and monitoring dashboard.

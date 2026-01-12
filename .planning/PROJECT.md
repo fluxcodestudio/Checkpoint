@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An automatic, redundant backup system for development projects that protects code and databases without manual intervention. Backs up locally and to cloud (Dropbox/GDrive), maintains version history with tiered retention, and integrates seamlessly with Claude Code workflows via event triggers.
+An automatic, redundant backup system for development projects that protects code and databases without manual intervention. Backs up locally and to cloud (Dropbox/GDrive), maintains version history with tiered retention, and integrates seamlessly with Claude Code workflows via event triggers. Optimized for performance with parallel change detection, hash-based comparison, and single-pass cleanup. Configurable alerts, quiet hours, and topic-based help for easy setup.
 
 ## Core Value
 
@@ -32,12 +32,20 @@ Backups happen automatically and invisibly — developer never loses work and ne
 - Status bar indicator for backup health — v1.0
 - All-projects dashboard view — v1.0
 - Sub-minute restore capability from any point in last week — v1.0
+- Parallel git change detection with early-exit optimization — v1.1
+- Hash-based file comparison with mtime caching — v1.1
+- Single-pass cleanup consolidation — v1.1
+- Structured error codes with fix suggestions — v1.1
+- Dashboard error panel with health trends — v1.1
+- Configurable alert thresholds and quiet hours — v1.1
+- Extended configuration validation — v1.1
+- Topic-based help command — v1.1
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-(None — v1.0 complete, planning next milestone)
+(None — v1.1 complete, project stable)
 
 ### Out of Scope
 
@@ -48,14 +56,17 @@ Backups happen automatically and invisibly — developer never loses work and ne
 
 ## Context
 
-**Current state (v1.0 shipped):**
-- 58,315 lines of bash code
+**Current state (v1.1 shipped):**
+- 59,630 lines of bash code
 - Pure bash implementation (lib/*.sh, bin/*.sh)
 - Layered architecture: CLI → Orchestration → Service → Integration → Storage
 - Cloud sync via desktop apps (Dropbox/GDrive folder)
 - API fallback via rclone (40+ providers)
 - Tiered retention (hourly/daily/weekly/monthly)
 - Claude Code hook integration
+- Performance optimizations: ~3x change detection, O(1) file comparison, 10x cleanup
+- Enhanced monitoring: 15 error codes, health trends, configurable alerts
+- Improved UX: validation, wizard, topic-based help
 
 **Backup architecture:**
 ```
@@ -86,6 +97,11 @@ PROJECT/backups/
 | Health thresholds: >24h warning, >72h error | Balance between alerting and noise | ✓ Good — reasonable defaults |
 | Use $((var + 1)) not ((var++)) | set -e compatibility (0++ returns exit 1) | ✓ Good — bash portability |
 | Derive FILES_DIR from BACKUP_DIR | Config order independence | ✓ Good — simpler config |
+| BSD stat -f for mtime retrieval | macOS compatibility (no GNU find -printf) | ✓ Good — portable |
+| Global arrays for scan results | Bash functions can't return arrays | ✓ Good — works with set -e |
+| All v1.1 config via env vars | Backwards compatibility with v1.0 configs | ✓ Good — no breaking changes |
+| Quiet hours overnight format (22-07) | Natural representation of overnight ranges | ✓ Good — intuitive |
+| Critical errors bypass quiet hours | Safety first — don't miss real problems | ✓ Good — sensible default |
 
 ---
-*Last updated: 2026-01-11 after v1.0 milestone*
+*Last updated: 2026-01-12 after v1.1 milestone*

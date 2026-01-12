@@ -2,19 +2,19 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-01-11)
+See: .planning/PROJECT.md (updated 2026-01-12)
 
 **Core value:** Backups happen automatically and invisibly — developer never loses work and never thinks about backups.
-**Current focus:** v1.1 Polish & Performance — Phase 9: Configuration UX
+**Current focus:** Project stable — v1.1 shipped
 
 ## Current Position
 
-Phase: 9 of 9 (Configuration UX)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-01-12 — Completed 09-03-PLAN.md
+Phase: 9 of 9 (all phases complete)
+Plan: All complete
+Status: v1.1 milestone shipped
+Last activity: 2026-01-12 — v1.1 milestone complete
 
-Progress: ██████████ 100%
+Progress: ██████████ 100% (v1.1 shipped)
 
 ## Performance Metrics
 
@@ -50,10 +50,11 @@ None.
 
 ### Roadmap Evolution
 
-- Milestone v1.1 created: Polish & Performance, 3 phases (Phase 7-9)
+- Milestone v1.0 shipped: 2026-01-11 (Phases 1-6)
+- Milestone v1.1 shipped: 2026-01-12 (Phases 7-9)
 
 ## Session Continuity
 
 Last session: 2026-01-12
-Stopped at: Completed 09-03-PLAN.md — Phase 9 complete, v1.1 milestone ready
+Stopped at: v1.1 milestone complete — project stable
 Resume file: None

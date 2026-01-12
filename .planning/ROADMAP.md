@@ -11,7 +11,7 @@ None
 ## Milestones
 
 - ✅ [v1.0 Automated Backup System](milestones/v1.0-ROADMAP.md) (Phases 1-6) — SHIPPED 2026-01-11
-- 🚧 **v1.1 Polish & Performance** — Phases 7-9 (in progress)
+- ✅ [v1.1 Polish & Performance](milestones/v1.1-ROADMAP.md) (Phases 7-9) — SHIPPED 2026-01-12
 
 ## Completed Milestones
 
@@ -31,50 +31,18 @@ None
 
 </details>
 
-### 🚧 v1.1 Polish & Performance (In Progress)
+<details>
+<summary>v1.1 Polish & Performance (Phases 7-9) — SHIPPED 2026-01-12</summary>
 
-**Milestone Goal:** Improve the v1.0 foundation with optimizations, better observability, and easier configuration.
+**Delivered:** Performance optimizations, enhanced monitoring, and improved configuration UX.
 
-**Constraints:**
-- Stay within pure bash paradigm (no new language dependencies)
-- Maintain backwards compatibility with v1.0 configurations
-- Non-interference guarantee remains critical
+- [x] **Phase 7: Performance Optimization** (3/3 plans) — 2026-01-12
+- [x] **Phase 8: Monitoring Enhancements** (3/3 plans) — 2026-01-12
+- [x] **Phase 9: Configuration UX** (3/3 plans) — 2026-01-12
 
-#### Phase 7: Performance Optimization
+[Full details](milestones/v1.1-ROADMAP.md)
 
-**Goal**: Faster backups, lower resource usage, smarter change detection
-**Depends on**: v1.0 complete
-**Research**: Unlikely (internal optimization patterns)
-**Plans**: 3 plans
-
-Plans:
-- [x] 07-01: Parallelize git change detection + early exit
-- [x] 07-02: Hash-based file comparison with caching
-- [x] 07-03: Single-pass cleanup consolidation
-
-#### Phase 8: Monitoring Enhancements
-
-**Goal**: Better alerts, richer dashboard, clearer error reporting
-**Depends on**: Phase 7
-**Research**: Unlikely (internal patterns)
-**Plans**: 3 plans
-
-Plans:
-- [x] 08-01: Structured error codes with fix suggestions
-- [x] 08-02: Dashboard error panel and health trends
-- [x] 08-03: Configurable alerts and quiet hours
-
-#### Phase 9: Configuration UX
-
-**Goal**: Guided setup wizard, more options, better defaults
-**Depends on**: Phase 8
-**Research**: Unlikely (established patterns)
-**Plans**: 3/3 complete
-
-Plans:
-- [x] 09-01: Update configuration template with Phase 8 options
-- [x] 09-02: Enhance wizard with cloud, alerts, and hooks sections
-- [x] 09-03: Validation and help system
+</details>
 
 ## Progress
 
