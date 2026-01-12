@@ -67,7 +67,7 @@ COMMANDS:
     profile save <name>       Save current config as profile
     profile load <name>       Load saved profile
     profile list              List all saved profiles
-    help                      Show this help message
+    help [topic]              Show help (topics: alerts, cloud, hooks, retention)
 
 CONFIGURATION KEYS:
     Project:
@@ -344,6 +344,175 @@ mode_validate() {
         color_red "❌ Extended validation failed: $errors error(s), $warnings warning(s)"
         return 1
     fi
+}
+
+# ==============================================================================
+# MODE: HELP
+# ==============================================================================
+
+mode_help() {
+    local topic="${1:-}"
+
+    if [[ -z "$topic" ]]; then
+        show_help
+        return 0
+    fi
+
+    case "$topic" in
+        "alerts"|"notifications")
+            cat << 'EOF'
+ALERTS & NOTIFICATIONS
+===============================================
+
+Alert Thresholds:
+  ALERT_WARNING_HOURS (default: 24)
+    Hours without backup before warning state. Dashboard shows yellow.
+
+  ALERT_ERROR_HOURS (default: 72)
+    Hours without backup before error state. Dashboard shows red.
+
+Notification Controls:
+  NOTIFY_ON_SUCCESS (default: false)
+    Notify after successful backup. Useful after fixing issues.
+
+  NOTIFY_ON_WARNING (default: true)
+    Notify when backup becomes stale (warning threshold).
+
+  NOTIFY_ON_ERROR (default: true)
+    Notify on backup failures.
+
+  NOTIFY_ESCALATION_HOURS (default: 3)
+    Hours between repeated notifications for same issue.
+
+  NOTIFY_SOUND (default: default)
+    Sound for notifications: default, Basso, Glass, Hero, Pop, none
+
+  PROJECT_NOTIFY_ENABLED (default: true)
+    Per-project override. Set false to silence this project.
+
+Quiet Hours:
+  QUIET_HOURS (default: empty)
+    Suppress non-critical notifications. Format: HH-HH (24-hour).
+    Example: "22-07" for 10pm to 7am (supports overnight ranges).
+
+  QUIET_HOURS_BLOCK_ERRORS (default: false)
+    If true, even critical errors respect quiet hours.
+
+Examples:
+  backup-config set alerts.warning_hours 12
+  backup-config set alerts.quiet_hours "22-07"
+  backup-config set notifications.sound none
+EOF
+            ;;
+
+        "cloud")
+            cat << 'EOF'
+CLOUD BACKUP
+===============================================
+
+Cloud Folder (Recommended):
+  Syncs via desktop app (Dropbox, Google Drive, iCloud).
+  Zero API calls - instant, reliable, automatic.
+
+  CLOUD_FOLDER_ENABLED (default: true)
+    Enable cloud folder backup.
+
+  CLOUD_FOLDER_PATH (auto-detected)
+    Path to cloud-synced folder.
+    Examples:
+      $HOME/Dropbox/Backups/Checkpoint
+      $HOME/Google Drive/Backups/Checkpoint
+      $HOME/Library/Mobile Documents/com~apple~CloudDocs/Backups
+
+  CLOUD_FOLDER_ALSO_LOCAL (default: true)
+    Keep local backup in addition to cloud folder.
+
+rclone Fallback:
+  Used when cloud folder unavailable or for additional remotes.
+
+  CLOUD_ENABLED (default: false)
+    Enable rclone backup.
+
+  CLOUD_REMOTE_NAME
+    Remote name from 'rclone config'.
+
+  CLOUD_BACKUP_PATH
+    Path on cloud storage.
+
+Examples:
+  backup-config set cloud_folder.enabled true
+  backup-config set cloud_folder.path "$HOME/Dropbox/Backups/Checkpoint"
+EOF
+            ;;
+
+        "hooks")
+            cat << 'EOF'
+CLAUDE CODE INTEGRATION
+===============================================
+
+Automatically trigger backups from Claude Code events.
+
+  HOOKS_ENABLED (default: false)
+    Enable Claude Code hooks.
+
+  HOOKS_TRIGGERS (default: "stop,edit,commit")
+    Which events trigger backups:
+    - stop: Conversation end
+    - edit: File changes
+    - commit: Git commits
+
+Requirements:
+  - Claude Code CLI installed (claude command)
+  - Run 'backup-config wizard' to set up
+
+Examples:
+  backup-config set hooks.enabled true
+  backup-config set hooks.triggers "stop,edit"
+EOF
+            ;;
+
+        "retention")
+            cat << 'EOF'
+RETENTION POLICIES
+===============================================
+
+Basic Retention:
+  DB_RETENTION_DAYS (default: 30)
+    Days to keep database backups.
+
+  FILE_RETENTION_DAYS (default: 60)
+    Days to keep archived file versions.
+
+Tiered Retention (Smart Space Management):
+  TIERED_RETENTION_ENABLED (default: true)
+    Enable intelligent tiered retention like Time Machine.
+
+  Keeps:
+    - All backups from last 24 hours
+    - Hourly backups for days 1-7
+    - Daily backups for days 7-30
+    - Weekly backups for days 30-90
+    - Monthly backups beyond 90 days
+
+Examples:
+  backup-config set retention.database.time_based 60
+  backup-config set retention.tiered_enabled true
+EOF
+            ;;
+
+        *)
+            echo "Unknown topic: $topic"
+            echo ""
+            echo "Available topics:"
+            echo "  alerts      - Alert thresholds and notifications"
+            echo "  cloud       - Cloud folder and rclone backup"
+            echo "  hooks       - Claude Code integration"
+            echo "  retention   - Backup retention policies"
+            echo ""
+            echo "Usage: backup-config help <topic>"
+            return 1
+            ;;
+    esac
 }
 
 # ==============================================================================
@@ -907,7 +1076,8 @@ main() {
 
     case "$command" in
         "help"|"--help"|"-h")
-            show_help
+            shift
+            mode_help "${1:-}"
             ;;
 
         "get")
