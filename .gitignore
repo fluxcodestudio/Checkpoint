@@ -41,3 +41,19 @@ test-output/
 
 # Checkpoint backups
 backups/
+
+# Project-specific config (auto-generated per install)
+.backup-config.sh
+
+# Internal development planning
+.planning/
+PLAN.md
+TODO.md
+
+# Internal development docs
+PRE-RELEASE-CHECKLIST.md
+DOCUMENTATION-STATUS.md
+FINAL-RELEASE-SUMMARY.md
+TESTING-REPORT.md
+MANUAL-TEST-GUIDE.md
+LOGO-INSTRUCTIONS.md
