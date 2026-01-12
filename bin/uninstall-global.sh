@@ -63,7 +63,7 @@ echo ""
 echo "Removing command symlinks..."
 for cmd in checkpoint backup-now backup-status backup-restore backup-cleanup \
            backup-cloud-config backup-daemon backup-update backup-pause \
-           configure-project; do
+           backup-all backup-uninstall configure-project install-helper uninstall-helper; do
     if [[ -L "$BIN_DIR/$cmd" ]] || [[ -f "$BIN_DIR/$cmd" ]]; then
         rm -f "$BIN_DIR/$cmd"
         echo "  ✓ Removed: $cmd"
@@ -76,6 +76,32 @@ echo "Removing library files..."
 if [[ -d "$LIB_DIR" ]]; then
     rm -rf "$LIB_DIR"
     echo "  ✓ Removed: $LIB_DIR"
+fi
+
+# Remove helper app if installed
+APP_NAME="CheckpointHelper"
+APP_PATH="/Applications/$APP_NAME.app"
+HELPER_PLIST="$HOME/Library/LaunchAgents/com.checkpoint.helper.plist"
+
+if [[ -d "$APP_PATH" ]] || [[ -f "$HELPER_PLIST" ]]; then
+    echo ""
+    echo "Removing Checkpoint Helper menu bar app..."
+    pkill -x "$APP_NAME" 2>/dev/null || true
+    launchctl unload "$HELPER_PLIST" 2>/dev/null || true
+    rm -f "$HELPER_PLIST"
+    rm -rf "$APP_PATH"
+    osascript -e "tell application \"System Events\" to delete login item \"$APP_NAME\"" 2>/dev/null || true
+    echo "  ✓ Removed: Checkpoint Helper"
+fi
+
+# Remove global daemon plist
+GLOBAL_PLIST="$HOME/Library/LaunchAgents/com.checkpoint.global-daemon.plist"
+if [[ -f "$GLOBAL_PLIST" ]]; then
+    echo ""
+    echo "Removing global daemon..."
+    launchctl unload "$GLOBAL_PLIST" 2>/dev/null || true
+    rm -f "$GLOBAL_PLIST"
+    echo "  ✓ Removed: Global daemon LaunchAgent"
 fi
 
 echo ""

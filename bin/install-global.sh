@@ -188,6 +188,8 @@ create_symlink "backup-update.sh" "backup-update"
 create_symlink "backup-pause.sh" "backup-pause"
 create_symlink "configure-project.sh" "configure-project"
 create_symlink "uninstall-global.sh" "backup-uninstall"
+create_symlink "install-helper.sh" "install-helper"
+create_symlink "uninstall-helper.sh" "uninstall-helper"
 
 # ==============================================================================
 # INSTALL CLAUDE CODE SKILL
@@ -349,6 +351,30 @@ if [[ "$INSTALL_PREFIX" == "$HOME/.local" ]]; then
         echo "Then reload your shell:"
         echo "    source ~/.bashrc  # or ~/.zshrc"
         echo ""
+    fi
+fi
+
+# ==============================================================================
+# OPTIONAL: INSTALL MENU BAR HELPER APP
+# ==============================================================================
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Checkpoint Helper is a menu bar app that:"
+    echo "  • Shows backup status at a glance"
+    echo "  • Alerts you if the daemon stops"
+    echo "  • Provides quick backup controls"
+    echo ""
+    read -p "Install Checkpoint Helper menu bar app? (Y/n): " install_helper
+    install_helper=${install_helper:-y}
+    echo ""
+
+    if [[ "$install_helper" =~ ^[Yy]$ ]]; then
+        "$LIB_DIR/bin/install-helper.sh" || {
+            echo "⚠️  Helper app installation failed (non-critical)"
+            echo "   You can install it later with: install-helper"
+        }
     fi
 fi
 

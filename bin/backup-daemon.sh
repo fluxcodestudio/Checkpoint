@@ -89,6 +89,10 @@ fi
 CLEANUP_INTERVAL="${CLEANUP_INTERVAL:-6}"
 CLEANUP_COUNTER=0
 
+# Heartbeat configuration
+HEARTBEAT_DIR="${HEARTBEAT_DIR:-$HOME/.checkpoint}"
+HEARTBEAT_FILE="${HEARTBEAT_FILE:-$HEARTBEAT_DIR/daemon.heartbeat}"
+
 # ==============================================================================
 # ORPHAN DETECTION (Issue #8)
 # ==============================================================================
@@ -132,6 +136,35 @@ fi
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
+
+# Write heartbeat file with current status
+# Args: $1=status (healthy|syncing|error|stopped), $2=error_message (optional)
+write_heartbeat() {
+    local status="${1:-healthy}"
+    local error_msg="${2:-}"
+    local timestamp
+    local last_backup_time
+    local last_backup_files
+
+    timestamp=$(date +%s)
+    last_backup_time=$(cat "$BACKUP_TIME_STATE" 2>/dev/null || echo "0")
+    last_backup_files=$(find "$FILES_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
+
+    mkdir -p "$HEARTBEAT_DIR"
+
+    # Write JSON heartbeat file
+    cat > "$HEARTBEAT_FILE" <<EOF
+{
+  "timestamp": $timestamp,
+  "status": "$status",
+  "project": "$PROJECT_NAME",
+  "last_backup": $last_backup_time,
+  "last_backup_files": $last_backup_files,
+  "error": ${error_msg:+\"$error_msg\"}${error_msg:-null},
+  "pid": $$
+}
+EOF
+}
 
 # Check if external drive is mounted (if verification enabled)
 check_drive() {
@@ -464,12 +497,16 @@ log "═════════════════════════
 log "🚀 Checkpoint - Starting"
 log "📂 Project: $PROJECT_NAME"
 
+# Write initial heartbeat
+write_heartbeat "syncing"
+
 # Check if external drive is connected (if verification enabled)
 if ! check_drive; then
     log "⚠️  External drive not connected or wrong drive"
     log "ℹ️  Skipping backup cycle, will retry later"
     log "📝 Fallback log: $FALLBACK_LOG"
     log "═══════════════════════════════════════════════"
+    write_heartbeat "error" "Drive not connected"
     exit 0  # Exit gracefully
 fi
 
@@ -634,5 +671,8 @@ log "📊 Files: $current_files current, $archived_files archived versions"
 log "✅ Backup cycle complete"
 log "🔓 Released backup lock"
 log "═══════════════════════════════════════════════"
+
+# Write final healthy heartbeat
+write_heartbeat "healthy"
 
 # Lock is automatically removed by trap on exit (even on crash/kill)
