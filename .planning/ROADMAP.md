@@ -61,8 +61,8 @@ None
 **Plans**: 2 plans
 
 Plans:
-- [ ] 10-01: Add "Settings" menu to dashboard with key options
-- [ ] 10-02: Add "Launch config wizard" quick action
+- [x] 10-01: Add "Settings" menu to dashboard with key options
+- [x] 10-02: Add "Launch config wizard" quick action
 
 ## Progress
 
@@ -77,4 +77,4 @@ Plans:
 | 7. Performance Optimization | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 8. Monitoring Enhancements | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 9. Configuration UX | v1.1 | 3/3 | Complete | 2026-01-12 |
-| 10. Dashboard Settings Integration | v1.2 | 0/2 | Not started | - |
+| 10. Dashboard Settings Integration | v1.2 | 2/2 | Complete | 2026-01-12 |
