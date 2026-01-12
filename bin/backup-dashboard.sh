@@ -103,7 +103,11 @@ display_projects_table() {
     echo ""
 
     # Table header
-    printf "  %-24s %-10s %-18s %s\n" "Project" "Status" "Last Backup" "Storage"
+    if [[ "$verbose" == "true" ]]; then
+        printf "  %-24s %-10s %-18s %-10s %s\n" "Project" "Status" "Last Backup" "Storage" "Trend"
+    else
+        printf "  %-24s %-10s %-18s %s\n" "Project" "Status" "Last Backup" "Storage"
+    fi
     echo "  ─────────────────────────────────────────────────────────────────────────"
 
     local total_projects=0
@@ -144,12 +148,18 @@ display_projects_table() {
             name="${name:0:20}.."
         fi
 
-        printf "  %-24s %s %-6s %-18s %s\n" "$name" "$status_emoji" "$status_text" "$age_str" "$storage"
-
-        # Show retention summary in verbose mode
+        # Output row - include trend in verbose mode
         if [[ "$verbose" == "true" ]]; then
-            local retention=$(get_project_retention_summary "$project_path")
+            local trend
+            trend=$(get_project_health_trend "$project_path")
+            local trend_str
+            trend_str=$(format_health_trend "$trend")
+            printf "  %-24s %s %-6s %-18s %-10s %s\n" "$name" "$status_emoji" "$status_text" "$age_str" "$storage" "$trend_str"
+            local retention
+            retention=$(get_project_retention_summary "$project_path")
             printf "    └─ Retention: %s\n" "$retention"
+        else
+            printf "  %-24s %s %-6s %-18s %s\n" "$name" "$status_emoji" "$status_text" "$age_str" "$storage"
         fi
 
     done < <(list_projects)
@@ -429,6 +439,122 @@ display_error_panel() {
     done <<< "$errors"
 }
 
+# Display quick-fix commands based on error types present
+display_quick_fixes() {
+    local project_path="$1"
+    local errors
+    errors=$(get_project_errors "$project_path" 3)
+
+    if [[ -z "$errors" ]]; then
+        return
+    fi
+
+    echo "  Quick Fix Commands"
+    echo "  ────────────────────────────────────────────────"
+
+    # Track which error categories are present
+    local has_perm=false has_disk=false has_conf=false has_db=false
+
+    while IFS= read -r error; do
+        [[ -z "$error" ]] && continue
+        local code="${error%%:*}"
+        case "$code" in
+            EPERM*) has_perm=true ;;
+            EDISK*) has_disk=true ;;
+            ECONF*) has_conf=true ;;
+            EDB*)   has_db=true ;;
+        esac
+    done <<< "$errors"
+
+    local backup_dir
+    backup_dir=$(get_project_backup_dir "$project_path")
+
+    if [[ "$has_perm" == "true" ]]; then
+        echo "  Fix permissions:"
+        echo "    chmod -R u+rw \"$backup_dir\""
+        echo ""
+    fi
+
+    if [[ "$has_disk" == "true" ]]; then
+        echo "  Check disk space:"
+        echo "    df -h \"$backup_dir\""
+        echo "    backup-dashboard --cleanup-preview"
+        echo ""
+    fi
+
+    if [[ "$has_conf" == "true" ]]; then
+        echo "  Reinitialize config:"
+        echo "    cd \"$project_path\" && checkpoint.sh init"
+        echo ""
+    fi
+
+    if [[ "$has_db" == "true" ]]; then
+        echo "  Check database:"
+        echo "    Check if database service is running"
+        echo "    Verify credentials in .env file"
+        echo ""
+    fi
+}
+
+# ==============================================================================
+# HEALTH TREND ANALYSIS
+# ==============================================================================
+
+# Get health trend from backup history
+# Args: $1 = project path
+# Returns: "improving", "stable", "declining", or "unknown"
+get_project_health_trend() {
+    local project_path="$1"
+    local backup_dir
+    backup_dir=$(get_project_backup_dir "$project_path")
+    local log_file="$backup_dir/backup.log"
+
+    if [[ ! -f "$log_file" ]]; then
+        echo "unknown"
+        return
+    fi
+
+    # Count successes vs failures in recent entries (last 50 lines as proxy for ~7 days)
+    local recent_log
+    recent_log=$(tail -50 "$log_file" 2>/dev/null)
+
+    if [[ -z "$recent_log" ]]; then
+        echo "unknown"
+        return
+    fi
+
+    local successes failures
+    successes=$(echo "$recent_log" | grep -ci "success\|completed\|backed up" 2>/dev/null || echo "0")
+    failures=$(echo "$recent_log" | grep -ci "failed\|error\|FAILED\|ERROR" 2>/dev/null || echo "0")
+
+    local total=$((successes + failures))
+
+    if [[ $total -eq 0 ]]; then
+        echo "unknown"
+    elif [[ $failures -eq 0 ]]; then
+        echo "stable"
+    elif [[ $total -gt 0 ]] && [[ $((failures * 100 / total)) -gt 50 ]]; then
+        echo "declining"
+    elif [[ $total -gt 0 ]] && [[ $((failures * 100 / total)) -lt 10 ]]; then
+        echo "improving"
+    else
+        echo "stable"
+    fi
+}
+
+# Format trend for display with arrow indicator
+# Args: $1 = trend string
+# Returns: formatted trend with emoji
+format_health_trend() {
+    local trend="$1"
+    case "$trend" in
+        improving) echo "↗ Improving" ;;
+        stable)    echo "→ Stable" ;;
+        declining) echo "↘ Declining" ;;
+        *)         echo "- Unknown" ;;
+    esac
+}
+
 # ==============================================================================
 # DETAILED PROJECT VIEW
 # ==============================================================================
@@ -539,9 +665,10 @@ display_project_detail() {
         echo "    No activity log found"
     fi
 
-    # Error details panel (only if project has errors)
+    # Error details panel and quick-fix commands (only if project has errors)
     if has_project_errors "$project_path"; then
         display_error_panel "$project_path"
+        display_quick_fixes "$project_path"
     fi
 
     echo ""
