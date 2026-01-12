@@ -69,10 +69,10 @@ Plans:
 **Goal**: Guided setup wizard, more options, better defaults
 **Depends on**: Phase 8
 **Research**: Unlikely (established patterns)
-**Plans**: TBD
+**Plans**: In progress
 
 Plans:
-- [ ] 09-01: TBD
+- [x] 09-01: Update configuration template with Phase 8 options
 
 ## Progress
 
@@ -86,4 +86,4 @@ Plans:
 | 6. Dashboard & Monitoring | v1.0 | 3/3 | Complete | 2026-01-11 |
 | 7. Performance Optimization | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 8. Monitoring Enhancements | v1.1 | 3/3 | Complete | 2026-01-12 |
-| 9. Configuration UX | v1.1 | 0/? | Not started | - |
+| 9. Configuration UX | v1.1 | 1/? | In progress | - |
