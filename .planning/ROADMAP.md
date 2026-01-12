@@ -60,7 +60,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 08-01: Structured error codes with fix suggestions
+- [x] 08-01: Structured error codes with fix suggestions
 - [ ] 08-02: Dashboard error panel and health trends
 - [ ] 08-03: Configurable alerts and quiet hours
 
@@ -85,5 +85,5 @@ Plans:
 | 5. Tiered Retention | v1.0 | 2/2 | Complete | 2026-01-11 |
 | 6. Dashboard & Monitoring | v1.0 | 3/3 | Complete | 2026-01-11 |
 | 7. Performance Optimization | v1.1 | 3/3 | Complete | 2026-01-12 |
-| 8. Monitoring Enhancements | v1.1 | 0/? | Not started | - |
+| 8. Monitoring Enhancements | v1.1 | 1/3 | In progress | - |
 | 9. Configuration UX | v1.1 | 0/? | Not started | - |
