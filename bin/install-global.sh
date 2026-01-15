@@ -291,10 +291,6 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Checkpoint can automatically discover and configure all your projects."
-echo "It scans common locations (~/Developer, ~/Projects, ~/Code, etc.)"
-echo "and sets up smart defaults based on project type."
-echo ""
-echo "You only need to answer questions when something can't be auto-determined."
 echo ""
 read -p "Auto-configure all projects? (Y/n): " auto_configure
 auto_configure=${auto_configure:-y}
@@ -304,8 +300,40 @@ if [[ "$auto_configure" =~ ^[Yy]$ ]]; then
     # Load auto-configure library
     source "$LIB_DIR/lib/auto-configure.sh"
 
+    echo "Where are your projects located?"
     echo ""
-    auto_configure_all
+    echo "  Common locations:"
+    echo "    ~/Developer"
+    echo "    ~/Projects"
+    echo "    ~/Code"
+    echo ""
+    echo "  Enter path(s) separated by spaces, or press Enter to scan defaults."
+    echo ""
+    read -p "Project directories: " custom_dirs
+    echo ""
+
+    # Parse custom directories
+    PROJECT_SCAN_DIRS=()
+    if [[ -n "$custom_dirs" ]]; then
+        for dir in $custom_dirs; do
+            # Expand ~ to home
+            expanded_dir="${dir/#\~/$HOME}"
+            if [[ -d "$expanded_dir" ]]; then
+                PROJECT_SCAN_DIRS+=("$expanded_dir")
+                echo "  ✓ Will scan: $expanded_dir"
+            else
+                echo "  ⚠ Not found: $expanded_dir"
+            fi
+        done
+        echo ""
+    fi
+
+    # Run auto-configure with custom dirs or defaults
+    if [[ ${#PROJECT_SCAN_DIRS[@]} -gt 0 ]]; then
+        auto_configure_all "${PROJECT_SCAN_DIRS[@]}"
+    else
+        auto_configure_all
+    fi
 
     # Install daemons for all configured projects
     if [[ "${AUTO_CONFIG_CONFIGURED:-0}" -gt 0 ]]; then

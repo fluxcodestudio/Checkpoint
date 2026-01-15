@@ -532,6 +532,7 @@ PYEOF
 # ==============================================================================
 
 # Auto-configure all discovered projects
+# Args: Optional list of directories to scan (uses defaults if none provided)
 # Returns: Number of projects configured, number needing input
 auto_configure_all() {
     local configured=0
@@ -542,7 +543,11 @@ auto_configure_all() {
     echo "Discovering projects..."
 
     local projects
-    projects=$(discover_projects)
+    if [[ $# -gt 0 ]]; then
+        projects=$(discover_projects "$@")
+    else
+        projects=$(discover_projects)
+    fi
 
     if [[ -z "$projects" ]]; then
         echo "No projects found in default locations."
