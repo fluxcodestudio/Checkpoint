@@ -302,31 +302,43 @@ if [[ "$auto_configure" =~ ^[Yy]$ ]]; then
 
     echo "Where are your projects located?"
     echo ""
-    echo "  Common locations:"
+    echo "  Examples:"
+    echo "    /Volumes/WORK DRIVE/WEB DEV"
     echo "    ~/Developer"
     echo "    ~/Projects"
-    echo "    ~/Code"
     echo ""
-    echo "  Enter path(s) separated by spaces, or press Enter to scan defaults."
-    echo ""
-    read -p "Project directories: " custom_dirs
+    echo "  Press Enter to scan default locations (~/{Developer,Projects,Code,...})"
     echo ""
 
-    # Parse custom directories
     PROJECT_SCAN_DIRS=()
-    if [[ -n "$custom_dirs" ]]; then
-        for dir in $custom_dirs; do
-            # Expand ~ to home
-            expanded_dir="${dir/#\~/$HOME}"
-            if [[ -d "$expanded_dir" ]]; then
-                PROJECT_SCAN_DIRS+=("$expanded_dir")
-                echo "  ✓ Will scan: $expanded_dir"
-            else
-                echo "  ⚠ Not found: $expanded_dir"
+
+    while true; do
+        read -p "Project directory (or Enter when done): " custom_dir
+
+        # Empty input = done adding directories
+        if [[ -z "$custom_dir" ]]; then
+            break
+        fi
+
+        # Expand ~ to home
+        expanded_dir="${custom_dir/#\~/$HOME}"
+
+        if [[ -d "$expanded_dir" ]]; then
+            PROJECT_SCAN_DIRS+=("$expanded_dir")
+            echo "  ✓ Added: $expanded_dir"
+        else
+            echo "  ⚠ Not found: $expanded_dir"
+        fi
+
+        # If we have at least one dir, ask if they want to add more
+        if [[ ${#PROJECT_SCAN_DIRS[@]} -gt 0 ]]; then
+            read -p "Add another directory? (y/N): " add_more
+            if [[ ! "$add_more" =~ ^[Yy]$ ]]; then
+                break
             fi
-        done
-        echo ""
-    fi
+        fi
+    done
+    echo ""
 
     # Run auto-configure with custom dirs or defaults
     if [[ ${#PROJECT_SCAN_DIRS[@]} -gt 0 ]]; then
