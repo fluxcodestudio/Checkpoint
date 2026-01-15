@@ -285,43 +285,80 @@ echo "  3. Global daemon backs up all projects hourly"
 echo ""
 
 # ==============================================================================
-# OPTIONAL: CONFIGURE CURRENT PROJECT
+# AUTO-CONFIGURE ALL PROJECTS
 # ==============================================================================
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-read -p "Configure a project now? (Y/n): " configure_now
-configure_now=${configure_now:-y}
+echo "Checkpoint can automatically discover and configure all your projects."
+echo "It scans common locations (~/Developer, ~/Projects, ~/Code, etc.)"
+echo "and sets up smart defaults based on project type."
+echo ""
+echo "You only need to answer questions when something can't be auto-determined."
+echo ""
+read -p "Auto-configure all projects? (Y/n): " auto_configure
+auto_configure=${auto_configure:-y}
 echo ""
 
-if [[ "$configure_now" =~ ^[Yy]$ ]]; then
-    # Ask for project directory
-    read -p "Project directory [current: $PWD]: " project_path
-    project_path=${project_path:-$PWD}
+if [[ "$auto_configure" =~ ^[Yy]$ ]]; then
+    # Load auto-configure library
+    source "$LIB_DIR/lib/auto-configure.sh"
 
-    # Expand ~ to home directory
-    project_path="${project_path/#\~/$HOME}"
+    echo ""
+    auto_configure_all
 
-    # Convert to absolute path
-    project_path=$(cd "$project_path" 2>/dev/null && pwd || echo "$project_path")
-
-    if [[ ! -d "$project_path" ]]; then
-        echo "❌ Directory not found: $project_path"
-        echo "   You can configure projects later by running:"
-        echo "   cd /your/project && backup-now"
+    # Install daemons for all configured projects
+    if [[ "${AUTO_CONFIG_CONFIGURED:-0}" -gt 0 ]]; then
         echo ""
-    else
-        echo "Configuring: $project_path"
-        echo ""
+        echo "Installing backup daemons for configured projects..."
 
-        # Run project configuration wizard
-        "$LIB_DIR/bin/configure-project.sh" "$project_path"
+        registry="$HOME/.config/checkpoint/projects.json"
+        if [[ -f "$registry" ]] && command -v python3 &>/dev/null; then
+            python3 << 'PYEOF'
+import json
+import os
+
+registry_path = os.path.expanduser("~/.config/checkpoint/projects.json")
+with open(registry_path, 'r') as f:
+    data = json.load(f)
+
+for project in data.get('projects', []):
+    if project.get('enabled', True):
+        print(project['path'])
+PYEOF
+        fi | while read -r project_path; do
+            install_project_daemon "$project_path" 2>/dev/null && \
+                echo "  ✓ Daemon installed: $(basename "$project_path")" || true
+        done
+
+        echo ""
+        echo "✅ All projects configured and daemons installed!"
+        echo ""
+        echo "Backups will run automatically every hour."
+        echo "Use 'checkpoint dashboard' to view status and change settings."
     fi
 else
-    echo "Next steps:"
-    echo "  1. Navigate to any project directory"
-    echo "  2. Run: backup-now"
-    echo "  3. Follow the configuration wizard"
+    # Manual mode - just configure current directory if it's a project
+    if [[ -f "$PWD/package.json" ]] || [[ -f "$PWD/Cargo.toml" ]] || \
+       [[ -f "$PWD/go.mod" ]] || [[ -f "$PWD/requirements.txt" ]] || \
+       [[ -d "$PWD/.git" ]]; then
+        echo "Detected project in current directory: $(basename "$PWD")"
+        read -p "Configure this project? (Y/n): " configure_current
+        configure_current=${configure_current:-y}
+
+        if [[ "$configure_current" =~ ^[Yy]$ ]]; then
+            source "$LIB_DIR/lib/auto-configure.sh"
+            generate_config "$PWD" >/dev/null
+            register_project "$PWD"
+            install_project_daemon "$PWD" 2>/dev/null || true
+            echo "✅ Project configured: $(basename "$PWD")"
+        fi
+    fi
+
+    echo ""
+    echo "To configure projects later:"
+    echo "  • Run 'backup-now' in any project directory"
+    echo "  • Or run 'checkpoint' and select 'Configure Project'"
     echo ""
 fi
 
