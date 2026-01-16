@@ -105,6 +105,74 @@ DEFAULT_FILE_RETENTION=60
 DEFAULT_BACKUP_INTERVAL=3600
 MAX_PROJECT_SIZE_MB=5000  # Warn if project > 5GB
 
+# Universal skip patterns - directories that are safe to exclude from backup
+# These can always be regenerated (npm install, pip install, cargo build, etc.)
+UNIVERSAL_SKIP_PATTERNS=(
+    # Package managers (reinstallable)
+    "node_modules"
+    "vendor"
+    "bower_components"
+    ".pnpm"
+
+    # Python (regeneratable)
+    ".venv"
+    "venv"
+    "env"
+    ".env"  # the directory, not the file
+    "__pycache__"
+    "*.pyc"
+    ".pytest_cache"
+    ".mypy_cache"
+    ".ruff_cache"
+    "*.egg-info"
+    ".eggs"
+
+    # Build outputs (rebuildable)
+    "build"
+    "dist"
+    "out"
+    "target"
+    ".next"
+    ".nuxt"
+    ".output"
+    ".svelte-kit"
+    ".vercel"
+    ".netlify"
+
+    # Caches (regeneratable)
+    ".cache"
+    ".parcel-cache"
+    ".turbo"
+    ".gradle"
+    ".maven"
+    ".sass-cache"
+
+    # Test/coverage output
+    "coverage"
+    ".nyc_output"
+    "htmlcov"
+    ".coverage"
+
+    # Logs (not needed for restore)
+    "logs"
+    "*.log"
+
+    # OS files
+    ".DS_Store"
+    "Thumbs.db"
+    "*.swp"
+    "*.swo"
+
+    # IDE (mostly regeneratable, except settings)
+    ".idea"
+    "*.iml"
+
+    # Temporary
+    "tmp"
+    "temp"
+    ".tmp"
+)
+
 # ==============================================================================
 # PROJECT DISCOVERY
 # ==============================================================================
@@ -806,25 +874,118 @@ handle_multiple_databases() {
     echo ""
 }
 
-# Handle large projects
+# Calculate effective project size (excluding regeneratable directories)
+get_effective_size() {
+    local project_dir="$1"
+
+    # Build exclusion arguments for du
+    local exclude_args=""
+    for pattern in "${UNIVERSAL_SKIP_PATTERNS[@]}"; do
+        # Skip glob patterns for du (it doesn't support them well)
+        [[ "$pattern" == *"*"* ]] && continue
+        exclude_args="$exclude_args --exclude=$pattern"
+    done
+
+    # macOS du doesn't support --exclude, so we use find + awk instead
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # Build find exclusions
+        local find_excludes=""
+        for pattern in "${UNIVERSAL_SKIP_PATTERNS[@]}"; do
+            [[ "$pattern" == *"*"* ]] && continue
+            find_excludes="$find_excludes -name '$pattern' -prune -o"
+        done
+
+        # This is approximate but good enough
+        local size
+        size=$(find "$project_dir" -type d \( \
+            -name "node_modules" -o \
+            -name "vendor" -o \
+            -name ".venv" -o \
+            -name "venv" -o \
+            -name "__pycache__" -o \
+            -name "build" -o \
+            -name "dist" -o \
+            -name "target" -o \
+            -name ".next" -o \
+            -name ".cache" -o \
+            -name "coverage" \
+        \) -prune -o -type f -print0 2>/dev/null | xargs -0 stat -f%z 2>/dev/null | awk '{s+=$1} END {print int(s/1024/1024)}')
+        echo "${size:-0}"
+    else
+        # Linux - du supports --exclude
+        du -sm $exclude_args "$project_dir" 2>/dev/null | cut -f1
+    fi
+}
+
+# Handle large projects - use smart defaults instead of asking
 handle_large_project() {
     local project_dir="$1"
     local project_name
     project_name=$(basename "$project_dir")
-    local size_mb
-    size_mb=$(du -sm "$project_dir" 2>/dev/null | cut -f1)
-    local size_gb
-    size_gb=$(echo "scale=1; $size_mb / 1024" | bc)
+
+    # Calculate total size
+    local total_size_mb
+    total_size_mb=$(du -sm "$project_dir" 2>/dev/null | cut -f1)
+    local total_size_gb
+    total_size_gb=$(echo "scale=1; $total_size_mb / 1024" | bc 2>/dev/null || echo "?")
+
+    # Calculate effective size (excluding node_modules, etc.)
+    local effective_size_mb
+    effective_size_mb=$(get_effective_size "$project_dir")
+    local effective_size_gb
+    effective_size_gb=$(echo "scale=1; $effective_size_mb / 1024" | bc 2>/dev/null || echo "?")
 
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  $project_name - Large Project (${size_gb}GB)"
+    echo "  $project_name"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Total size:     ${total_size_gb}GB"
+    echo "  Backup size:    ~${effective_size_gb}GB (excluding node_modules, etc.)"
     echo ""
-    echo "  This project is larger than 5GB."
-    echo "  Large file backups may be slow and use significant disk space."
+
+    # If effective size is reasonable, just configure with smart defaults
+    if [[ "${effective_size_mb:-0}" -lt 2000 ]]; then
+        echo "  Using smart defaults (skipping regeneratable files)"
+        generate_config "$project_dir" >/dev/null
+
+        # Add universal skip patterns to config
+        cat >> "$project_dir/.backup-config.sh" << 'SMARTEOF'
+
+# Smart backup - skip regeneratable directories
+BACKUP_SMART_SKIP=true
+BACKUP_SKIP_PATTERNS=(
+    "node_modules"
+    "vendor"
+    ".venv"
+    "venv"
+    "__pycache__"
+    "build"
+    "dist"
+    "out"
+    "target"
+    ".next"
+    ".nuxt"
+    ".cache"
+    ".parcel-cache"
+    "coverage"
+    ".gradle"
+    ".maven"
+    "logs"
+    "tmp"
+    "temp"
+)
+SMARTEOF
+
+        register_project "$project_dir"
+        echo "  ✓ Configured with smart defaults"
+        echo ""
+        return 0
+    fi
+
+    # If still large even after exclusions, ask
+    echo "  Even with smart defaults, backup would be ${effective_size_gb}GB."
     echo ""
-    echo "  [1] Backup git-tracked files only (recommended)"
-    echo "  [2] Backup all files (may be slow)"
+    echo "  [1] Use smart defaults anyway (recommended)"
+    echo "  [2] Git-tracked files only"
     echo "  [S] Skip this project"
     echo ""
 
@@ -838,11 +999,38 @@ handle_large_project() {
 
     generate_config "$project_dir" >/dev/null
 
-    if [[ "$choice" == "1" ]]; then
-        # Add large file exclusion to config
+    if [[ "$choice" == "2" ]]; then
         echo "" >> "$project_dir/.backup-config.sh"
         echo "# Large project - git-tracked files only" >> "$project_dir/.backup-config.sh"
         echo "BACKUP_GIT_ONLY=true" >> "$project_dir/.backup-config.sh"
+    else
+        # Smart defaults
+        cat >> "$project_dir/.backup-config.sh" << 'SMARTEOF'
+
+# Smart backup - skip regeneratable directories
+BACKUP_SMART_SKIP=true
+BACKUP_SKIP_PATTERNS=(
+    "node_modules"
+    "vendor"
+    ".venv"
+    "venv"
+    "__pycache__"
+    "build"
+    "dist"
+    "out"
+    "target"
+    ".next"
+    ".nuxt"
+    ".cache"
+    ".parcel-cache"
+    "coverage"
+    ".gradle"
+    ".maven"
+    "logs"
+    "tmp"
+    "temp"
+)
+SMARTEOF
     fi
 
     register_project "$project_dir"
