@@ -171,6 +171,10 @@ UNIVERSAL_SKIP_PATTERNS=(
     "tmp"
     "temp"
     ".tmp"
+
+    # Checkpoint's own backup directories (avoid recursive backup)
+    "backups"
+    "archived"
 )
 
 # ==============================================================================
@@ -972,6 +976,8 @@ BACKUP_SKIP_PATTERNS=(
     "logs"
     "tmp"
     "temp"
+    "backups"
+    "archived"
 )
 SMARTEOF
 
@@ -1029,6 +1035,8 @@ BACKUP_SKIP_PATTERNS=(
     "logs"
     "tmp"
     "temp"
+    "backups"
+    "archived"
 )
 SMARTEOF
     fi
