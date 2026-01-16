@@ -81,6 +81,22 @@ SKIP_DIRS=(
     ".cache"
     ".npm"
     ".yarn"
+    ".next"
+    ".nuxt"
+    ".output"
+    "out"
+    ".turbo"
+    ".vercel"
+    ".netlify"
+)
+
+# Directories that indicate this is a sub-package, not a standalone project
+SUBPACKAGE_INDICATORS=(
+    "packages"
+    "apps"
+    "libs"
+    "modules"
+    "services"
 )
 
 # Default settings
@@ -93,7 +109,65 @@ MAX_PROJECT_SIZE_MB=5000  # Warn if project > 5GB
 # PROJECT DISCOVERY
 # ==============================================================================
 
+# Check if a directory is a sub-package of a monorepo
+is_subpackage() {
+    local dir="$1"
+    local parent
+    parent=$(dirname "$dir")
+    local grandparent
+    grandparent=$(dirname "$parent")
+    local parent_name
+    parent_name=$(basename "$parent")
+
+    # Check if parent directory is a monorepo indicator
+    for indicator in "${SUBPACKAGE_INDICATORS[@]}"; do
+        if [[ "$parent_name" == "$indicator" ]]; then
+            # This is likely packages/foo or apps/bar - it's a subpackage
+            return 0
+        fi
+    done
+
+    # Check if there's a root package.json with workspaces in the parent or grandparent
+    for check_dir in "$parent" "$grandparent"; do
+        if [[ -f "$check_dir/package.json" ]]; then
+            if grep -qE '"workspaces"' "$check_dir/package.json" 2>/dev/null; then
+                return 0  # Part of a monorepo workspace
+            fi
+        fi
+        # Also check for pnpm-workspace.yaml, lerna.json, turbo.json
+        if [[ -f "$check_dir/pnpm-workspace.yaml" ]] || \
+           [[ -f "$check_dir/lerna.json" ]] || \
+           [[ -f "$check_dir/turbo.json" ]]; then
+            return 0
+        fi
+    done
+
+    return 1  # Not a subpackage
+}
+
+# Check if directory should be skipped
+should_skip_dir() {
+    local dir="$1"
+    local dir_name
+    dir_name=$(basename "$dir")
+
+    # Skip if it's a known skip directory
+    for skip_dir in "${SKIP_DIRS[@]}"; do
+        if [[ "$dir_name" == "$skip_dir" ]]; then
+            return 0
+        fi
+        # Also skip if path contains skip directory
+        if [[ "$dir" == *"/$skip_dir/"* ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 # Find all project directories
+# Strategy: Find .git directories first (these are definite projects),
+# then only add non-git projects if they're at the top level
 # Output: One project path per line
 discover_projects() {
     local search_dirs=("${@:-${DEFAULT_PROJECT_DIRS[@]}}")
@@ -102,59 +176,27 @@ discover_projects() {
     for base_dir in "${search_dirs[@]}"; do
         [[ ! -d "$base_dir" ]] && continue
 
-        # Find directories containing project indicators
-        while IFS= read -r -d '' indicator_path; do
-            local project_dir
-            project_dir=$(dirname "$indicator_path")
-
-            # Skip if inside a skip directory
-            local skip=false
-            for skip_dir in "${SKIP_DIRS[@]}"; do
-                if [[ "$project_dir" == *"/$skip_dir/"* ]] || [[ "$project_dir" == *"/$skip_dir" ]]; then
-                    skip=true
-                    break
-                fi
-            done
-            [[ "$skip" == "true" ]] && continue
-
-            # Resolve to real path and deduplicate
-            local real_path
-            real_path=$(cd "$project_dir" 2>/dev/null && pwd -P) || continue
-
-            # Check if already found (avoid duplicates from symlinks)
-            local already_found=false
-            for found in "${found_projects[@]:-}"; do
-                if [[ "$found" == "$real_path" ]]; then
-                    already_found=true
-                    break
-                fi
-            done
-
-            if [[ "$already_found" == "false" ]]; then
-                found_projects+=("$real_path")
-                echo "$real_path"
-            fi
-        done < <(find "$base_dir" -maxdepth 4 -type f \( \
-            -name "package.json" -o \
-            -name "Cargo.toml" -o \
-            -name "go.mod" -o \
-            -name "requirements.txt" -o \
-            -name "pyproject.toml" -o \
-            -name "Gemfile" -o \
-            -name "composer.json" \
-        \) -print0 2>/dev/null)
-
-        # Also find .git directories (handles projects without package managers)
+        # PASS 1: Find all git repositories (these are definite projects)
         while IFS= read -r -d '' git_dir; do
             local project_dir
             project_dir=$(dirname "$git_dir")
 
+            # Skip if in a skip directory
+            should_skip_dir "$project_dir" && continue
+
             local real_path
             real_path=$(cd "$project_dir" 2>/dev/null && pwd -P) || continue
 
+            # Check if already found
             local already_found=false
             for found in "${found_projects[@]:-}"; do
+                [[ -z "$found" ]] && continue
                 if [[ "$found" == "$real_path" ]]; then
+                    already_found=true
+                    break
+                fi
+                # Also skip if this is a parent or child of an existing project
+                if [[ "$real_path" == "$found"/* ]] || [[ "$found" == "$real_path"/* ]]; then
                     already_found=true
                     break
                 fi
@@ -164,7 +206,46 @@ discover_projects() {
                 found_projects+=("$real_path")
                 echo "$real_path"
             fi
-        done < <(find "$base_dir" -maxdepth 3 -type d -name ".git" -print0 2>/dev/null)
+        done < <(find "$base_dir" -maxdepth 4 -type d -name ".git" -print0 2>/dev/null)
+
+        # PASS 2: Find top-level directories with project indicators but NO .git
+        # (These are the direct children of the search directory)
+        for subdir in "$base_dir"/*/; do
+            [[ ! -d "$subdir" ]] && continue
+
+            local real_path
+            real_path=$(cd "$subdir" 2>/dev/null && pwd -P) || continue
+
+            # Skip if already found (from git scan)
+            local already_found=false
+            for found in "${found_projects[@]:-}"; do
+                [[ -z "$found" ]] && continue
+                if [[ "$found" == "$real_path" ]] || \
+                   [[ "$real_path" == "$found"/* ]] || \
+                   [[ "$found" == "$real_path"/* ]]; then
+                    already_found=true
+                    break
+                fi
+            done
+            [[ "$already_found" == "true" ]] && continue
+
+            # Skip known non-project directories
+            should_skip_dir "$real_path" && continue
+
+            # Check if it has a project indicator
+            local has_indicator=false
+            for indicator in "${PROJECT_INDICATORS[@]}"; do
+                if [[ -e "$real_path/$indicator" ]]; then
+                    has_indicator=true
+                    break
+                fi
+            done
+
+            if [[ "$has_indicator" == "true" ]]; then
+                found_projects+=("$real_path")
+                echo "$real_path"
+            fi
+        done
     done
 }
 
