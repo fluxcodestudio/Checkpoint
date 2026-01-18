@@ -33,10 +33,12 @@ fi
 # Compile all Swift files
 echo "Compiling Swift sources..."
 SWIFT_FILES=(
+    "$SOURCE_DIR/main.swift"
     "$SOURCE_DIR/HeartbeatMonitor.swift"
     "$SOURCE_DIR/DaemonController.swift"
     "$SOURCE_DIR/NotificationManager.swift"
     "$SOURCE_DIR/MenuBarManager.swift"
+    "$SOURCE_DIR/DashboardWindow.swift"
     "$SOURCE_DIR/AppDelegate.swift"
 )
 
@@ -46,6 +48,7 @@ swiftc \
     -target arm64-apple-macos12.0 \
     -import-objc-header /dev/null \
     -framework Cocoa \
+    -framework SwiftUI \
     -framework UserNotifications \
     -o "$BUILD_DIR/$APP_NAME" \
     "${SWIFT_FILES[@]}"

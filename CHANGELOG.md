@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2025-01-18
+
+### Added
+
+**Remote Database Backup** - Cloud database support
+- Backup remote PostgreSQL databases (Neon, Supabase, PlanetScale, etc.)
+- Backup remote MySQL databases with SSL
+- Backup remote MongoDB databases (Atlas, etc.)
+- `BACKUP_REMOTE_DATABASES=true` config option
+- 120-second timeout for remote connections
+- Automatic SSL mode for secure connections
+
+**Docker Database Backup** - Container database support
+- Auto-detect databases in docker-compose.yml
+- Backup PostgreSQL, MySQL, MongoDB from Docker containers
+- Auto-start Docker Desktop if not running
+- `BACKUP_DOCKER_DATABASES=true` config option
+- `AUTO_START_DOCKER=true` config option
+- `STOP_DOCKER_AFTER_BACKUP=true` config option
+- File-based flag ensures Docker stays running during ALL project backups
+
+**Auto-Start Local Databases** - Seamless local backup
+- Auto-start PostgreSQL (Homebrew, Postgres.app, pg_ctl) if not running
+- Auto-start MySQL (Homebrew, mysql.server) if not running
+- `AUTO_START_LOCAL_DB=true` config option
+- `STOP_DB_AFTER_BACKUP=true` config option
+- Graceful skip for databases not on current machine
+
+**Machine Tracking** - Multi-computer support
+- State files now include machine info (hostname, username, os_version, model)
+- Know which computer created each backup
+- Graceful handling when database doesn't exist on current machine
+
+**Session-Start Hooks** - Per-project prompt hooks
+- Global installer now offers optional session-start backups
+- Select specific high-activity projects for prompt-triggered backups
+- Hooks installed to project-local settings (not global)
+- Backup triggered on new Claude Code session (10+ min idle)
+
+### Changed
+
+- Installer now uses project-local settings for hooks (not global)
+- Added upgrade logic to remove old global hooks
+- Docker `is_docker_running()` now has 5-second timeout (prevents hanging)
+- Shell-agnostic parsing in Docker detection (works in zsh)
+
+### Fixed
+
+- Fixed Docker database detection hanging when Docker is starting
+- Fixed backup getting stuck waiting for Docker indefinitely
+- Fixed global hooks firing for all projects instead of just installed project
+- Fixed `CLOUD_FOLDER_PATH=""` overriding global config in project configs
+
 ## [2.3.0] - 2025-01-06
 
 ### Added

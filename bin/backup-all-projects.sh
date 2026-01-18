@@ -8,6 +8,20 @@
 
 set -euo pipefail
 
+# Parse arguments
+FORCE_BACKUP=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --force|-f)
+            FORCE_BACKUP=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
 # Resolve symlinks to get actual script location
 SCRIPT_PATH="${BASH_SOURCE[0]}"
 while [ -L "$SCRIPT_PATH" ]; do
@@ -20,6 +34,7 @@ LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
 
 # Source libraries
 source "$LIB_DIR/projects-registry.sh"
+source "$LIB_DIR/database-detector.sh"
 
 # Logging
 LOG_FILE="$HOME/.config/checkpoint/daemon.log"
@@ -80,10 +95,16 @@ while IFS= read -r project_path; do
     # Run backup for this project
     log "  🚀 Running backup..."
 
-    # Use backup-daemon.sh which respects intervals
-    if (cd "$project_path" && "$SCRIPT_DIR/backup-daemon.sh" 2>&1); then
+    # Use backup-now --force or backup-daemon depending on force flag
+    if [[ "$FORCE_BACKUP" == "true" ]]; then
+        backup_cmd="$SCRIPT_DIR/backup-now.sh --force"
+    else
+        backup_cmd="$SCRIPT_DIR/backup-daemon.sh"
+    fi
+
+    if (cd "$project_path" && $backup_cmd 2>&1); then
         log "  ✅ Backup complete"
-        ((backed_up++))
+        ((backed_up++)) || true
 
         # Update last backup in registry
         update_last_backup "$project_path"
@@ -91,14 +112,20 @@ while IFS= read -r project_path; do
         exit_code=$?
         if [[ $exit_code -eq 0 ]]; then
             log "  ✅ Backup complete (with warnings)"
-            ((backed_up++))
+            ((backed_up++)) || true
         else
             log "  ❌ Backup failed (exit code: $exit_code)"
-            ((failed++))
+            ((failed++)) || true
         fi
     fi
 
 done < <(list_projects)
+
+# Cleanup: Stop Docker if we started it (only after ALL backups complete)
+if did_we_start_docker; then
+    log "🐳 Cleaning up Docker..."
+    stop_docker
+fi
 
 # Summary
 log "═══════════════════════════════════════════════"
@@ -108,6 +135,41 @@ log "  Backed up: $backed_up"
 log "  Skipped:   $skipped"
 log "  Failed:    $failed"
 log "═══════════════════════════════════════════════"
+
+# Write global heartbeat for helper app
+HEARTBEAT_DIR="$HOME/.checkpoint"
+HEARTBEAT_FILE="$HEARTBEAT_DIR/daemon.heartbeat"
+mkdir -p "$HEARTBEAT_DIR"
+
+now=$(date +%s)
+if [[ $failed -gt 0 ]]; then
+    status="error"
+    error_msg="$failed project(s) failed"
+elif [[ $skipped -gt 0 ]] && [[ $backed_up -eq 0 ]]; then
+    status="stale"
+    error_msg="$skipped project(s) skipped"
+else
+    status="healthy"
+    error_msg=""
+fi
+
+if [[ -n "$error_msg" ]]; then
+    error_json="\"$error_msg\""
+else
+    error_json="null"
+fi
+
+cat > "$HEARTBEAT_FILE" <<EOF
+{
+  "timestamp": $now,
+  "status": "$status",
+  "project": "global",
+  "last_backup": $now,
+  "last_backup_files": $backed_up,
+  "error": $error_json,
+  "pid": $$
+}
+EOF
 
 # Cleanup orphaned projects periodically (every 24 hours)
 CLEANUP_STATE="$HOME/.config/checkpoint/.last-cleanup"

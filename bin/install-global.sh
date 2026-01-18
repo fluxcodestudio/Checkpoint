@@ -155,6 +155,14 @@ if [[ -d "$PACKAGE_DIR/skills" ]]; then
     echo "✅ Skills installed to $LIB_DIR/skills/"
 fi
 
+# Copy helper app source (for menu bar app)
+echo "Installing helper app source..."
+if [[ -d "$PACKAGE_DIR/helper" ]]; then
+    mkdir -p "$LIB_DIR/helper"
+    cp -r "$PACKAGE_DIR/helper/"* "$LIB_DIR/helper/"
+    echo "✅ Helper source installed to $LIB_DIR/helper/"
+fi
+
 # Copy VERSION file
 cp "$PACKAGE_DIR/VERSION" "$LIB_DIR/VERSION"
 
@@ -375,6 +383,120 @@ PYEOF
         echo "✅ All projects configured and daemons installed!"
         echo ""
         echo "Backups will run automatically every hour."
+        echo ""
+
+        # ==============================================================================
+        # OPTIONAL: SESSION-START HOOKS FOR HIGH-ACTIVITY PROJECTS
+        # ==============================================================================
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+        echo "SESSION-START BACKUPS (Optional)"
+        echo ""
+        echo "Heavy-use projects can also trigger a backup when you start"
+        echo "a new Claude Code session. This ensures you have a restore"
+        echo "point BEFORE making changes (in addition to hourly backups)."
+        echo ""
+        read -p "Enable session-start backups for specific projects? (y/N): " enable_session_hooks
+        enable_session_hooks=${enable_session_hooks:-n}
+        echo ""
+
+        if [[ "$enable_session_hooks" =~ ^[Yy]$ ]]; then
+            # Get list of configured projects
+            registry="$HOME/.config/checkpoint/projects.json"
+            if [[ -f "$registry" ]] && command -v python3 &>/dev/null; then
+                # Build project list
+                echo "Select projects for session-start backups:"
+                echo "(Enter numbers separated by commas, or 'none' to skip)"
+                echo ""
+
+                project_list=()
+                index=1
+                while IFS= read -r project_path; do
+                    project_name=$(basename "$project_path")
+                    project_list+=("$project_path")
+                    echo "  [$index] $project_name"
+                    index=$((index + 1))
+                done < <(python3 << 'PYEOF'
+import json
+import os
+
+registry_path = os.path.expanduser("~/.config/checkpoint/projects.json")
+with open(registry_path, 'r') as f:
+    data = json.load(f)
+
+for project in data.get('projects', []):
+    if project.get('enabled', True):
+        print(project['path'])
+PYEOF
+)
+
+                echo ""
+                read -p "Enter project numbers (e.g., 1,3,5) or 'none': " selected_projects
+
+                if [[ "$selected_projects" != "none" ]] && [[ -n "$selected_projects" ]]; then
+                    echo ""
+                    # Parse comma-separated numbers
+                    IFS=',' read -ra selections <<< "$selected_projects"
+                    for sel in "${selections[@]}"; do
+                        # Trim whitespace
+                        sel=$(echo "$sel" | tr -d ' ')
+                        # Validate it's a number
+                        if [[ "$sel" =~ ^[0-9]+$ ]] && [[ $sel -ge 1 ]] && [[ $sel -le ${#project_list[@]} ]]; then
+                            project_path="${project_list[$((sel-1))]}"
+                            project_name=$(basename "$project_path")
+
+                            # Install session-start hook for this project
+                            hook_dir="$project_path/.claude/hooks"
+                            settings_file="$project_path/.claude/settings.local.json"
+
+                            mkdir -p "$hook_dir"
+
+                            # Copy the backup trigger script
+                            if [[ -f "$LIB_DIR/bin/smart-backup-trigger.sh" ]]; then
+                                cp "$LIB_DIR/bin/smart-backup-trigger.sh" "$hook_dir/backup-trigger.sh"
+                                chmod +x "$hook_dir/backup-trigger.sh"
+
+                                # Update the trigger to use this project's path
+                                sed -i.bak "s|PROJECT_BACKUP_SCRIPT=.*|PROJECT_BACKUP_SCRIPT=\"$project_path/.claude/backup-daemon.sh\"|" "$hook_dir/backup-trigger.sh"
+                                rm -f "$hook_dir/backup-trigger.sh.bak"
+                            fi
+
+                            # Create/update project-local settings with hook
+                            if [[ -f "$settings_file" ]]; then
+                                # Check if hook already exists
+                                if ! grep -q "backup-trigger.sh" "$settings_file" 2>/dev/null; then
+                                    echo "  ⚠ $project_name has existing settings.local.json"
+                                    echo "    Add hook manually: $hook_dir/backup-trigger.sh"
+                                else
+                                    echo "  ✓ $project_name (hook already configured)"
+                                fi
+                            else
+                                cat > "$settings_file" << HOOKEOF
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$hook_dir/backup-trigger.sh",
+            "timeout": 1
+          }
+        ]
+      }
+    ]
+  }
+}
+HOOKEOF
+                                echo "  ✓ $project_name (session-start hook installed)"
+                            fi
+                        fi
+                    done
+                    echo ""
+                fi
+            fi
+        fi
+
         echo "Use 'checkpoint dashboard' to view status and change settings."
     fi
 else

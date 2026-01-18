@@ -255,9 +255,12 @@ AUTOCONFIG
     fi
 fi
 
+# ALWAYS use directory name as PROJECT_NAME (prevents config mismatches)
+PROJECT_NAME="$(basename "$PROJECT_DIR")"
+
 # Register project if not already (for existing configs)
 if type is_registered &>/dev/null && ! is_registered "$PROJECT_DIR"; then
-    register_project "$PROJECT_DIR" "${PROJECT_NAME:-$(basename "$PROJECT_DIR")}"
+    register_project "$PROJECT_DIR" "$PROJECT_NAME"
 fi
 
 # Initialize state directories
@@ -369,12 +372,10 @@ if [ $preflight_errors -gt 0 ]; then
 
     # Determine specific error code and message
     if [ "$DRIVE_VERIFICATION_ENABLED" = "true" ] && ! check_drive; then
-        local error_code
         error_code=$(map_error_to_code "drive_disconnected")
         notify_backup_failure "$preflight_errors" "0" "0" "$error_code"
         echo "Error: Drive not connected: $DRIVE_MARKER_FILE" > "$STATE_DIR/.last-backup-failures"
     else
-        local error_code
         error_code=$(map_error_to_code "config_invalid")
         notify_backup_failure "$preflight_errors" "0" "0" "$error_code"
         echo "Pre-flight checks failed" > "$STATE_DIR/.last-backup-failures"
@@ -774,9 +775,9 @@ if [ "$DATABASE_ONLY" = false ]; then
             log_info "   ▸ Files: Backing up changes..."
         fi
 
-        # Set defaults for file size limits
-        MAX_BACKUP_FILE_SIZE="${MAX_BACKUP_FILE_SIZE:-104857600}"  # 100MB default
-        BACKUP_LARGE_FILES="${BACKUP_LARGE_FILES:-false}"
+        # Set defaults for file size limits (no limit by default - backup everything)
+        MAX_BACKUP_FILE_SIZE="${MAX_BACKUP_FILE_SIZE:-0}"  # 0 = no limit
+        BACKUP_LARGE_FILES="${BACKUP_LARGE_FILES:-true}"
         skipped_large_files=0
         skipped_symlinks=0
 
@@ -877,7 +878,7 @@ if [ "$DATABASE_ONLY" = false ]; then
                                 BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
                             else
                                 # Both failed - use standardized error codes
-                                local raw_code="${COPY_FAILURE_REASON:-copy_failed}"
+                                raw_code="${COPY_FAILURE_REASON:-copy_failed}"
                                 error_code=$(map_error_to_code "$raw_code")
                                 suggested_fix=$(get_error_suggestion "$error_code")
                                 add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "$suggested_fix" 3
@@ -885,7 +886,7 @@ if [ "$DATABASE_ONLY" = false ]; then
                             fi
                         else
                             # No secondary, primary failed - use standardized error codes
-                            local raw_code="${COPY_FAILURE_REASON:-copy_failed}"
+                            raw_code="${COPY_FAILURE_REASON:-copy_failed}"
                             error_code=$(map_error_to_code "$raw_code")
                             suggested_fix=$(get_error_suggestion "$error_code")
 
@@ -919,7 +920,7 @@ if [ "$DATABASE_ONLY" = false ]; then
                             BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
                         else
                             # Both failed - use standardized error codes
-                            local raw_code="${COPY_FAILURE_REASON:-copy_failed}"
+                            raw_code="${COPY_FAILURE_REASON:-copy_failed}"
                             error_code=$(map_error_to_code "$raw_code")
                             suggested_fix=$(get_error_suggestion "$error_code")
                             add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "$suggested_fix" 3
@@ -927,7 +928,7 @@ if [ "$DATABASE_ONLY" = false ]; then
                         fi
                     else
                         # No secondary, primary failed - use standardized error codes
-                        local raw_code="${COPY_FAILURE_REASON:-copy_failed}"
+                        raw_code="${COPY_FAILURE_REASON:-copy_failed}"
                         error_code=$(map_error_to_code "$raw_code")
                         suggested_fix=$(get_error_suggestion "$error_code")
 
@@ -953,9 +954,7 @@ if [ "$DATABASE_ONLY" = false ]; then
 
             if [ ! -f "$backup_file" ]; then
                 # File missing from backup - use standardized error code
-                local error_code
                 error_code=$(map_error_to_code "file_missing")
-                local suggested_fix
                 suggested_fix=$(get_error_suggestion "$error_code")
                 add_file_failure "$file" "$error_code" "File missing from backup" "$suggested_fix" 0
                 log_error "      ✗ Verification failed: $file (missing from backup)"
@@ -964,9 +963,7 @@ if [ "$DATABASE_ONLY" = false ]; then
                 actual_size=$(stat -f%z "$backup_file" 2>/dev/null || echo "0")
                 if [ "$actual_size" != "$expected_size" ]; then
                     # Size mismatch - use standardized error code
-                    local error_code
                     error_code=$(map_error_to_code "size_mismatch")
-                    local suggested_fix
                     suggested_fix=$(get_error_suggestion "$error_code")
                     add_file_failure "$file" "$error_code" "Size: expected $expected_size, got $actual_size" "$suggested_fix" 0
                     log_error "      ✗ Verification failed: $file (size mismatch: expected $expected_size, got $actual_size)"
@@ -1091,7 +1088,6 @@ if [ "${BACKUP_USE_LEGACY_CLEANUP:-false}" = "true" ]; then
 else
     # Single-pass cleanup (10x faster for large backup sets)
     if [ "${BACKUP_DEBUG:-false}" = "true" ]; then
-        local cleanup_start cleanup_end
         cleanup_start=$(date +%s%3N 2>/dev/null || date +%s)
     fi
 
@@ -1209,18 +1205,68 @@ else
     final_exit_code=0
 fi
 
+# Calculate backup size from cloud folder
+BACKUP_STATE_SIZE=0
+BACKUP_STATE_SIZE_HUMAN="0B"
+if [[ -n "${CLOUD_FOLDER_PATH:-}" ]] && [[ -d "${CLOUD_FOLDER_PATH}/${PROJECT_NAME}" ]]; then
+    size_output=$(du -sh "${CLOUD_FOLDER_PATH}/${PROJECT_NAME}" 2>/dev/null | cut -f1)
+    size_bytes=$(du -s "${CLOUD_FOLDER_PATH}/${PROJECT_NAME}" 2>/dev/null | cut -f1)
+    BACKUP_STATE_SIZE="${size_bytes:-0}"
+    BACKUP_STATE_SIZE_HUMAN="${size_output:-0B}"
+fi
+
 # Write complete JSON state
 state_file=$(write_backup_state "$final_exit_code")
 
 log_info ""
 log_info "State saved to: $state_file"
 
+# Write heartbeat for helper app
+HEARTBEAT_DIR="$HOME/.checkpoint"
+HEARTBEAT_FILE="$HEARTBEAT_DIR/daemon.heartbeat"
+mkdir -p "$HEARTBEAT_DIR"
+
+now=$(date +%s)
+if [[ $final_exit_code -eq 0 ]]; then
+    hb_status="healthy"
+    hb_error=""
+elif [[ $final_exit_code -eq 1 ]]; then
+    hb_status="error"
+    hb_error="Partial backup: $BACKUP_STATE_FAILED_FILES file(s) failed"
+else
+    hb_status="error"
+    hb_error="Backup failed completely"
+fi
+
+if [[ -n "$hb_error" ]]; then
+    hb_error_json="\"$hb_error\""
+else
+    hb_error_json="null"
+fi
+
+cat > "$HEARTBEAT_FILE" <<EOF
+{
+  "timestamp": $now,
+  "status": "$hb_status",
+  "project": "$PROJECT_NAME",
+  "last_backup": $now,
+  "last_backup_files": $BACKUP_STATE_SUCCEEDED_FILES,
+  "error": $hb_error_json,
+  "pid": $$
+}
+EOF
+
+# Update registry with last backup time (for successful or partial backups)
+if [[ $final_exit_code -le 1 ]] && type update_last_backup &>/dev/null; then
+    update_last_backup "$PROJECT_DIR"
+fi
+
 # Send notification based on JSON state
 if [ -f "$state_file" ]; then
-    # Read actions from JSON state
-    send_notif=$(grep -o '"send_notification":[^,}]*' "$state_file" | cut -d':' -f2 | tr -d ' ')
-    notif_title=$(grep -o '"title":"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
-    notif_message=$(grep -o '"message":"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
+    # Read actions from JSON state (use || true to prevent exit on no-match)
+    send_notif=$(grep -o '"send_notification":[^,}]*' "$state_file" 2>/dev/null | cut -d':' -f2 | tr -d ' ' || true)
+    notif_title=$(grep -o '"title":"[^"]*"' "$state_file" 2>/dev/null | head -1 | cut -d'"' -f4 || true)
+    notif_message=$(grep -o '"message":"[^"]*"' "$state_file" 2>/dev/null | head -1 | cut -d'"' -f4 || true)
 
     if [ "$send_notif" = "true" ]; then
         # Determine sound based on exit code
@@ -1236,6 +1282,146 @@ if [ -f "$state_file" ]; then
 fi
 
 log_info ""
+
+# ==============================================================================
+# CLOUD FOLDER SYNC (Dropbox/iCloud/Google Drive)
+# ==============================================================================
+
+CLOUD_FOLDER_FAILED=false
+
+if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PATH:-}" ]]; then
+    log_info "☁️  Syncing to cloud folder..."
+
+    # Create cloud backup directory if needed (ignore errors if path doesn't exist)
+    mkdir -p "$CLOUD_FOLDER_PATH/$PROJECT_NAME" 2>/dev/null || true
+
+    if [[ -d "$CLOUD_FOLDER_PATH" ]]; then
+        # Sync databases
+        if [[ -d "$DATABASE_DIR" ]] && [[ "$(ls -A "$DATABASE_DIR" 2>/dev/null)" ]]; then
+            rsync -a --delete "$DATABASE_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/databases/" 2>/dev/null && \
+                log_info "   ✓ Databases synced" || \
+                log_warn "   ⚠ Database sync failed"
+        fi
+
+        # Sync critical files (not full file backups - too large)
+        if [[ -d "$FILES_DIR" ]]; then
+            # Only sync config and small critical files
+            rsync -a --include='.env*' --include='*.sh' --include='.claude/' --include='.claude/**' \
+                  --exclude='node_modules/' --exclude='*.log' \
+                  --max-size=1M \
+                  "$FILES_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/files/" 2>/dev/null && \
+                log_info "   ✓ Critical files synced" || \
+                log_warn "   ⚠ File sync failed"
+        fi
+
+        # Sync state file (for cross-computer portability)
+        portable_state="${BACKUP_DIR:-$PROJECT_DIR/backups}/.checkpoint-state.json"
+        if [[ -f "$portable_state" ]]; then
+            cp "$portable_state" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/.checkpoint-state.json" 2>/dev/null && \
+                log_info "   ✓ State file synced" || \
+                log_warn "   ⚠ State sync failed"
+        fi
+
+        log_info "   Cloud folder: $CLOUD_FOLDER_PATH/$PROJECT_NAME"
+    else
+        log_warn "   ⚠ Cloud folder not accessible: $CLOUD_FOLDER_PATH"
+        CLOUD_FOLDER_FAILED=true
+    fi
+fi
+
+# ==============================================================================
+# CLOUD DIRECT UPLOAD (via rclone)
+# ==============================================================================
+# Runs if:
+#   1. Explicitly enabled (CLOUD_RCLONE_ENABLED=true), OR
+#   2. Cloud folder sync failed and rclone is configured as fallback
+# ==============================================================================
+
+# Determine if we should use rclone
+USE_RCLONE=false
+RCLONE_REASON=""
+
+if [[ "${CLOUD_RCLONE_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_RCLONE_REMOTE:-}" ]]; then
+    USE_RCLONE=true
+    RCLONE_REASON="enabled"
+elif [[ "$CLOUD_FOLDER_FAILED" == "true" ]] && [[ -n "${CLOUD_RCLONE_REMOTE:-}" ]]; then
+    # Fallback: cloud folder not accessible but rclone is configured
+    USE_RCLONE=true
+    RCLONE_REASON="fallback"
+    log_info "☁️  Cloud folder unavailable - falling back to rclone..."
+fi
+
+if [[ "$USE_RCLONE" == "true" ]] && [[ -n "${CLOUD_RCLONE_REMOTE:-}" ]]; then
+    # Check if rclone is available
+    if command -v rclone &>/dev/null; then
+        log_info "☁️  Uploading to cloud via rclone..."
+
+        rclone_dest="${CLOUD_RCLONE_REMOTE}:${CLOUD_RCLONE_PATH:-Backups/Checkpoint}/$PROJECT_NAME"
+
+        # Sync databases
+        if [[ -d "$DATABASE_DIR" ]] && [[ "$(ls -A "$DATABASE_DIR" 2>/dev/null)" ]]; then
+            if rclone sync "$DATABASE_DIR/" "$rclone_dest/databases/" --quiet 2>/dev/null; then
+                log_info "   ✓ Databases uploaded"
+            else
+                log_warn "   ⚠ Database upload failed"
+            fi
+        fi
+
+        # Sync critical files (using filter for small important files)
+        if [[ -d "$FILES_DIR" ]]; then
+            # Create a temp filter file for rclone
+            rclone_filter=$(mktemp)
+            cat > "$rclone_filter" << 'RCLONE_FILTER'
++ .env*
++ *.sh
++ .claude/**
++ .backup-config.sh
++ CLAUDE.md
++ credentials.json
++ *.pem
+- node_modules/**
+- *.log
+- **
+RCLONE_FILTER
+
+            if rclone sync "$FILES_DIR/" "$rclone_dest/files/" \
+                --filter-from "$rclone_filter" \
+                --max-size 1M \
+                --quiet 2>/dev/null; then
+                log_info "   ✓ Critical files uploaded"
+            else
+                log_warn "   ⚠ File upload failed"
+            fi
+
+            rm -f "$rclone_filter"
+        fi
+
+        # Upload state file (for cross-computer portability)
+        portable_state="${BACKUP_DIR:-$PROJECT_DIR/backups}/.checkpoint-state.json"
+        if [[ -f "$portable_state" ]]; then
+            if rclone copyto "$portable_state" "$rclone_dest/.checkpoint-state.json" --quiet 2>/dev/null; then
+                log_info "   ✓ State file uploaded"
+            else
+                log_warn "   ⚠ State upload failed"
+            fi
+        fi
+
+        log_info "   Cloud destination: $rclone_dest"
+    else
+        log_warn "   ⚠ rclone not installed - skipping cloud upload"
+    fi
+fi
+
+# ==============================================================================
+# CLEANUP
+# ==============================================================================
+
+# Stop Docker if we started it (for single-project backups)
+# In multi-project backups, this is handled by backup-all-projects.sh
+if type did_we_start_docker &>/dev/null && did_we_start_docker; then
+    log_info "🐳 Stopping Docker (we started it)..."
+    stop_docker
+fi
 
 # Exit with simple code
 exit $final_exit_code

@@ -1,15 +1,18 @@
 # CONTEXT_DIGEST.md
 <!-- Auto-updated by Superstack. Run: superstack digest -->
-<!-- Last updated: 2026-01-15T19:08:46Z -->
+<!-- Last updated: 2026-01-18T04:01:52Z -->
 
 ## Current State
 - GSD: Phase 10 of 10 (all phases complete) (v1.2 milestone shipped)
 - Pending: 5 task(s) in TODO.md
 
 ## Recent Changes
-- fix: handle paths with spaces in auto-configure (4132800)
-- feat: ask user for project directories during auto-configure (27697ae)
-- feat: add zero-config auto-discovery for all projects (e0d40a3)
+- Modified: ONTEXT_DIGEST.md
+- Modified: bin/install-global.sh
+- Modified: helper/CheckpointHelper/AppDelegate.swift
+- fix: exclude backups/ and archived/ from skip patterns (1f4493d)
+- feat: smart defaults for large projects - universal gitignore (165ef87)
+- fix: smarter project discovery - skip build dirs and subpackages (a2bf169)
 
 ## Open Threads
 - (none detected)
@@ -24,3 +27,4 @@
 ## Next Likely Actions
 1. Complete: Create `.claude/skills/checkpoint/` directory
 2. Complete: Create `skill.json` with metadata
+3. Review and commit pending changes

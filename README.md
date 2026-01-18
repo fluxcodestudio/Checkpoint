@@ -8,7 +8,7 @@
 
 Automated, intelligent backup system for any development environment. Battle-tested with comprehensive test coverage, cloud backup support, and multi-platform integrations.
 
-**Version:** 2.3.0
+**Version:** 2.4.0
 **Test Coverage:** 164/164 (100%)
 **License:** GPL v3
 
@@ -16,7 +16,38 @@ Automated, intelligent backup system for any development environment. Battle-tes
 
 ---
 
-## What's New in v2.3.0
+## What's New in v2.4.0
+
+☁️ **Remote Database Backup**
+- Backup cloud databases: Neon, Supabase, PlanetScale, MongoDB Atlas
+- Automatic SSL for secure connections
+- 120-second timeout for slow connections
+- Enable with `BACKUP_REMOTE_DATABASES=true`
+
+🐳 **Docker Database Backup**
+- Auto-detect databases in docker-compose.yml
+- Backup PostgreSQL, MySQL, MongoDB from containers
+- Auto-start Docker Desktop if not running
+- Smart shutdown: only stops Docker after ALL backups complete (if we started it)
+
+🔄 **Auto-Start Local Databases**
+- Start PostgreSQL/MySQL automatically for backup, stop after
+- Graceful skip when database doesn't exist on current machine
+- Perfect for multi-computer workflows
+
+🖥️ **Machine Tracking**
+- State files include hostname, username, OS version, machine model
+- Know which computer created each backup
+- Seamless multi-computer development
+
+⚡ **Session-Start Hooks**
+- Global installer now offers per-project prompt hooks
+- Select high-activity projects for session-start backups
+- Hooks are project-local (not global) - no cross-project interference
+
+---
+
+## What's New in v2.3.x
 
 🌐 **Global Multi-Project System**
 - **Auto-registration**: Run `backup-now` in any directory → config auto-created, project registered
@@ -28,11 +59,6 @@ Automated, intelligent backup system for any development environment. Battle-tes
 - `/checkpoint` skill with arrow-key menus (Claude Code)
 - Manage all projects from one place
 - Per-project settings adjustable via command center
-
-🛠️ **Improvements**
-- Hooks now opt-in (no false warnings)
-- Cleaner status display
-- Better daemon detection
 
 ---
 
@@ -64,8 +90,11 @@ Automated, intelligent backup system for any development environment. Battle-tes
 - **Smart Change Detection** — Only backs up modified files
 - **Works Without Git** — Automatic fallback for non-git directories (uses filesystem scan + mtime)
 - **Instant Failure Alerts** — Native macOS notifications when backup fails (spam-prevented, actionable)
-- **Universal Database Detection** — Auto-detects and backs up SQLite, PostgreSQL, MySQL, MongoDB (local only)
+- **Universal Database Detection** — Auto-detects and backs up SQLite, PostgreSQL, MySQL, MongoDB (local, remote, and Docker)
+- **Remote Database Backup** — Backup cloud databases (Neon, Supabase, PlanetScale, MongoDB Atlas) with SSL
+- **Docker Database Backup** — Auto-detect and backup databases from Docker containers
 - **Database Snapshots** — Compressed timestamped backups with proper tools (sqlite3, pg_dump, mysqldump, mongodump)
+- **Multi-Computer Support** — Graceful handling when databases don't exist on current machine, machine tracking in state files
 - **Version Archiving** — Old versions preserved when files change (not deleted)
 - **Critical File Coverage** — Backs up .env, credentials, cloud configs (AWS, GCP), Terraform secrets, IDE settings, notes, local overrides (kept out of Git)
 - **Cloud Backup** — Off-site protection via rclone (Dropbox, Google Drive, OneDrive, iCloud)

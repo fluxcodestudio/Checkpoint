@@ -88,6 +88,20 @@ SKIP_DIRS=(
     ".turbo"
     ".vercel"
     ".netlify"
+    # Backup/archive directories (not projects)
+    "backups"
+    "archived"
+    "_backups"
+    "archive"
+    "database-backups"
+    # Testing artifacts
+    "screenshots"
+    "test-results"
+    "playwright-report"
+    ".playwright"
+    # Framework cache
+    "storage"
+    "bootstrap"
 )
 
 # Directories that indicate this is a sub-package, not a standalone project
@@ -175,6 +189,42 @@ UNIVERSAL_SKIP_PATTERNS=(
     # Checkpoint's own backup directories (avoid recursive backup)
     "backups"
     "archived"
+    "_backups"
+    "archive"
+    "database-backups"
+
+    # Testing artifacts (regeneratable)
+    "screenshots"
+    "test-results"
+    "playwright-report"
+    ".playwright"
+    "cypress/screenshots"
+    "cypress/videos"
+
+    # Laravel framework directories (regeneratable)
+    "storage/framework"
+    "storage/clockwork"
+    "bootstrap/cache"
+
+    # Media/uploads (large files, typically from production or re-downloadable)
+    "public/storage"
+    "uploads"
+    "media"
+    "track_media"
+    "audio"
+    "videos"
+
+    # Rust (regeneratable)
+    "target/debug"
+    "target/release"
+
+    # Java/Gradle (regeneratable)
+    ".gradle"
+    "build/classes"
+    "build/libs"
+
+    # Docker (local only)
+    ".docker"
 )
 
 # ==============================================================================
@@ -834,18 +884,44 @@ handle_multiple_databases() {
         ((idx++)) || true
     fi
 
-    echo "  [A] All local databases"
+    echo "  [A] All local databases (SQLite files)"
+    echo "  [B] Both (.env database + local SQLite)"
     echo "  [N] None (skip database backup)"
     echo ""
 
-    read -p "  Which database(s) to backup? [1]: " choice
-    choice=${choice:-1}
+    read -p "  Which database(s) to backup? [B]: " choice
+    choice=${choice:-B}
 
     local db_type="none"
     local db_path=""
+    local db_all="false"
 
-    if [[ "$choice" =~ ^[Aa]$ ]]; then
-        # For "all", use the first SQLite found (we'll add multi-db support later)
+    if [[ "$choice" =~ ^[Bb]$ ]]; then
+        # Both: backup .env database AND all local SQLite files
+        db_all="true"
+        # Set primary db_type from .env
+        for db in "${dbs[@]}"; do
+            local t="${db%%|*}"
+            if [[ "$t" == "postgresql" ]] || [[ "$t" == "mysql" ]]; then
+                db_type="$t"
+                db_path="env"
+                break
+            fi
+        done
+        # Fallback to SQLite if no .env database
+        if [[ "$db_type" == "none" ]]; then
+            for db in "${dbs[@]}"; do
+                local t="${db%%|*}"
+                if [[ "$t" == "sqlite" ]]; then
+                    db_type="sqlite"
+                    db_path=$(echo "$db" | cut -d'|' -f2)
+                    break
+                fi
+            done
+        fi
+    elif [[ "$choice" =~ ^[Aa]$ ]]; then
+        # All local SQLite files only
+        db_all="true"
         for db in "${dbs[@]}"; do
             local t="${db%%|*}"
             if [[ "$t" == "sqlite" ]]; then
@@ -873,8 +949,17 @@ handle_multiple_databases() {
         sed -i '' "s|^DB_PATH=.*|DB_PATH=\"$db_path\"|" "$config_file"
     fi
 
+    # Add DB_BACKUP_ALL flag if Both or All was selected
+    if [[ "$db_all" == "true" ]]; then
+        echo "" >> "$config_file"
+        echo "# Backup all databases (both .env and local SQLite files)" >> "$config_file"
+        echo "DB_BACKUP_ALL=true" >> "$config_file"
+    fi
+
     register_project "$project_dir"
-    echo "  ✓ Configured with $db_type"
+    local db_desc="$db_type"
+    [[ "$db_all" == "true" ]] && db_desc="all databases"
+    echo "  ✓ Configured with $db_desc"
     echo ""
 }
 
@@ -912,7 +997,19 @@ get_effective_size() {
             -name "target" -o \
             -name ".next" -o \
             -name ".cache" -o \
-            -name "coverage" \
+            -name "coverage" -o \
+            -name "backups" -o \
+            -name "_backups" -o \
+            -name "archive" -o \
+            -name "archived" -o \
+            -name "database-backups" -o \
+            -name "storage" -o \
+            -name ".git" -o \
+            -name "logs" -o \
+            -name "public/storage" -o \
+            -name "uploads" -o \
+            -name "media" -o \
+            -name "track_media" \
         \) -prune -o -type f -print0 2>/dev/null | xargs -0 stat -f%z 2>/dev/null | awk '{s+=$1} END {print int(s/1024/1024)}')
         echo "${size:-0}"
     else
@@ -957,27 +1054,52 @@ handle_large_project() {
 # Smart backup - skip regeneratable directories
 BACKUP_SMART_SKIP=true
 BACKUP_SKIP_PATTERNS=(
+    # Package managers
     "node_modules"
     "vendor"
     ".venv"
     "venv"
     "__pycache__"
+    # Build outputs
     "build"
     "dist"
     "out"
     "target"
     ".next"
     ".nuxt"
+    ".output"
+    ".svelte-kit"
+    # Caches
     ".cache"
     ".parcel-cache"
-    "coverage"
+    ".turbo"
     ".gradle"
     ".maven"
+    "coverage"
+    # Logs/temp
     "logs"
     "tmp"
     "temp"
+    # Backup/archive directories
     "backups"
     "archived"
+    "_backups"
+    "archive"
+    "database-backups"
+    # Testing artifacts
+    "screenshots"
+    "test-results"
+    "playwright-report"
+    ".playwright"
+    # Laravel framework
+    "storage/framework"
+    "storage/clockwork"
+    "bootstrap/cache"
+    # Media/uploads (large, re-downloadable)
+    "public/storage"
+    "uploads"
+    "media"
+    "track_media"
 )
 SMARTEOF
 
@@ -1016,27 +1138,52 @@ SMARTEOF
 # Smart backup - skip regeneratable directories
 BACKUP_SMART_SKIP=true
 BACKUP_SKIP_PATTERNS=(
+    # Package managers
     "node_modules"
     "vendor"
     ".venv"
     "venv"
     "__pycache__"
+    # Build outputs
     "build"
     "dist"
     "out"
     "target"
     ".next"
     ".nuxt"
+    ".output"
+    ".svelte-kit"
+    # Caches
     ".cache"
     ".parcel-cache"
-    "coverage"
+    ".turbo"
     ".gradle"
     ".maven"
+    "coverage"
+    # Logs/temp
     "logs"
     "tmp"
     "temp"
+    # Backup/archive directories
     "backups"
     "archived"
+    "_backups"
+    "archive"
+    "database-backups"
+    # Testing artifacts
+    "screenshots"
+    "test-results"
+    "playwright-report"
+    ".playwright"
+    # Laravel framework
+    "storage/framework"
+    "storage/clockwork"
+    "bootstrap/cache"
+    # Media/uploads (large, re-downloadable)
+    "public/storage"
+    "uploads"
+    "media"
+    "track_media"
 )
 SMARTEOF
     fi

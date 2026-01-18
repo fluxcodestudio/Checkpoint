@@ -18,22 +18,32 @@ class MenuBarManager: NSObject {
     // MARK: - Setup
 
     func setup() {
-        // Create status item
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        print("MenuBarManager.setup() called")
+
+        // Create status item with fixed length
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        print("Status item created: \(statusItem != nil)")
 
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "checkmark.shield", accessibilityDescription: "Checkpoint")
-            button.image?.isTemplate = true
+            print("Button found, setting title")
+            // Use simple text - most reliable
+            button.title = "CP"
+            button.font = NSFont.systemFont(ofSize: 10, weight: .bold)
+            print("Title set to: \(button.title)")
+        } else {
+            print("ERROR: No button on status item!")
         }
 
         // Create menu
         menu = NSMenu()
         setupMenu()
         statusItem?.menu = menu
+        print("Menu attached: \(statusItem?.menu != nil)")
 
         // Start monitoring
         heartbeatMonitor.delegate = self
         heartbeatMonitor.startMonitoring()
+        print("Setup complete")
     }
 
     // MARK: - Menu Setup
