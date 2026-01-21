@@ -250,11 +250,15 @@ detect_mongodb() {
 # ==============================================================================
 
 # File-based flag to track if we started Docker (persists across multiple backups)
-CHECKPOINT_DOCKER_FLAG="/tmp/.checkpoint-started-docker"
+# Security: Use user-specific cache directory instead of world-writable /tmp
+CHECKPOINT_CACHE_DIR="${HOME}/.cache/checkpoint"
+mkdir -p "$CHECKPOINT_CACHE_DIR" 2>/dev/null || true
+CHECKPOINT_DOCKER_FLAG="${CHECKPOINT_CACHE_DIR}/.started-docker"
 
 # Check if we started Docker (for cleanup decision)
 did_we_start_docker() {
-    [[ -f "$CHECKPOINT_DOCKER_FLAG" ]]
+    # Security: Ensure it's a regular file, not a symlink
+    [[ -f "$CHECKPOINT_DOCKER_FLAG" ]] && [[ ! -L "$CHECKPOINT_DOCKER_FLAG" ]]
 }
 
 # Detect databases running in Docker containers
@@ -405,6 +409,10 @@ start_docker() {
         echo "  ✓ Docker started"
         # Create flag file to indicate we started Docker
         # This persists across multiple backup runs so we can stop it after ALL backups complete
+        # Security: Only create if not a symlink (prevent symlink attacks)
+        if [[ -L "$CHECKPOINT_DOCKER_FLAG" ]]; then
+            rm -f "$CHECKPOINT_DOCKER_FLAG"
+        fi
         touch "$CHECKPOINT_DOCKER_FLAG"
         return 0
     else
@@ -794,14 +802,15 @@ backup_single_database() {
                 local safe_password="${password//%7C/|}"
 
                 echo "  ☁️  Connecting to remote: $host..."
+                # Security: Use MYSQL_PWD env var instead of command-line password (not visible in ps)
                 if command -v timeout &>/dev/null; then
-                    timeout 120 mysqldump -h "$host" -P "$port" -u "$user" -p"$safe_password" --ssl-mode=REQUIRED "$database" 2>/dev/null | gzip > "$backup_file"
+                    MYSQL_PWD="$safe_password" timeout 120 mysqldump -h "$host" -P "$port" -u "$user" --ssl-mode=REQUIRED "$database" 2>/dev/null | gzip > "$backup_file"
                     mysql_exit_code=${PIPESTATUS[0]}
                 elif command -v gtimeout &>/dev/null; then
-                    gtimeout 120 mysqldump -h "$host" -P "$port" -u "$user" -p"$safe_password" --ssl-mode=REQUIRED "$database" 2>/dev/null | gzip > "$backup_file"
+                    MYSQL_PWD="$safe_password" gtimeout 120 mysqldump -h "$host" -P "$port" -u "$user" --ssl-mode=REQUIRED "$database" 2>/dev/null | gzip > "$backup_file"
                     mysql_exit_code=${PIPESTATUS[0]}
                 else
-                    mysqldump -h "$host" -P "$port" -u "$user" -p"$safe_password" --ssl-mode=REQUIRED "$database" 2>/dev/null | gzip > "$backup_file"
+                    MYSQL_PWD="$safe_password" mysqldump -h "$host" -P "$port" -u "$user" --ssl-mode=REQUIRED "$database" 2>/dev/null | gzip > "$backup_file"
                     mysql_exit_code=${PIPESTATUS[0]}
                 fi
             fi
@@ -984,8 +993,9 @@ backup_single_database() {
                     mkdir -p "$backup_dir/databases"
 
                     echo "  🐳 Dumping from container: $container_name..."
+                    # Security: Use environment variable for password instead of command line
                     if [[ -n "$password" ]]; then
-                        docker exec "$container_name" mysqldump -u "$user" -p"$password" "$database" 2>/dev/null | gzip > "$backup_file"
+                        docker exec -e MYSQL_PWD="$password" "$container_name" mysqldump -u "$user" "$database" 2>/dev/null | gzip > "$backup_file"
                     else
                         docker exec "$container_name" mysqldump -u "$user" "$database" 2>/dev/null | gzip > "$backup_file"
                     fi

@@ -43,9 +43,21 @@ load_global_config() {
 }
 
 # Load project config
+# Security note: Config files are shell scripts and can execute arbitrary code.
+# This is by design (like .bashrc). Only use in trusted project directories.
 load_project_config() {
-    if [[ -f "$PWD/.backup-config.sh" ]]; then
-        source "$PWD/.backup-config.sh"
+    local config_file="$PWD/.backup-config.sh"
+    if [[ -f "$config_file" ]]; then
+        # Security: Check file ownership matches current user
+        local file_owner
+        file_owner=$(stat -f "%u" "$config_file" 2>/dev/null || stat -c "%u" "$config_file" 2>/dev/null)
+        local current_user
+        current_user=$(id -u)
+        if [[ "$file_owner" != "$current_user" ]]; then
+            echo "⚠️  Warning: Config file not owned by you. Skipping for security." >&2
+            return 1
+        fi
+        source "$config_file"
         return 0
     fi
     return 1
@@ -186,15 +198,28 @@ edit_global_settings() {
     echo ""
 
     # Use $EDITOR or fallback to nano/vim
+    # Security: validate EDITOR doesn't contain shell metacharacters
+    local editor_used=false
+    local unsafe_chars=';|&$`()'
     if [[ -n "${EDITOR:-}" ]]; then
-        $EDITOR "$GLOBAL_CONFIG_FILE"
-    elif command -v nano &>/dev/null; then
-        nano "$GLOBAL_CONFIG_FILE"
-    elif command -v vim &>/dev/null; then
-        vim "$GLOBAL_CONFIG_FILE"
-    else
-        echo "No editor found. Please edit manually:"
-        echo "  $GLOBAL_CONFIG_FILE"
+        if [[ "$EDITOR" == *[';|&$`()']*  ]]; then
+            echo "Warning: EDITOR contains unsafe characters, falling back to nano/vim"
+        else
+            # Use array to properly handle editors with arguments (e.g., "code --wait")
+            read -ra editor_cmd <<< "$EDITOR"
+            "${editor_cmd[@]}" "$GLOBAL_CONFIG_FILE"
+            editor_used=true
+        fi
+    fi
+    if [[ "$editor_used" == "false" ]]; then
+        if command -v nano &>/dev/null; then
+            nano "$GLOBAL_CONFIG_FILE"
+        elif command -v vim &>/dev/null; then
+            vim "$GLOBAL_CONFIG_FILE"
+        else
+            echo "No editor found. Please edit manually:"
+            echo "  $GLOBAL_CONFIG_FILE"
+        fi
     fi
 
     echo ""
@@ -233,15 +258,26 @@ edit_project_settings() {
     echo ""
 
     # Use $EDITOR or fallback
+    # Security: validate EDITOR doesn't contain shell metacharacters
+    local editor_used=false
     if [[ -n "${EDITOR:-}" ]]; then
-        $EDITOR "$PWD/.backup-config.sh"
-    elif command -v nano &>/dev/null; then
-        nano "$PWD/.backup-config.sh"
-    elif command -v vim &>/dev/null; then
-        vim "$PWD/.backup-config.sh"
-    else
-        echo "No editor found. Please edit manually:"
-        echo "  $PWD/.backup-config.sh"
+        if [[ "$EDITOR" == *[';|&$`()']*  ]]; then
+            echo "Warning: EDITOR contains unsafe characters, falling back to nano/vim"
+        else
+            read -ra editor_cmd <<< "$EDITOR"
+            "${editor_cmd[@]}" "$PWD/.backup-config.sh"
+            editor_used=true
+        fi
+    fi
+    if [[ "$editor_used" == "false" ]]; then
+        if command -v nano &>/dev/null; then
+            nano "$PWD/.backup-config.sh"
+        elif command -v vim &>/dev/null; then
+            vim "$PWD/.backup-config.sh"
+        else
+            echo "No editor found. Please edit manually:"
+            echo "  $PWD/.backup-config.sh"
+        fi
     fi
 
     echo ""
