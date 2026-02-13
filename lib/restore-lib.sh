@@ -147,8 +147,8 @@ list_file_versions() {
 
     # Current version in files/
     if [[ -f "$FILES_DIR/$filepath" ]]; then
-        local mtime=$(stat -f%m "$FILES_DIR/$filepath" 2>/dev/null || stat -c%Y "$FILES_DIR/$filepath" 2>/dev/null)
-        local size=$(stat -f%z "$FILES_DIR/$filepath" 2>/dev/null || stat -c%s "$FILES_DIR/$filepath" 2>/dev/null)
+        local mtime=$(get_file_mtime "$FILES_DIR/$filepath")
+        local size=$(get_file_size "$FILES_DIR/$filepath")
         results+=("$mtime|$size|$FILES_DIR/$filepath|current")
     fi
 
@@ -170,8 +170,8 @@ list_file_versions() {
 
             # Match if same original filename
             if [[ "$orig_name" == "$filename" ]]; then
-                local mtime=$(stat -f%m "$archived_file" 2>/dev/null || stat -c%Y "$archived_file" 2>/dev/null)
-                local size=$(stat -f%z "$archived_file" 2>/dev/null || stat -c%s "$archived_file" 2>/dev/null)
+                local mtime=$(get_file_mtime "$archived_file")
+                local size=$(get_file_size "$archived_file")
                 results+=("$mtime|$size|$archived_file|archived")
             fi
         done < <(find "$ARCHIVED_DIR" -type f 2>/dev/null)
@@ -200,8 +200,8 @@ list_files_at_time() {
     if [[ -d "$FILES_DIR" ]]; then
         while IFS= read -r file; do
             local relpath="${file#$FILES_DIR/}"
-            local mtime=$(stat -f%m "$file" 2>/dev/null || stat -c%Y "$file" 2>/dev/null)
-            local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+            local mtime=$(get_file_mtime "$file")
+            local size=$(get_file_size "$file")
 
             # Only include if file existed at target time (mtime <= target)
             if [[ $mtime -le $target_epoch ]]; then
@@ -229,8 +229,8 @@ list_files_at_time() {
                 continue
             fi
 
-            local mtime=$(stat -f%m "$archived_file" 2>/dev/null || stat -c%Y "$archived_file" 2>/dev/null)
-            local size=$(stat -f%z "$archived_file" 2>/dev/null || stat -c%s "$archived_file" 2>/dev/null)
+            local mtime=$(get_file_mtime "$archived_file")
+            local size=$(get_file_size "$archived_file")
 
             # Only include if file existed at target time (mtime <= target)
             if [[ $mtime -le $target_epoch ]]; then

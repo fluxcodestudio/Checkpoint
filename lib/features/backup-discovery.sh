@@ -26,13 +26,13 @@ list_database_backups_sorted() {
 
     local count=0
     find "$db_dir" -name "*.db.gz" -type f 2>/dev/null | while read -r backup; do
-        local mtime=$(stat -f%m "$backup" 2>/dev/null || stat -c%Y "$backup" 2>/dev/null)
+        local mtime=$(get_file_mtime "$backup")
         echo "$mtime|$backup"
     done | sort -rn -t'|' | while IFS='|' read -r mtime backup; do
         [ $limit -gt 0 ] && [ $count -ge $limit ] && break
 
         local filename=$(basename "$backup")
-        local size=$(stat -f%z "$backup" 2>/dev/null || stat -c%s "$backup" 2>/dev/null)
+        local size=$(get_file_size "$backup")
         local size_human=$(format_bytes "$size")
         local created=$(date -r "$mtime" "+%Y-%m-%d %H:%M" 2>/dev/null)
         local relative=$(format_relative_time "$mtime")
@@ -52,8 +52,8 @@ list_file_versions_sorted() {
 
     # Current version
     if [ -f "$files_dir/$file_path" ]; then
-        local mtime=$(stat -f%m "$files_dir/$file_path" 2>/dev/null || stat -c%Y "$files_dir/$file_path" 2>/dev/null)
-        local size=$(stat -f%z "$files_dir/$file_path" 2>/dev/null || stat -c%s "$files_dir/$file_path" 2>/dev/null)
+        local mtime=$(get_file_mtime "$files_dir/$file_path")
+        local size=$(get_file_size "$files_dir/$file_path")
         local size_human=$(format_bytes "$size")
         local created=$(date -r "$mtime" "+%Y-%m-%d %H:%M" 2>/dev/null)
         local relative=$(format_relative_time "$mtime")
@@ -63,8 +63,8 @@ list_file_versions_sorted() {
 
     # Archived versions
     find "$archived_dir" -type f -name "$(basename "$file_path").*" 2>/dev/null | while read -r backup; do
-        local mtime=$(stat -f%m "$backup" 2>/dev/null || stat -c%Y "$backup" 2>/dev/null)
-        local size=$(stat -f%z "$backup" 2>/dev/null || stat -c%s "$backup" 2>/dev/null)
+        local mtime=$(get_file_mtime "$backup")
+        local size=$(get_file_size "$backup")
         local size_human=$(format_bytes "$size")
         local created=$(date -r "$mtime" "+%Y-%m-%d %H:%M" 2>/dev/null)
         local relative=$(format_relative_time "$mtime")

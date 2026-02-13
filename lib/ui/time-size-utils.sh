@@ -113,12 +113,15 @@ get_dir_size_bytes() {
         return
     fi
 
-    # macOS uses -f%z, Linux uses --format=%s
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        find "$dir" -type f -exec stat -f%z {} + 2>/dev/null | awk '{s+=$1} END {print s+0}'
-    else
-        find "$dir" -type f -exec stat --format=%s {} + 2>/dev/null | awk '{s+=$1} END {print s+0}'
-    fi
+    # Sum file sizes using platform-appropriate stat flag
+    case "${_COMPAT_OS:-$(uname -s)}" in
+        Darwin)
+            find "$dir" -type f -exec stat -f%z {} + 2>/dev/null | awk '{s+=$1} END {print s+0}'
+            ;;
+        *)
+            find "$dir" -type f -exec stat -c%s {} + 2>/dev/null | awk '{s+=$1} END {print s+0}'
+            ;;
+    esac
 }
 
 # ==============================================================================

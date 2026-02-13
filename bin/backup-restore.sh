@@ -428,9 +428,9 @@ restore_file_at_time() {
         exit 1
     fi
 
-    local mtime=$(stat -f%m "$closest" 2>/dev/null || stat -c%Y "$closest" 2>/dev/null)
+    local mtime=$(get_file_mtime "$closest")
     local created=$(date -r "$mtime" "+%Y-%m-%d %H:%M:%S" 2>/dev/null)
-    local size=$(stat -f%z "$closest" 2>/dev/null || stat -c%s "$closest" 2>/dev/null)
+    local size=$(get_file_size "$closest")
     local size_human=$(format_bytes "$size")
 
     local target_file="$PROJECT_DIR/$filepath"
@@ -654,7 +654,7 @@ restore_database_from_list() {
     if [ "$selection" -ge 1 ] 2>/dev/null && [ "$selection" -le "${#backups[@]}" ]; then
         local selected_backup="${backups[$((selection - 1))]}"
         local filename=$(basename "$selected_backup")
-        local size=$(stat -f%z "$selected_backup" 2>/dev/null || stat -c%s "$selected_backup" 2>/dev/null)
+        local size=$(get_file_size "$selected_backup")
         local size_human=$(format_bytes "$size")
 
         echo ""
@@ -724,7 +724,7 @@ restore_database_at_time() {
     local closest_diff=999999999
 
     while IFS='|' read -r created relative size filename path; do
-        local mtime=$(stat -f%m "$path" 2>/dev/null || stat -c%Y "$path" 2>/dev/null)
+        local mtime=$(get_file_mtime "$path")
         local diff=$((target_timestamp - mtime))
         [ $diff -lt 0 ] && diff=$((diff * -1))
 
@@ -740,9 +740,9 @@ restore_database_at_time() {
     fi
 
     local filename=$(basename "$closest_backup")
-    local mtime=$(stat -f%m "$closest_backup" 2>/dev/null || stat -c%Y "$closest_backup" 2>/dev/null)
+    local mtime=$(get_file_mtime "$closest_backup")
     local created=$(date -r "$mtime" "+%Y-%m-%d %H:%M:%S" 2>/dev/null)
-    local size=$(stat -f%z "$closest_backup" 2>/dev/null || stat -c%s "$closest_backup" 2>/dev/null)
+    local size=$(get_file_size "$closest_backup")
     local size_human=$(format_bytes "$size")
 
     echo ""

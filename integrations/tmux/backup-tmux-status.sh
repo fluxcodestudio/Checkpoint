@@ -18,6 +18,11 @@ LIB_DIR="$(cd "$SCRIPT_DIR/../../lib" && pwd)"
 # Status file location (written by daemon)
 STATUS_FILE="${CHECKPOINT_STATUS_FILE:-$HOME/.config/checkpoint/status.json}"
 
+# Load platform compatibility helpers
+if [ -f "$LIB_DIR/platform/compat.sh" ]; then
+    source "$LIB_DIR/platform/compat.sh"
+fi
+
 # Fallback: Load integration core for per-project status (backward compatibility)
 BACKUP_INTEGRATION_QUIET_LOAD=true
 if [[ -f "$INTEGRATION_DIR/lib/integration-core.sh" ]]; then
@@ -47,11 +52,7 @@ read_status_file() {
     if [[ -f "$STATUS_FILE" ]]; then
         # Check if file is recent (less than 5 minutes old)
         local file_time now age
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            file_time=$(stat -f %m "$STATUS_FILE" 2>/dev/null)
-        else
-            file_time=$(stat -c %Y "$STATUS_FILE" 2>/dev/null)
-        fi
+        file_time=$(get_file_mtime "$STATUS_FILE")
 
         now=$(date +%s)
         age=$((now - file_time))

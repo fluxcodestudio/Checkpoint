@@ -180,7 +180,7 @@ analyze_cleanup() {
     if [ "$FILES_ONLY" = "false" ] && [ -d "$DATABASE_DIR" ]; then
         while IFS= read -r backup; do
             db_to_delete+=("$backup")
-            local size=$(stat -f%z "$backup" 2>/dev/null || stat -c%s "$backup" 2>/dev/null)
+            local size=$(get_file_size "$backup")
             db_size=$((db_size + size))
         done < <(find_expired_backups "$DATABASE_DIR" "$db_retention" "*.db.gz")
     fi
@@ -192,7 +192,7 @@ analyze_cleanup() {
     if [ "$DATABASE_ONLY" = "false" ] && [ -d "$ARCHIVED_DIR" ]; then
         while IFS= read -r backup; do
             files_to_delete+=("$backup")
-            local size=$(stat -f%z "$backup" 2>/dev/null || stat -c%s "$backup" 2>/dev/null)
+            local size=$(get_file_size "$backup")
             files_size=$((files_size + size))
         done < <(find_expired_backups "$ARCHIVED_DIR" "$file_retention" "*")
     fi
@@ -209,7 +209,7 @@ analyze_duplicates() {
     if [ "$FILES_ONLY" = "false" ] && [ -d "$DATABASE_DIR" ]; then
         while IFS= read -r backup; do
             duplicates+=("$backup")
-            local size=$(stat -f%z "$backup" 2>/dev/null || stat -c%s "$backup" 2>/dev/null)
+            local size=$(get_file_size "$backup")
             dup_size=$((dup_size + size))
         done < <(find_duplicate_backups "$DATABASE_DIR" "*.db.gz")
     fi
@@ -225,7 +225,7 @@ analyze_orphaned() {
     if [ "$DATABASE_ONLY" = "false" ] && [ -d "$ARCHIVED_DIR" ]; then
         while IFS= read -r backup; do
             orphaned+=("$backup")
-            local size=$(stat -f%z "$backup" 2>/dev/null || stat -c%s "$backup" 2>/dev/null)
+            local size=$(get_file_size "$backup")
             orphan_size=$((orphan_size + size))
         done < <(find_orphaned_archives "$ARCHIVED_DIR" "$FILES_DIR" "$PROJECT_DIR")
     fi
@@ -256,7 +256,7 @@ execute_cleanup() {
         if [ ${#db_files[@]} -gt 0 ]; then
             local db_size=0
             for file in "${db_files[@]}"; do
-                local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+                local size=$(get_file_size "$file")
                 db_size=$((db_size + size))
             done
 
@@ -266,7 +266,7 @@ execute_cleanup() {
                 for file in "${db_files[@]}"; do
                     if rm -f "$file" 2>/dev/null; then
                         ((deleted_count++))
-                        local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+                        local size=$(get_file_size "$file")
                         freed_size=$((freed_size + size))
                     fi
                 done
@@ -285,7 +285,7 @@ execute_cleanup() {
         if [ ${#archive_files[@]} -gt 0 ]; then
             local archive_size=0
             for file in "${archive_files[@]}"; do
-                local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+                local size=$(get_file_size "$file")
                 archive_size=$((archive_size + size))
             done
 
@@ -295,7 +295,7 @@ execute_cleanup() {
                 for file in "${archive_files[@]}"; do
                     if rm -f "$file" 2>/dev/null; then
                         ((deleted_count++))
-                        local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+                        local size=$(get_file_size "$file")
                         freed_size=$((freed_size + size))
                     fi
                 done
@@ -334,7 +334,7 @@ clean_duplicates() {
 
     local dup_size=0
     for file in "${duplicates[@]}"; do
-        local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+        local size=$(get_file_size "$file")
         dup_size=$((dup_size + size))
     done
 
@@ -383,7 +383,7 @@ clean_orphaned() {
 
     local orphan_size=0
     for file in "${orphaned[@]}"; do
-        local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+        local size=$(get_file_size "$file")
         orphan_size=$((orphan_size + size))
     done
 
@@ -451,7 +451,7 @@ execute_tiered_cleanup() {
             else
                 while IFS= read -r file; do
                     [[ -z "$file" ]] && continue
-                    local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+                    local size=$(get_file_size "$file")
                     if rm -f "$file" 2>/dev/null; then
                         ((deleted_count++))
                         freed_size=$((freed_size + size))
@@ -484,7 +484,7 @@ execute_tiered_cleanup() {
             else
                 while IFS= read -r file; do
                     [[ -z "$file" ]] && continue
-                    local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+                    local size=$(get_file_size "$file")
                     if rm -f "$file" 2>/dev/null; then
                         ((deleted_count++))
                         freed_size=$((freed_size + size))

@@ -87,7 +87,7 @@ calculate_total_size() {
     local total=0
     while IFS= read -r file; do
         if [ -f "$file" ]; then
-            local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+            local size=$(get_file_size "$file")
             total=$((total + size))
         fi
     done
@@ -105,7 +105,7 @@ delete_files_batch() {
     local total_size=0
     for file in "${files[@]}"; do
         if [ -f "$file" ]; then
-            local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null)
+            local size=$(get_file_size "$file")
             total_size=$((total_size + size))
         fi
     done
@@ -139,7 +139,7 @@ delete_files_batch() {
 # SINGLE-PASS CLEANUP (Performance Optimization)
 # ==============================================================================
 # Replaces multiple find traversals with single-pass scanning
-# Uses BSD stat -f (macOS compatible) instead of GNU find -printf
+# Uses platform-appropriate stat flags (BSD on macOS, GNU on Linux)
 
 # Global arrays to hold cleanup scan results
 CLEANUP_EXPIRED_DBS=()
@@ -173,7 +173,10 @@ cleanup_single_pass() {
             file="${line%|*}"
             mtime="${line##*|}"
             [ -n "$mtime" ] && [ "$mtime" -lt "$db_cutoff" ] 2>/dev/null && CLEANUP_EXPIRED_DBS+=("$file")
-        done < <(find "$database_dir" -name "*.db.gz" -type f -exec stat -f "%N|%m" {} \; 2>/dev/null)
+        done < <(case "${_COMPAT_OS:-$(uname -s)}" in
+            Darwin) find "$database_dir" -name "*.db.gz" -type f -exec stat -f "%N|%m" {} \; 2>/dev/null ;;
+            *) find "$database_dir" -name "*.db.gz" -type f -exec stat -c "%n|%Y" {} \; 2>/dev/null ;;
+        esac)
     fi
 
     # Single traversal for archived files + empty dirs
@@ -187,15 +190,18 @@ cleanup_single_pass() {
             type_char="${rest%%|*}"
             mtime="${rest##*|}"
 
-            if [[ "$type_char" == "Regular File" ]]; then
+            if [[ "$type_char" == "Regular File" ]] || [[ "$type_char" == "regular file" ]]; then
                 [ -n "$mtime" ] && [ "$mtime" -lt "$file_cutoff" ] 2>/dev/null && CLEANUP_EXPIRED_FILES+=("$path")
-            elif [[ "$type_char" == "Directory" ]]; then
+            elif [[ "$type_char" == "Directory" ]] || [[ "$type_char" == "directory" ]]; then
                 # Check if empty (skip archived_dir itself)
                 if [ "$path" != "$archived_dir" ] && [ -z "$(ls -A "$path" 2>/dev/null)" ]; then
                     CLEANUP_EMPTY_DIRS+=("$path")
                 fi
             fi
-        done < <(find "$archived_dir" \( -type f -o -type d \) -exec stat -f "%N|%HT|%m" {} \; 2>/dev/null)
+        done < <(case "${_COMPAT_OS:-$(uname -s)}" in
+            Darwin) find "$archived_dir" \( -type f -o -type d \) -exec stat -f "%N|%HT|%m" {} \; 2>/dev/null ;;
+            *) find "$archived_dir" \( -type f -o -type d \) -exec stat -c "%n|%F|%Y" {} \; 2>/dev/null ;;
+        esac)
     fi
 
     # Report counts (only if debug enabled or verbose)

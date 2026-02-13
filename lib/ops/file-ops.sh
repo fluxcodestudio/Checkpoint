@@ -192,8 +192,9 @@ get_file_hash() {
     # Validate file exists
     [ ! -f "$file" ] && return 1
 
-    # Get current mtime (macOS format)
-    file_mtime=$(stat -f%m "$file" 2>/dev/null) || return 1
+    # Get current mtime
+    file_mtime=$(get_file_mtime "$file")
+    [ "$file_mtime" = "0" ] && return 1
 
     # Check cache for existing hash
     if [ -f "$hash_cache" ]; then
@@ -259,8 +260,10 @@ files_identical_hash() {
 
     # Quick size check first (very fast, eliminates most differences)
     local size1 size2
-    size1=$(stat -f%z "$file1" 2>/dev/null) || return 1
-    size2=$(stat -f%z "$file2" 2>/dev/null) || return 1
+    size1=$(get_file_size "$file1")
+    [ "$size1" = "0" ] && [ ! -f "$file1" ] && return 1
+    size2=$(get_file_size "$file2")
+    [ "$size2" = "0" ] && [ ! -f "$file2" ] && return 1
 
     # Different sizes = definitely different
     if [ "$size1" != "$size2" ]; then

@@ -166,7 +166,12 @@ find_tiered_pruning_candidates() {
 
         if [[ -z "$timestamp" ]]; then
             # No timestamp found - use file mtime
-            timestamp=$(stat -f "%Sm" -t "%Y%m%d_%H%M%S" "$file" 2>/dev/null || date +"%Y%m%d_%H%M%S")
+            local _mtime=$(get_file_mtime "$file")
+            if [ "$_mtime" != "0" ]; then
+                timestamp=$(date -r "$_mtime" "+%Y%m%d_%H%M%S" 2>/dev/null || date +"%Y%m%d_%H%M%S")
+            else
+                timestamp=$(date +"%Y%m%d_%H%M%S")
+            fi
         fi
 
         local tier=$(classify_retention_tier "$timestamp")
@@ -224,7 +229,12 @@ get_retention_stats() {
         local timestamp=$(extract_timestamp "$basename")
 
         if [[ -z "$timestamp" ]]; then
-            timestamp=$(stat -f "%Sm" -t "%Y%m%d_%H%M%S" "$file" 2>/dev/null || date +"%Y%m%d_%H%M%S")
+            local _mtime=$(get_file_mtime "$file")
+            if [ "$_mtime" != "0" ]; then
+                timestamp=$(date -r "$_mtime" "+%Y%m%d_%H%M%S" 2>/dev/null || date +"%Y%m%d_%H%M%S")
+            else
+                timestamp=$(date +"%Y%m%d_%H%M%S")
+            fi
         fi
 
         local tier=$(classify_retention_tier "$timestamp")
@@ -250,7 +260,7 @@ calculate_tiered_savings() {
     local total=0
 
     while IFS= read -r file; do
-        local size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo 0)
+        local size=$(get_file_size "$file")
         total=$((total + size))
     done < <(find_tiered_pruning_candidates "$dir" "$pattern")
 

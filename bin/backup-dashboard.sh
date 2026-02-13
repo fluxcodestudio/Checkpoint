@@ -57,10 +57,9 @@ get_project_last_backup_detail() {
 
     if [[ -n "$last_file" ]]; then
         local timestamp
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            timestamp=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M:%S" "$last_file" 2>/dev/null)
-        else
-            timestamp=$(stat -c "%y" "$last_file" 2>/dev/null | cut -d'.' -f1)
+        local _mtime=$(get_file_mtime "$last_file")
+        if [ "$_mtime" != "0" ]; then
+            timestamp=$(date -r "$_mtime" "+%Y-%m-%d %H:%M:%S" 2>/dev/null)
         fi
         echo "$(format_age "$age") ($timestamp)"
     else

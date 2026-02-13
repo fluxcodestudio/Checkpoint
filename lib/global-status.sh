@@ -73,11 +73,7 @@ get_project_backup_age() {
 
     # Get file modification time
     local file_time
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        file_time=$(stat -f %m "$last_file" 2>/dev/null)
-    else
-        file_time=$(stat -c %Y "$last_file" 2>/dev/null)
-    fi
+    file_time=$(get_file_mtime "$last_file")
 
     if [[ -z "$file_time" ]]; then
         echo "-1"
