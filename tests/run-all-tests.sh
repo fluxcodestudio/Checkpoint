@@ -98,9 +98,15 @@ run_test_suite() {
     cat "$output_file"
 
     # Parse results from output
-    local passed=$(grep -c "✓ PASS" "$output_file" 2>/dev/null || echo "0")
-    local failed=$(grep -c "✗ FAIL" "$output_file" 2>/dev/null || echo "0")
-    local skipped=$(grep -c "⊘ SKIP" "$output_file" 2>/dev/null || echo "0")
+    local passed
+    passed=$(grep -c "PASS" "$output_file" 2>/dev/null || true)
+    passed=${passed:-0}
+    local failed
+    failed=$(grep -c "FAIL" "$output_file" 2>/dev/null || true)
+    failed=${failed:-0}
+    local skipped
+    skipped=$(grep -c "SKIP" "$output_file" 2>/dev/null || true)
+    skipped=${skipped:-0}
     local total=$((passed + failed + skipped))
 
     # Update totals
@@ -143,7 +149,7 @@ run_all_tests() {
         echo -e "\n${CYAN}${BOLD}[2/6] Integration Tests${NC}"
         for test_file in "$TESTS_DIR/integration"/test-*.sh; do
             if [[ -f "$test_file" ]]; then
-                run_test_suite "$test_file" || ((failed_suites++))
+                run_test_suite "$test_file" || failed_suites=$((failed_suites + 1))
             fi
         done
     fi
@@ -153,7 +159,7 @@ run_all_tests() {
         echo -e "\n${CYAN}${BOLD}[3/6] End-to-End Tests${NC}"
         for test_file in "$TESTS_DIR/e2e"/test-*.sh; do
             if [[ -f "$test_file" ]]; then
-                run_test_suite "$test_file" || ((failed_suites++))
+                run_test_suite "$test_file" || failed_suites=$((failed_suites + 1))
             fi
         done
     fi
@@ -163,7 +169,7 @@ run_all_tests() {
         echo -e "\n${CYAN}${BOLD}[4/6] Compatibility Tests${NC}"
         for test_file in "$TESTS_DIR/compatibility"/test-*.sh; do
             if [[ -f "$test_file" ]]; then
-                run_test_suite "$test_file" || ((failed_suites++))
+                run_test_suite "$test_file" || failed_suites=$((failed_suites + 1))
             fi
         done
     fi
@@ -173,7 +179,7 @@ run_all_tests() {
         echo -e "\n${CYAN}${BOLD}[5/6] Stress & Edge Case Tests${NC}"
         for test_file in "$TESTS_DIR/stress"/test-*.sh; do
             if [[ -f "$test_file" ]]; then
-                run_test_suite "$test_file" || ((failed_suites++))
+                run_test_suite "$test_file" || failed_suites=$((failed_suites + 1))
             fi
         done
     fi

@@ -215,19 +215,19 @@ test_suite() {
 
 test_case() {
     CURRENT_TEST_NAME="$1"
-    ((TESTS_RUN++))
+    TESTS_RUN=$((TESTS_RUN + 1))
 
     echo -ne "  ${CYAN}▶${NC} $CURRENT_TEST_NAME ... "
 }
 
 test_pass() {
-    ((TESTS_PASSED++))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
     echo -e "${GREEN}✓ PASS${NC}"
 }
 
 test_fail() {
     local message="${1:-}"
-    ((TESTS_FAILED++))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
     echo -e "${RED}✗ FAIL${NC}"
     if [[ -n "$message" ]]; then
         echo -e "    ${RED}$message${NC}"
@@ -236,7 +236,7 @@ test_fail() {
 
 test_skip() {
     local reason="${1:-No reason provided}"
-    ((TESTS_SKIPPED++))
+    TESTS_SKIPPED=$((TESTS_SKIPPED + 1))
     echo -e "${YELLOW}⊘ SKIP${NC} ($reason)"
 }
 
