@@ -1,0 +1,17 @@
+[Unit]
+Description=Checkpoint Watchdog Monitor
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/bin/bash SCRIPT_PATH_PLACEHOLDER
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:HOME_PLACEHOLDER/.local/bin
+EnvironmentFile=-HOME_PLACEHOLDER/.config/checkpoint/env
+Restart=on-failure
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

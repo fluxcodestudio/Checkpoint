@@ -1,0 +1,18 @@
+[Unit]
+Description=Checkpoint File Watcher - PROJECT_NAME_PLACEHOLDER
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/bin/bash SCRIPT_PATH_PLACEHOLDER
+WorkingDirectory=PROJECT_DIR_PLACEHOLDER
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:HOME_PLACEHOLDER/.local/bin
+EnvironmentFile=-HOME_PLACEHOLDER/.config/checkpoint/env
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

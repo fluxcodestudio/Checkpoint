@@ -1,0 +1,11 @@
+[Unit]
+Description=Checkpoint Backup - PROJECT_NAME_PLACEHOLDER
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash SCRIPT_PATH_PLACEHOLDER
+WorkingDirectory=PROJECT_DIR_PLACEHOLDER
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:HOME_PLACEHOLDER/.local/bin
+EnvironmentFile=-HOME_PLACEHOLDER/.config/checkpoint/env
+StandardOutput=journal
+StandardError=journal

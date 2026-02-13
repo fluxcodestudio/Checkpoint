@@ -1,0 +1,3 @@
+# Checkpoint Backup - PROJECT_NAME_PLACEHOLDER
+# Installed by checkpoint daemon-manager (cron fallback)
+*/5 * * * * /bin/bash SCRIPT_PATH_PLACEHOLDER >> HOME_PLACEHOLDER/.checkpoint/logs/cron-PROJECT_NAME_PLACEHOLDER.log 2>&1
