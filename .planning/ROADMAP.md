@@ -89,10 +89,13 @@ Plans:
 **Depends on**: Phase 12
 **Research**: Likely (fswatch/inotifywait APIs, debounce strategies, event filtering)
 **Research topics**: fswatch macOS integration, inotifywait Linux patterns, debounce timing strategies, ignore patterns for build dirs
-**Plans**: TBD
+**Plans**: 4
 
 Plans:
-- [ ] 13-01: TBD (run /gsd:plan-phase 13 to break down)
+- [ ] 13-01: Create platform file watcher abstraction + integrate into backup-watcher.sh
+- [ ] 13-02: Migrate session detection + fix 8 watcher bugs
+- [ ] 13-03: Update watcher management CLI + config template
+- [ ] 13-04: Remove Claude Code hooks + update install scripts
 
 #### Phase 14: Security Hardening
 
