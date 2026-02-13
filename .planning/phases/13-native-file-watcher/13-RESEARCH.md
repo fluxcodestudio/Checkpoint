@@ -738,6 +738,232 @@ AFTER:
 3. Watchdog plist: separate `install-helper.sh` (L93-118)
 </daemon_architecture>
 
+<robustness_bugs>
+## Current Watcher Bugs to Fix (Deep Dive)
+
+Eight bugs/improvements found in the existing `backup-watcher.sh` and `backup-watch.sh`:
+
+### Bug 1: `$!` Captures Pipeline PID, Not fswatch PID
+**Location:** `backup-watcher.sh:191`
+**Problem:** `fswatch ... | while read ... done &` — `$!` captures the PID of the backgrounded pipeline (the subshell), not fswatch itself. When cleanup kills this PID, fswatch may become an orphan.
+**Fix:** Use process substitution or named pipe instead:
+```bash
+# Option A: Process substitution (bash 3.2+ compatible)
+while read -r _count; do
+    log "File change detected"
+    reset_timer
+done < <(start_watcher "$PROJECT_DIR" "${DEFAULT_EXCLUDES[@]}")
+# $! not needed — fswatch runs in current process group, killed by cleanup
+
+# Option B: Named pipe (more portable)
+mkfifo "$WATCHER_FIFO"
+start_watcher "$PROJECT_DIR" "${DEFAULT_EXCLUDES[@]}" > "$WATCHER_FIFO" &
+FSWATCH_PID=$!
+while read -r _count; do ...done < "$WATCHER_FIFO"
+```
+
+### Bug 2: Timer Subshell Inherits Pipe File Descriptors
+**Location:** `backup-watcher.sh:146-157`
+**Problem:** The timer subshell `( sleep N; ...; backup-daemon.sh & ) &` inherits stdin from the `while read` pipe. If fswatch exits, the pipe's read end won't get EOF until ALL inherited FDs close — meaning cleanup waits for timer subshells to finish.
+**Fix:** Close inherited FDs in the timer subshell:
+```bash
+(
+    exec 0<&- 1>/dev/null  # close stdin, redirect stdout
+    sleep "$DEBOUNCE_SECONDS"
+    ...
+) &
+```
+
+### Bug 3: No SIGHUP Trap
+**Location:** `backup-watcher.sh:127`
+**Problem:** `trap cleanup SIGTERM SIGINT EXIT` — no SIGHUP. When a terminal session disconnects, SIGHUP is sent but not caught, leading to unclean shutdown (no PID file cleanup).
+**Fix:** Add SIGHUP to the trap: `trap cleanup SIGTERM SIGINT SIGHUP EXIT`
+
+### Bug 4: Double Cleanup Execution on SIGTERM
+**Location:** `backup-watcher.sh:104-127`
+**Problem:** SIGTERM triggers cleanup via signal trap, then `exit 0` inside cleanup triggers the EXIT trap, running cleanup again. Double kill attempts and double "Watcher stopped" log entries.
+**Fix:** Use a guard variable:
+```bash
+CLEANUP_DONE=false
+cleanup() {
+    [ "$CLEANUP_DONE" = true ] && return
+    CLEANUP_DONE=true
+    log "Watcher shutting down..."
+    ...
+}
+```
+
+### Bug 5: No Log Rotation
+**Location:** `backup-watcher.sh:93-96`
+**Problem:** `WATCHER_LOG` grows unbounded. Long-running watchers can produce large log files.
+**Fix:** Add log rotation on startup:
+```bash
+MAX_LOG_SIZE=${MAX_LOG_SIZE:-1048576}  # 1MB default
+if [ -f "$WATCHER_LOG" ] && [ "$(wc -c < "$WATCHER_LOG")" -gt "$MAX_LOG_SIZE" ]; then
+    mv "$WATCHER_LOG" "${WATCHER_LOG}.old"
+fi
+```
+
+### Bug 6: No Health Check for Deleted Project Directory
+**Location:** `backup-watcher.sh` (missing)
+**Problem:** If the project directory is deleted or the external drive is unmounted, fswatch continues running but generates errors. No detection or graceful shutdown.
+**Fix:** Add periodic project directory existence check:
+```bash
+# In the main event loop or a separate watchdog timer
+if [ ! -d "$PROJECT_DIR" ]; then
+    log "ERROR: Project directory no longer exists: $PROJECT_DIR"
+    cleanup
+fi
+```
+
+### Bug 7: PID Reuse Race Condition in is_watcher_running()
+**Location:** `backup-watch.sh:58-77`
+**Problem:** Between reading the PID file and calling `kill -0`, the PID could be reused by an unrelated process. Stale PID file + PID reuse = false positive "watcher running".
+**Mitigation:** Low probability in practice (PIDs are 32-bit, cycle time is days). Can improve by also checking process name/command:
+```bash
+# Verify it's actually our watcher, not a reused PID
+if kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= 2>/dev/null | grep -q "backup-watcher"; then
+    return 0
+fi
+```
+
+### Bug 8: Missing pipefail in Subshells
+**Location:** `backup-watcher.sh:146-157` (timer subshell)
+**Problem:** The main script has `set -euo pipefail` but subshells don't inherit `set -e` or `pipefail`. If `backup-daemon.sh` fails silently in the timer subshell, no error is logged.
+**Fix:** Add error handling in the timer subshell:
+```bash
+(
+    sleep "$DEBOUNCE_SECONDS"
+    ...
+    if ! "$SCRIPT_DIR/backup-daemon.sh" >> "$WATCHER_LOG" 2>&1; then
+        log "ERROR: backup-daemon.sh failed with exit code $?"
+    fi
+) &
+```
+</robustness_bugs>
+
+<install_script_details>
+## install.sh Hook Sections (Deep Dive)
+
+Exact sections in `bin/install.sh` (~1384 lines) that reference hooks and must be removed or modified:
+
+### Section 1: Hook Installation Question (Q4)
+**Lines:** ~754-760
+**Context:** Interactive installer question asking user if they want Claude Code hooks
+**Action:** REMOVE question entirely, or replace with watcher-only question
+
+### Section 2: .claude/hooks Directory Creation
+**Lines:** ~1098-1101, ~1231
+**Context:** `mkdir -p "$PROJECT_DIR/.claude/hooks"` — creates hooks directory in project
+**Action:** REMOVE both occurrences
+
+### Section 3: Hook Script Copying
+**Lines:** ~1119-1124, ~1234-1236
+**Context:** Copies `backup-on-edit.sh`, `backup-on-commit.sh`, `backup-on-stop.sh` from templates
+**Action:** REMOVE all copy operations
+
+### Section 4: HOOKS_ENABLED Logic Block
+**Lines:** ~1227-1264
+**Context:** Entire if-block that checks `HOOKS_ENABLED` and sets up hook scripts
+**Action:** REMOVE entire block
+
+### Section 5: settings.local.json Hook Configuration
+**Lines:** ~1272-1338
+**Context:** Generates `.claude/settings.local.json` with hook entries (PostToolUse, Stop events)
+**Action:** REMOVE entire settings.json generation block
+
+### Section 6: Old Global Hooks Migration
+**Lines:** ~1276-1299
+**Context:** Migrates hooks from `~/.claude/hooks/` to project-local `.claude/hooks/`
+**Action:** REMOVE migration code
+
+### Section 7: Watcher LaunchAgent Installation
+**Lines:** ~1205-1220
+**Context:** Installs watcher plist into ~/Library/LaunchAgents using template
+**Action:** KEEP but make cross-platform aware (launchd on macOS, info message on Linux)
+
+### install-global.sh Session-Start Hooks
+**File:** `bin/install-global.sh`
+**Lines:** ~392-499
+**Context:** Entire "SESSION-START HOOKS" section that installs hooks for session tracking
+**Action:** REMOVE entire section
+</install_script_details>
+
+<test_infrastructure>
+## Test Infrastructure Analysis (Deep Dive)
+
+### Current Test Framework
+- Custom bash test framework: `tests/test-framework.sh`
+- 28 test files across 6 categories: unit, integration, e2e, compatibility, stress, legacy
+- Test runner: `tests/run-all-tests.sh`
+- Reports: HTML + JSON + TXT output in `tests/reports/`
+
+### Watcher/Hook Test Coverage: ZERO
+**Critical finding:** No existing tests cover:
+- File watcher (backup-watcher.sh)
+- Watcher management (backup-watch.sh)
+- Hook scripts (backup-on-edit/commit/stop.sh)
+- Smart backup trigger (smart-backup-trigger.sh)
+- LaunchAgent/plist installation
+- fswatch exclude patterns
+
+### Testing Challenges for Phase 13
+1. **No fswatch mocking:** Test framework has no mechanism to mock external commands
+2. **Process management:** Testing start/stop/status requires spawning real processes
+3. **Platform-specific:** fswatch tests only work on macOS, inotifywait only on Linux
+4. **Timing-sensitive:** Debounce tests depend on sleep timing
+
+### Testing Recommendations for Phase 13
+1. **Unit test the platform wrapper:** Test `detect_watcher()` by mocking `uname -s` and `command -v`
+2. **Unit test exclude pattern building:** Test `_build_inotify_exclude()` with various inputs
+3. **Unit test session detection:** Test `check_new_session()` with mocked state files
+4. **Integration test watcher lifecycle:** Start watcher, create file, verify backup triggered
+5. **Skip timing-sensitive tests in CI:** Debounce timing tests are inherently flaky
+</test_infrastructure>
+
+<config_template_inventory>
+## backup-config.sh Template Settings Inventory (Deep Dive)
+
+### Settings That STAY (no changes)
+| Setting | Line(s) | Purpose |
+|---------|---------|---------|
+| PROJECT_NAME | ~10-12 | Project identifier |
+| PROJECT_DIR | ~14-16 | Project root path |
+| BACKUP_DIR | ~18-20 | Backup destination |
+| CLOUD_DIR | ~22-28 | Cloud sync destination |
+| RETENTION_* | ~32-50 | Retention policies |
+| DATABASE_* | ~54-64 | Database backup config |
+| BACKUP_INTERVAL | ~66-68 | Minimum time between backups |
+| SESSION_IDLE_THRESHOLD | ~70-72 | Idle time for new session detection |
+| LARGE_FILE_THRESHOLD | ~74-77 | Large file handling |
+| DRIVE_VERIFICATION_* | ~80-89 | External drive checks |
+| DEBOUNCE_SECONDS | ~222-224 | Watcher debounce period |
+| WATCHER_EXCLUDES | ~234-238 | Custom exclude patterns |
+| WATCHER_ENABLED | ~226-228 | Enable/disable watcher |
+
+### Settings to REMOVE
+| Setting | Line(s) | Reason |
+|---------|---------|--------|
+| HOOKS_ENABLED | ~241-243 | Hooks being removed |
+| HOOKS_TRIGGERS | ~245-250 | Hook trigger configuration |
+
+### Settings Changing Ownership
+| Setting | Current Owner | After Phase 13 |
+|---------|--------------|----------------|
+| BACKUP_INTERVAL | smart-backup-trigger.sh reads | backup-watcher.sh reads (pre-check) + backup-daemon.sh reads (enforcement) |
+| SESSION_IDLE_THRESHOLD | smart-backup-trigger.sh reads | backup-watcher.sh reads |
+| DRIVE_VERIFICATION_ENABLED | smart-backup-trigger.sh reads | backup-watcher.sh reads |
+| DRIVE_MARKER_FILE | smart-backup-trigger.sh reads | backup-watcher.sh reads |
+| DEBOUNCE_SECONDS | backup-watcher.sh reads | backup-watcher.sh reads (no change) |
+| WATCHER_ENABLED | backup-watch.sh reads | backup-watch.sh reads (no change) |
+
+### Config Template Updates Needed
+1. Remove HOOKS_ENABLED and HOOKS_TRIGGERS sections
+2. Update WATCHER_EXCLUDES comment to list ALL default patterns (currently lists only 10 of 14)
+3. Add comment noting watcher is the primary trigger mechanism (replacing hooks)
+4. Add POLL_INTERVAL setting (new, for poll fallback mode, default 30)
+</config_template_inventory>
+
 <open_questions>
 ## Open Questions
 
@@ -818,7 +1044,7 @@ AFTER:
 - `templates/backup-config.sh` - WATCHER_EXCLUDES docs incomplete; update default pattern list
 
 **Research date:** 2026-02-13
-**Updated:** 2026-02-13 (deep dive: hook removal scope, trigger migration, exclude improvements, daemon architecture)
+**Updated:** 2026-02-13 (deep dive: hook removal scope, trigger migration, exclude improvements, daemon architecture, robustness bugs, install.sh details, test gaps, config inventory)
 **Valid until:** 2026-03-15 (30 days - fswatch/inotify-tools ecosystems are stable)
 </metadata>
 
