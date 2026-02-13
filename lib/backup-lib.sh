@@ -38,6 +38,9 @@ source "$_CHECKPOINT_LIB_DIR/ops/init.sh"
 source "$_CHECKPOINT_LIB_DIR/ui/formatting.sh"
 source "$_CHECKPOINT_LIB_DIR/ui/time-size-utils.sh"
 
+# === Platform compatibility (standalone, no dependencies) ===
+source "$_CHECKPOINT_LIB_DIR/platform/compat.sh"
+
 # === Features (depend on core + ops) ===
 source "$_CHECKPOINT_LIB_DIR/features/backup-discovery.sh"
 source "$_CHECKPOINT_LIB_DIR/features/restore.sh"
