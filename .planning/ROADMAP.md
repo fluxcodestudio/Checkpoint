@@ -119,7 +119,7 @@ Plans:
 
 Plans:
 - [x] 15-01: Platform compatibility layer (stat portability + notifications for core scripts)
-- [ ] 15-02: stat portability across all backup operation scripts
+- [x] 15-02: stat portability across all backup operation scripts
 - [ ] 15-03: Daemon manager abstraction + systemd/cron templates
 - [ ] 15-04: Core daemon script migration (watchdog, pause, install-global, uninstall-global)
 - [ ] 15-05: Complete daemon migration (install, configure, uninstall, helper, auto-configure)
@@ -173,7 +173,7 @@ Plans:
 | 12. Bootstrap Deduplication | v2.5 | 1/1 | Complete | 2026-02-13 |
 | 13. Native File Watcher Daemon | v2.5 | 4/4 | Complete | 2026-02-13 |
 | 14. Security Hardening | v2.5 | 3/3 | Complete | 2026-02-13 |
-| 15. Linux Systemd Support | v2.5 | 1/5 | In progress | - |
+| 15. Linux Systemd Support | v2.5 | 2/5 | In progress | - |
 | 16. Backup Verification | v2.5 | 0/? | Not started | - |
 | 17. Error Logging Overhaul | v2.5 | 0/? | Not started | - |
 | 18. Daemon Lifecycle & Health Monitoring | v2.5 | 0/? | Not started | - |
