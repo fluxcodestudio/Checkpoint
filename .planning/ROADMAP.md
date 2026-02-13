@@ -108,7 +108,7 @@ Plans:
 Plans:
 - [x] 14-01: Secure download library + rclone migration (replace curl|bash with download-verify-execute)
 - [x] 14-02: Credential provider abstraction (macOS Keychain, Linux secret-tool/pass, env var fallback)
-- [ ] 14-03: Self-update integrity + install messaging (SHA256 verification for backup-update.sh)
+- [x] 14-03: Self-update integrity + install messaging (SHA256 verification for backup-update.sh)
 
 #### Phase 15: Linux Systemd Support
 
@@ -169,7 +169,7 @@ Plans:
 | 11. Modularize Foundation Library | v2.5 | 3/3 | Complete | 2026-02-13 |
 | 12. Bootstrap Deduplication | v2.5 | 1/1 | Complete | 2026-02-13 |
 | 13. Native File Watcher Daemon | v2.5 | 4/4 | Complete | 2026-02-13 |
-| 14. Security Hardening | v2.5 | 2/3 | In progress | - |
+| 14. Security Hardening | v2.5 | 3/3 | Complete | 2026-02-13 |
 | 15. Linux Systemd Support | v2.5 | 0/? | Not started | - |
 | 16. Backup Verification | v2.5 | 0/? | Not started | - |
 | 17. Error Logging Overhaul | v2.5 | 0/? | Not started | - |
