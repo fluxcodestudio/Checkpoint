@@ -52,6 +52,14 @@ TIMER_PID_FILE="$PROJECT_STATE_DIR/.watcher-timer.pid"
 WATCHER_LOG="$PROJECT_STATE_DIR/watcher.log"
 LAST_TRIGGER_FILE="$PROJECT_STATE_DIR/.watcher-last-trigger"
 
+# Session detection (migrated from smart-backup-trigger.sh)
+SESSION_FILE="$PROJECT_STATE_DIR/.current-session-time"
+BACKUP_TIME_STATE="$PROJECT_STATE_DIR/.last-backup-time"
+SESSION_IDLE_THRESHOLD="${SESSION_IDLE_THRESHOLD:-600}"
+BACKUP_INTERVAL="${BACKUP_INTERVAL:-3600}"
+DRIVE_VERIFICATION_ENABLED="${DRIVE_VERIFICATION_ENABLED:-false}"
+DRIVE_MARKER_FILE="${DRIVE_MARKER_FILE:-}"
+
 # Ensure state directory exists
 mkdir -p "$PROJECT_STATE_DIR"
 
@@ -103,6 +111,41 @@ if [ -n "${WATCHER_EXCLUDES:-}" ]; then
         DEFAULT_EXCLUDES+=("$pattern")
     done
 fi
+
+# ==============================================================================
+# SESSION DETECTION (migrated from smart-backup-trigger.sh)
+# ==============================================================================
+
+check_new_session() {
+    local last_session
+    last_session=$(cat "$SESSION_FILE" 2>/dev/null || echo "0")
+    local now
+    now=$(date +%s)
+    if [ $((now - last_session)) -gt "$SESSION_IDLE_THRESHOLD" ]; then
+        return 0  # New session
+    fi
+    return 1
+}
+
+should_backup_now() {
+    # Check backup interval
+    local last_backup
+    last_backup=$(cat "$BACKUP_TIME_STATE" 2>/dev/null || echo "0")
+    local now
+    now=$(date +%s)
+    if [ $((now - last_backup)) -lt "$BACKUP_INTERVAL" ]; then
+        return 1  # Too soon
+    fi
+    # Check drive verification
+    if [ "$DRIVE_VERIFICATION_ENABLED" = true ] && [ ! -f "${DRIVE_MARKER_FILE:-}" ]; then
+        return 1  # Drive not connected
+    fi
+    return 0
+}
+
+update_session_time() {
+    date +%s > "$SESSION_FILE"
+}
 
 # ==============================================================================
 # LOGGING
@@ -168,10 +211,13 @@ reset_timer() {
         # Record trigger time
         date +%s > "$LAST_TRIGGER_FILE"
 
-        log "Debounce timer expired, triggering backup..."
-
-        # Run backup daemon in background (it has its own locking)
-        "$SCRIPT_DIR/backup-daemon.sh" >> "$WATCHER_LOG" 2>&1 &
+        # Pre-check: skip daemon spawn if interval not elapsed or drive unavailable
+        if should_backup_now; then
+            log "Debounce timer expired, triggering backup..."
+            "$SCRIPT_DIR/backup-daemon.sh" >> "$WATCHER_LOG" 2>&1 &
+        else
+            log "Debounce timer expired, backup skipped (interval not elapsed or drive unavailable)"
+        fi
     ) &
 
     local new_pid=$!
@@ -188,6 +234,8 @@ log "═════════════════════════
 log "Watcher starting for: $PROJECT_NAME"
 log "Project: $PROJECT_DIR"
 log "Debounce: ${DEBOUNCE_SECONDS}s"
+log "Session idle threshold: ${SESSION_IDLE_THRESHOLD}s"
+log "Backup interval: ${BACKUP_INTERVAL}s"
 log "═══════════════════════════════════════════════"
 
 # Detect file watcher backend (warns on stderr if poll mode)
@@ -199,8 +247,21 @@ if [ "$WATCHER_BACKEND" = "poll" ]; then
     log "Install fswatch (macOS: brew install fswatch) or inotify-tools (Linux: apt install inotify-tools)"
 fi
 
+# Startup: trigger immediate backup if new session
+if check_new_session; then
+    log "New session detected (idle > ${SESSION_IDLE_THRESHOLD}s)"
+    if should_backup_now; then
+        log "Triggering startup backup..."
+        "$SCRIPT_DIR/backup-daemon.sh" >> "$WATCHER_LOG" 2>&1 &
+    else
+        log "Startup backup skipped (interval not elapsed or drive unavailable)"
+    fi
+fi
+update_session_time
+
 # Start watcher and process events through debounce
 start_watcher "$PROJECT_DIR" "${DEFAULT_EXCLUDES[@]}" | while read -r _event; do
+    update_session_time
     log "File change detected (via $WATCHER_BACKEND)"
     reset_timer
 done &

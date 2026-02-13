@@ -92,7 +92,7 @@ Plans:
 **Plans**: 4
 
 Plans:
-- [ ] 13-01: Create platform file watcher abstraction + integrate into backup-watcher.sh
+- [x] 13-01: Create platform file watcher abstraction + integrate into backup-watcher.sh
 - [ ] 13-02: Migrate session detection + fix 8 watcher bugs
 - [ ] 13-03: Update watcher management CLI + config template
 - [ ] 13-04: Remove Claude Code hooks + update install scripts
@@ -166,7 +166,7 @@ Plans:
 | 10. Dashboard Settings Integration | v1.2 | 2/2 | Complete | 2026-01-12 |
 | 11. Modularize Foundation Library | v2.5 | 3/3 | Complete | 2026-02-13 |
 | 12. Bootstrap Deduplication | v2.5 | 1/1 | Complete | 2026-02-13 |
-| 13. Native File Watcher Daemon | v2.5 | 0/? | Not started | - |
+| 13. Native File Watcher Daemon | v2.5 | 1/4 | In progress | - |
 | 14. Security Hardening | v2.5 | 0/? | Not started | - |
 | 15. Linux Systemd Support | v2.5 | 0/? | Not started | - |
 | 16. Backup Verification | v2.5 | 0/? | Not started | - |
