@@ -34,6 +34,9 @@ if [ -n "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
 fi
 
+# Load cross-platform file watcher abstraction
+source "$LIB_DIR/platform/file-watcher.sh"
+
 # ==============================================================================
 # DEFAULTS
 # ==============================================================================
@@ -112,12 +115,17 @@ cmd_start() {
         exit 0
     fi
 
-    # Check fswatch is installed
-    if ! command -v fswatch &>/dev/null; then
-        echo "Error: fswatch not installed"
+    # Check watcher backend availability
+    local backend
+    backend="$(check_watcher_available)"
+    if [ "$backend" = "poll" ]; then
+        echo "Warning: No native file watcher found. Using poll fallback (less efficient)."
         echo ""
-        echo "Install with: brew install fswatch"
-        exit 1
+        case "$(uname -s)" in
+            Darwin) echo "  Recommended: brew install fswatch" ;;
+            Linux)  echo "  Recommended: sudo apt install inotify-tools" ;;
+        esac
+        echo ""
     fi
 
     # Check config exists
@@ -157,7 +165,7 @@ cmd_start() {
     sleep 0.5
 
     if kill -0 "$pid" 2>/dev/null; then
-        echo "Watcher started for $PROJECT_NAME (PID: $pid)"
+        echo "Watcher started for $PROJECT_NAME (PID: $pid, backend: $backend)"
         echo "  Debounce: ${DEBOUNCE_SECONDS}s"
         echo "  Log: $WATCHER_LOG"
     else
@@ -212,6 +220,15 @@ cmd_status() {
 
     echo "  Debounce: ${DEBOUNCE_SECONDS}s"
 
+    # Show detected backend
+    local backend
+    backend="$(detect_watcher)"
+    if [ "$backend" = "poll" ]; then
+        echo "  Backend: poll (degraded — install native watcher for better performance)"
+    else
+        echo "  Backend: $backend (native)"
+    fi
+
     # Show last trigger time
     if [ -f "$LAST_TRIGGER_FILE" ]; then
         local last_trigger
@@ -265,16 +282,18 @@ DESCRIPTION:
     Manages the file watcher that triggers automatic backups after
     a period of file inactivity (default: 60 seconds).
 
-    The watcher uses fswatch to efficiently monitor file changes
-    without polling. When files change, it starts a debounce timer.
-    If no more changes occur within the debounce period, it triggers
-    a backup via backup-daemon.sh.
+    Uses native file system events for efficient monitoring:
+    fswatch (macOS), inotifywait (Linux), or poll fallback.
+    When files change, it starts a debounce timer. If no more
+    changes occur within the debounce period, it triggers a
+    backup via backup-daemon.sh.
 
 CONFIGURATION:
     Add these to .backup-config.sh:
 
     WATCHER_ENABLED=true          # Enable file watching
     DEBOUNCE_SECONDS=60           # Seconds to wait after last change
+    POLL_INTERVAL=30              # Seconds between polls (fallback only)
 
 EXAMPLES:
     backup-watch start            # Start watching current project
@@ -283,7 +302,9 @@ EXAMPLES:
     backup-watch restart          # Restart watcher
 
 REQUIREMENTS:
-    fswatch - Install with: brew install fswatch
+    macOS:  fswatch (brew install fswatch)
+    Linux:  inotify-tools (apt install inotify-tools)
+    Other:  Falls back to polling if neither available
 
 EOF
 }
