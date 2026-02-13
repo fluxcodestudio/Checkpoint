@@ -13,6 +13,9 @@ PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 # Load dependency manager
 source "$PACKAGE_DIR/lib/dependency-manager.sh"
 
+# Platform-agnostic daemon lifecycle management
+source "$PACKAGE_DIR/lib/platform/daemon-manager.sh"
+
 # ==============================================================================
 # ROLLBACK SUPPORT (v2.3.0)
 # ==============================================================================
@@ -225,50 +228,27 @@ else
 fi
 
 # ==============================================================================
-# INSTALL GLOBAL LAUNCHAGENT (macOS)
+# INSTALL GLOBAL BACKUP DAEMON
 # ==============================================================================
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    echo ""
-    echo "Installing global backup daemon..."
+echo ""
+echo "Installing global backup daemon..."
 
-    PLIST_FILE="$HOME/Library/LaunchAgents/com.checkpoint.global-daemon.plist"
-    DAEMON_PATH="$BIN_DIR/backup-all"
+DAEMON_PATH="$BIN_DIR/backup-all"
 
-    # Create global config directory
-    mkdir -p "$HOME/.config/checkpoint"
+# Create global config directory
+mkdir -p "$HOME/.config/checkpoint"
 
-    # Initialize projects registry if not exists
-    if [[ ! -f "$HOME/.config/checkpoint/projects.json" ]]; then
-        echo '{"version": 1, "projects": []}' > "$HOME/.config/checkpoint/projects.json"
-    fi
+# Initialize projects registry if not exists
+if [[ ! -f "$HOME/.config/checkpoint/projects.json" ]]; then
+    echo '{"version": 1, "projects": []}' > "$HOME/.config/checkpoint/projects.json"
+fi
 
-    cat > "$PLIST_FILE" << PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.checkpoint.global-daemon</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>${DAEMON_PATH}</string>
-    </array>
-    <key>StartInterval</key>
-    <integer>3600</integer>
-    <key>RunAtLoad</key>
-    <false/>
-    <key>StandardOutPath</key>
-    <string>/tmp/checkpoint-global.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/checkpoint-global.err</string>
-</dict>
-</plist>
-PLIST
-
-    # Load the LaunchAgent
-    launchctl unload "$PLIST_FILE" 2>/dev/null || true
-    launchctl load "$PLIST_FILE" 2>/dev/null && echo "  ✅ Global daemon installed (hourly backups for all projects)"
+# Install via daemon-manager.sh (handles launchd/systemd/cron automatically)
+if install_daemon "global-daemon" "$DAEMON_PATH" "$HOME" "global" "daemon"; then
+    echo "  ✅ Global daemon installed (hourly backups for all projects)"
+else
+    echo "  ⚠️  Global daemon installation failed (non-critical)"
 fi
 
 echo ""

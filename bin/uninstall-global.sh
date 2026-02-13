@@ -8,6 +8,19 @@
 
 set -euo pipefail
 
+# Resolve script's actual location (through symlinks) for sourcing
+_uninstall_script="$0"
+while [ -L "$_uninstall_script" ]; do
+    _uninstall_dir="$(cd "$(dirname "$_uninstall_script")" && pwd)"
+    _uninstall_script="$(readlink "$_uninstall_script")"
+    case "$_uninstall_script" in /*) ;; *) _uninstall_script="$_uninstall_dir/$_uninstall_script" ;; esac
+done
+_UNINSTALL_SCRIPT_DIR="$(cd "$(dirname "$_uninstall_script")" && pwd)"
+unset _uninstall_script _uninstall_dir
+
+# Platform-agnostic daemon lifecycle management
+source "$_UNINSTALL_SCRIPT_DIR/../lib/platform/daemon-manager.sh"
+
 echo "═══════════════════════════════════════════════"
 echo "Checkpoint - Global Uninstaller"
 echo "═══════════════════════════════════════════════"
@@ -45,7 +58,7 @@ echo ""
 echo "What will be KEPT:"
 echo "  - All project backup data (backups/ folders in projects)"
 echo "  - Per-project configurations (.backup-config.sh)"
-echo "  - LaunchAgents (per-project daemons)"
+echo "  - Per-project daemons (if installed separately)"
 echo "  - Global config: ~/.config/checkpoint/"
 echo ""
 read -p "Continue with uninstall? (yes/no): " confirm
@@ -82,27 +95,27 @@ fi
 # Remove helper app if installed
 APP_NAME="CheckpointHelper"
 APP_PATH="/Applications/$APP_NAME.app"
-HELPER_PLIST="$HOME/Library/LaunchAgents/com.checkpoint.helper.plist"
 
-if [[ -d "$APP_PATH" ]] || [[ -f "$HELPER_PLIST" ]]; then
+if [ -d "$APP_PATH" ] || status_daemon "helper" 2>/dev/null; then
     echo ""
     echo "Removing Checkpoint Helper menu bar app..."
     pkill -x "$APP_NAME" 2>/dev/null || true
-    launchctl unload "$HELPER_PLIST" 2>/dev/null || true
-    rm -f "$HELPER_PLIST"
+    uninstall_daemon "helper" 2>/dev/null || true
     rm -rf "$APP_PATH"
-    osascript -e "tell application \"System Events\" to delete login item \"$APP_NAME\"" 2>/dev/null || true
+    # macOS-only: remove System Events login item
+    if [ "$(uname -s)" = "Darwin" ]; then
+        osascript -e "tell application \"System Events\" to delete login item \"$APP_NAME\"" 2>/dev/null || true
+    fi
     echo "  ✓ Removed: Checkpoint Helper"
 fi
 
-# Remove global daemon plist
-GLOBAL_PLIST="$HOME/Library/LaunchAgents/com.checkpoint.global-daemon.plist"
-if [[ -f "$GLOBAL_PLIST" ]]; then
-    echo ""
-    echo "Removing global daemon..."
-    launchctl unload "$GLOBAL_PLIST" 2>/dev/null || true
-    rm -f "$GLOBAL_PLIST"
-    echo "  ✓ Removed: Global daemon LaunchAgent"
+# Remove global daemon via daemon-manager.sh (handles launchd/systemd/cron)
+echo ""
+echo "Removing global daemon..."
+if uninstall_daemon "global-daemon" 2>/dev/null; then
+    echo "  ✓ Removed: Global daemon"
+else
+    echo "  ✓ Global daemon not found (already removed)"
 fi
 
 echo ""
@@ -113,7 +126,7 @@ echo ""
 echo "What remains (safe to delete manually if desired):"
 echo "  - Global config: ~/.config/checkpoint/"
 echo "  - Project backups: <project>/backups/"
-echo "  - LaunchAgents: ~/Library/LaunchAgents/com.claudecode.backup.*.plist"
+echo "  - Per-project daemons (remove with per-project uninstall)"
 echo ""
 echo "To remove global config:"
 echo "  rm -rf ~/.config/checkpoint/"
