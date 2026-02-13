@@ -7,6 +7,9 @@ set -euo pipefail
 PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_DIR="${1:-$PWD}"
 
+# Source cross-platform daemon manager
+source "$PACKAGE_DIR/lib/platform/daemon-manager.sh"
+
 echo "═══════════════════════════════════════════════"
 echo "Checkpoint - Installation"
 echo "═══════════════════════════════════════════════"
@@ -78,8 +81,11 @@ if ! command -v sqlite3 &> /dev/null; then
     WARNINGS+=("sqlite3 not found - database backups will not work")
 fi
 
-if [[ "$OSTYPE" == "darwin"* ]] && ! command -v launchctl &> /dev/null; then
-    WARNINGS+=("launchctl not found - automatic backups will not work on macOS")
+_init_sys="$(detect_init_system)"
+if [ "$_init_sys" = "launchd" ] && ! command -v launchctl &> /dev/null; then
+    WARNINGS+=("launchctl not found - automatic backups may not work")
+elif [ "$_init_sys" = "systemd" ] && ! command -v systemctl &> /dev/null; then
+    WARNINGS+=("systemctl not found - automatic backups may not work")
 fi
 
 # Report missing critical dependencies
@@ -745,7 +751,7 @@ echo ""
 
 # === Question 3: Automated Hourly Backups ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  3/4: Automated Hourly Backups (macOS only)"
+echo "  3/4: Automated Hourly Backups"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Install hourly backup schedule? (Y/n): " install_daemon
 install_daemon=${install_daemon:-y}
@@ -1146,60 +1152,21 @@ fi
 echo "        ✓ .gitignore updated"
 
 # ==============================================================================
-# INSTALL LAUNCHAGENT (macOS only)
+# INSTALL BACKUP DAEMON (cross-platform via daemon-manager.sh)
 # ==============================================================================
 
 if [[ "$install_daemon" =~ ^[Yy] ]]; then
     echo "  [4/4] Installing automation..."
-    PLIST_FILE="$HOME/Library/LaunchAgents/com.claudecode.backup.${PROJECT_NAME}.plist"
     DAEMON_SCRIPT="$PROJECT_DIR/.claude/backup-daemon.sh"
 
-    cat > "$PLIST_FILE" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.claudecode.backup.${PROJECT_NAME}</string>
-
-    <key>ProgramArguments</key>
-    <array>
-        <string>$DAEMON_SCRIPT</string>
-    </array>
-
-    <key>StartInterval</key>
-    <integer>3600</integer>
-
-    <key>RunAtLoad</key>
-    <true/>
-
-    <key>StandardErrorPath</key>
-    <string>$HOME/.claudecode-backups/logs/${PROJECT_NAME}-daemon.log</string>
-
-    <key>StandardOutPath</key>
-    <string>$HOME/.claudecode-backups/logs/${PROJECT_NAME}-daemon.log</string>
-</dict>
-</plist>
-EOF
-
-    launchctl unload "$PLIST_FILE" 2>/dev/null || true
-    launchctl load "$PLIST_FILE" 2>&1 >/dev/null
+    # Install backup daemon via daemon-manager.sh (handles launchd/systemd/cron)
+    install_daemon "$PROJECT_NAME" "$DAEMON_SCRIPT" "$PROJECT_DIR" "$PROJECT_NAME" "daemon"
     echo "        ✓ Hourly backups enabled"
 
-    # Install watcher LaunchAgent if enabled
+    # Install watcher daemon if enabled
     if [ "${WATCHER_ENABLED:-false}" = "true" ]; then
-        WATCHER_PLIST_NAME="com.claudecode.backup-watcher.${PROJECT_NAME}.plist"
-        WATCHER_PLIST_PATH="$HOME/Library/LaunchAgents/$WATCHER_PLIST_NAME"
-
-        # Create from template
-        sed -e "s|PROJECT_NAME_PLACEHOLDER|$PROJECT_NAME|g" \
-            -e "s|PROJECT_DIR_PLACEHOLDER|$PROJECT_DIR|g" \
-            -e "s|HOME_PLACEHOLDER|$HOME|g" \
-            "$PACKAGE_DIR/templates/launchd-watcher.plist" > "$WATCHER_PLIST_PATH"
-
-        # Load LaunchAgent
-        launchctl unload "$WATCHER_PLIST_PATH" 2>/dev/null || true
-        launchctl load "$WATCHER_PLIST_PATH"
+        WATCHER_SCRIPT="$PACKAGE_DIR/bin/backup-watcher.sh"
+        install_daemon "watcher-$PROJECT_NAME" "$WATCHER_SCRIPT" "$PROJECT_DIR" "$PROJECT_NAME" "watcher"
         echo "        ✓ File watcher installed (debounce: ${DEBOUNCE_SECONDS:-60}s)"
     fi
 fi

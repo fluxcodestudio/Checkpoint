@@ -12,6 +12,9 @@ set -euo pipefail
 PROJECT_DIR="${1:-$PWD}"
 PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Source cross-platform daemon manager
+source "$PACKAGE_DIR/lib/platform/daemon-manager.sh"
+
 # Verify project directory exists
 if [[ ! -d "$PROJECT_DIR" ]]; then
     echo "❌ Project directory not found: $PROJECT_DIR"
@@ -119,13 +122,8 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  3/6: Automated Hourly Backups"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    read -p "  Install hourly backup schedule (macOS LaunchAgent)? (Y/n): " install_daemon
-    install_daemon=${install_daemon:-y}
-else
-    echo "  (Linux: Use cron for scheduling)"
-    install_daemon=n
-fi
+read -p "  Install hourly backup schedule? (Y/n): " install_daemon
+install_daemon=${install_daemon:-y}
 echo ""
 
 # === Question 4: Claude Code Integration ===
@@ -286,8 +284,8 @@ if [[ "$wants_cloud" =~ ^[Yy]$ ]]; then
     fi
 fi
 
-# LaunchAgent setup
-if [[ "$install_daemon" =~ ^[Yy]$ ]] && [[ "$OSTYPE" == "darwin"* ]]; then
+# Backup daemon setup (cross-platform via daemon-manager.sh)
+if [[ "$install_daemon" =~ ^[Yy]$ ]]; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "  Installing Hourly Backup Schedule"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -300,29 +298,7 @@ if [[ "$install_daemon" =~ ^[Yy]$ ]] && [[ "$OSTYPE" == "darwin"* ]]; then
     fi
 
     if [[ -n "${DAEMON_CMD:-}" ]]; then
-        PLIST_FILE="$HOME/Library/LaunchAgents/com.checkpoint.backup.$(echo "$PROJECT_NAME" | tr '[:upper:]' '[:lower:]').plist"
-
-        cat > "$PLIST_FILE" << PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.checkpoint.backup.$PROJECT_NAME</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>$DAEMON_CMD</string>
-        <string>$PROJECT_DIR</string>
-    </array>
-    <key>StartInterval</key>
-    <integer>3600</integer>
-    <key>RunAtLoad</key>
-    <false/>
-</dict>
-</plist>
-PLIST
-
-        launchctl load "$PLIST_FILE" 2>/dev/null || true
+        install_daemon "$PROJECT_NAME" "$DAEMON_CMD" "$PROJECT_DIR" "$PROJECT_NAME" "daemon"
         echo "  ✓ Hourly backups configured"
     fi
 fi
