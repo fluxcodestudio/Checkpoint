@@ -81,7 +81,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 12-01: Create shared bootstrap.sh and migrate 18 bin/ scripts
+- [x] 12-01: Create shared bootstrap.sh and migrate 17 bin/ scripts
 
 #### Phase 13: Native File Watcher Daemon
 
@@ -162,7 +162,7 @@ Plans:
 | 9. Configuration UX | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 10. Dashboard Settings Integration | v1.2 | 2/2 | Complete | 2026-01-12 |
 | 11. Modularize Foundation Library | v2.5 | 3/3 | Complete | 2026-02-13 |
-| 12. Bootstrap Deduplication | v2.5 | 0/? | Not started | - |
+| 12. Bootstrap Deduplication | v2.5 | 1/1 | Complete | 2026-02-13 |
 | 13. Native File Watcher Daemon | v2.5 | 0/? | Not started | - |
 | 14. Security Hardening | v2.5 | 0/? | Not started | - |
 | 15. Linux Systemd Support | v2.5 | 0/? | Not started | - |
