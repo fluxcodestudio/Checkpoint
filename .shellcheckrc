@@ -1,0 +1,3 @@
+# ShellCheck configuration for modular library structure
+external-sources=true
+source-path=lib/

@@ -13,7 +13,7 @@
 # ==============================================================================
 
 # Include guard
-[ -n "$_CHECKPOINT_STATE" ] && return || readonly _CHECKPOINT_STATE=1
+[ -n "${_CHECKPOINT_STATE:-}" ] && return || readonly _CHECKPOINT_STATE=1
 
 # Lib directory (set by loader, fallback for standalone sourcing)
 _CHECKPOINT_LIB_DIR="${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
