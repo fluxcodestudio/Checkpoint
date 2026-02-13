@@ -63,7 +63,8 @@ echo ""
 echo "Removing command symlinks..."
 for cmd in checkpoint backup-now backup-status backup-restore backup-cleanup \
            backup-cloud-config backup-daemon backup-update backup-pause \
-           backup-all backup-uninstall configure-project install-helper uninstall-helper; do
+           backup-all backup-uninstall configure-project install-helper uninstall-helper \
+           bootstrap.sh; do
     if [[ -L "$BIN_DIR/$cmd" ]] || [[ -f "$BIN_DIR/$cmd" ]]; then
         rm -f "$BIN_DIR/$cmd"
         echo "  ✓ Removed: $cmd"

@@ -199,6 +199,10 @@ create_symlink "uninstall-global.sh" "backup-uninstall"
 create_symlink "install-helper.sh" "install-helper"
 create_symlink "uninstall-helper.sh" "uninstall-helper"
 
+# Bootstrap file (sourced by all bin/ scripts for path resolution)
+ln -s "$LIB_DIR/bin/bootstrap.sh" "$BIN_DIR/bootstrap.sh"
+echo "  ✅ bootstrap.sh → $LIB_DIR/bin/bootstrap.sh"
+
 # ==============================================================================
 # INSTALL CLAUDE CODE SKILL
 # ==============================================================================
