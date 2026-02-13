@@ -11,6 +11,9 @@ set -euo pipefail
 # Bootstrap: resolve symlinks, set SCRIPT_DIR/LIB_DIR/PROJECT_ROOT
 source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 
+# Platform-agnostic daemon lifecycle management
+source "$SCRIPT_DIR/../lib/platform/daemon-manager.sh"
+
 # State directory
 STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
 PAUSE_FILE="$STATE_DIR/.backup-paused"
@@ -33,11 +36,40 @@ pause_backups() {
     echo "$(date +%s)" > "$PAUSE_FILE"
     echo "paused_at=$(date '+%Y-%m-%d %H:%M:%S')" >> "$PAUSE_FILE"
 
-    # Unload LaunchAgent if it exists
-    PLIST_FILE="$HOME/Library/LaunchAgents/com.claudecode.backup.*.plist"
-    if ls $PLIST_FILE 2>/dev/null; then
-        for plist in $PLIST_FILE; do
-            launchctl unload "$plist" 2>/dev/null || true
+    # Stop all backup daemons via daemon-manager.sh abstraction
+    local daemon_list found_daemons=false
+    daemon_list="$(list_daemons "checkpoint" 2>/dev/null)" || true
+    local legacy_list
+    legacy_list="$(list_daemons "claudecode" 2>/dev/null)" || true
+    if [ -n "$legacy_list" ]; then
+        if [ -n "$daemon_list" ]; then
+            daemon_list="$(printf '%s\n%s' "$daemon_list" "$legacy_list")"
+        else
+            daemon_list="$legacy_list"
+        fi
+    fi
+
+    if [ -n "$daemon_list" ]; then
+        # Extract service names and stop each daemon
+        echo "$daemon_list" | while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            local svc_name=""
+            # launchd format: com.checkpoint.NAME or com.claudecode.backup.NAME
+            svc_name="$(echo "$line" | grep -o 'com\.checkpoint\.[^ ]*' | sed 's/^com\.checkpoint\.//' || true)"
+            if [ -z "$svc_name" ]; then
+                svc_name="$(echo "$line" | grep -o 'com\.claudecode\.backup\.[^ ]*' | sed 's/^com\.claudecode\.backup\.//' || true)"
+            fi
+            # systemd format: checkpoint-NAME.service
+            if [ -z "$svc_name" ]; then
+                svc_name="$(echo "$line" | grep -o 'checkpoint-[^ .]*' | sed 's/^checkpoint-//' || true)"
+            fi
+            # cron format: # checkpoint:NAME
+            if [ -z "$svc_name" ]; then
+                svc_name="$(echo "$line" | grep -o 'checkpoint:[^ ]*' | sed 's/^checkpoint://' || true)"
+            fi
+            if [ -n "$svc_name" ]; then
+                stop_daemon "$svc_name" 2>/dev/null || true
+            fi
         done
         echo "✅ Automatic backups paused"
     else
@@ -58,11 +90,40 @@ resume_backups() {
     # Remove pause file
     rm -f "$PAUSE_FILE"
 
-    # Reload LaunchAgent if it exists
-    PLIST_FILE="$HOME/Library/LaunchAgents/com.claudecode.backup.*.plist"
-    if ls $PLIST_FILE 2>/dev/null; then
-        for plist in $PLIST_FILE; do
-            launchctl load "$plist" 2>/dev/null || true
+    # Restart all backup daemons via daemon-manager.sh abstraction
+    local daemon_list found_daemons=false
+    daemon_list="$(list_daemons "checkpoint" 2>/dev/null)" || true
+    local legacy_list
+    legacy_list="$(list_daemons "claudecode" 2>/dev/null)" || true
+    if [ -n "$legacy_list" ]; then
+        if [ -n "$daemon_list" ]; then
+            daemon_list="$(printf '%s\n%s' "$daemon_list" "$legacy_list")"
+        else
+            daemon_list="$legacy_list"
+        fi
+    fi
+
+    if [ -n "$daemon_list" ]; then
+        # Extract service names and start each daemon
+        echo "$daemon_list" | while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            local svc_name=""
+            # launchd format: com.checkpoint.NAME or com.claudecode.backup.NAME
+            svc_name="$(echo "$line" | grep -o 'com\.checkpoint\.[^ ]*' | sed 's/^com\.checkpoint\.//' || true)"
+            if [ -z "$svc_name" ]; then
+                svc_name="$(echo "$line" | grep -o 'com\.claudecode\.backup\.[^ ]*' | sed 's/^com\.claudecode\.backup\.//' || true)"
+            fi
+            # systemd format: checkpoint-NAME.service
+            if [ -z "$svc_name" ]; then
+                svc_name="$(echo "$line" | grep -o 'checkpoint-[^ .]*' | sed 's/^checkpoint-//' || true)"
+            fi
+            # cron format: # checkpoint:NAME
+            if [ -z "$svc_name" ]; then
+                svc_name="$(echo "$line" | grep -o 'checkpoint:[^ ]*' | sed 's/^checkpoint://' || true)"
+            fi
+            if [ -n "$svc_name" ]; then
+                start_daemon "$svc_name" 2>/dev/null || true
+            fi
         done
         echo "✅ Automatic backups resumed"
     else
@@ -119,11 +180,11 @@ DESCRIPTION:
     When paused:
     - Hourly backups will not run
     - Manual backups (backup-now) still work
-    - LaunchAgent is unloaded (if installed)
+    - Backup daemon is stopped (if installed)
 
     When resumed:
     - Hourly backups restart
-    - LaunchAgent is reloaded
+    - Backup daemon is restarted
 
 OPTIONS:
     --resume, -r    Resume automatic backups

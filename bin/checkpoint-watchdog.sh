@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checkpoint Watchdog - Monitors daemon heartbeat and auto-restarts if crashed
-# Runs as LaunchAgent to ensure backups never stop
+# Runs as a daemon to ensure backups never stop
 
 set -euo pipefail
 
@@ -9,6 +9,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Cross-platform helpers (stat, notifications)
 source "$SCRIPT_DIR/../lib/platform/compat.sh"
+
+# Platform-agnostic daemon lifecycle management
+source "$SCRIPT_DIR/../lib/platform/daemon-manager.sh"
 
 # Configuration
 HEARTBEAT_DIR="${HOME}/.checkpoint"
@@ -74,23 +77,64 @@ read_heartbeat() {
 }
 
 # Check if any backup daemons are running
+# Returns service names (one per line) suitable for daemon-manager.sh API calls.
+# Searches both new (com.checkpoint.*) and legacy (com.claudecode.backup.*) naming.
 get_running_daemons() {
-    launchctl list 2>/dev/null | grep "com.claudecode.backup" | awk '{print $3}' || true
+    local raw_list service_names=""
+
+    # List daemons matching checkpoint naming (platform-agnostic)
+    raw_list="$(list_daemons "checkpoint" 2>/dev/null)" || true
+
+    # Also check legacy naming
+    local legacy_list
+    legacy_list="$(list_daemons "claudecode" 2>/dev/null)" || true
+    if [ -n "$legacy_list" ]; then
+        if [ -n "$raw_list" ]; then
+            raw_list="$(printf '%s\n%s' "$raw_list" "$legacy_list")"
+        else
+            raw_list="$legacy_list"
+        fi
+    fi
+
+    if [ -z "$raw_list" ]; then
+        return
+    fi
+
+    # Extract service names from platform-specific output.
+    # launchd: columns are PID STATUS LABEL; extract LABEL then strip prefix.
+    # systemd: lines like "checkpoint-foo.service loaded active running ..."; extract unit name.
+    # cron: lines contain "# checkpoint:service_name"; extract after tag.
+    echo "$raw_list" | while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        local svc_name=""
+        # Try launchd format: com.checkpoint.NAME or com.claudecode.backup.NAME
+        svc_name="$(echo "$line" | grep -o 'com\.checkpoint\.[^ ]*' | sed 's/^com\.checkpoint\.//' || true)"
+        if [ -z "$svc_name" ]; then
+            svc_name="$(echo "$line" | grep -o 'com\.claudecode\.backup\.[^ ]*' | sed 's/^com\.claudecode\.backup\.//' || true)"
+        fi
+        # Try systemd format: checkpoint-NAME.service
+        if [ -z "$svc_name" ]; then
+            svc_name="$(echo "$line" | grep -o 'checkpoint-[^ .]*' | sed 's/^checkpoint-//' || true)"
+        fi
+        # Try cron format: # checkpoint:NAME
+        if [ -z "$svc_name" ]; then
+            svc_name="$(echo "$line" | grep -o 'checkpoint:[^ ]*' | sed 's/^checkpoint://' || true)"
+        fi
+        if [ -n "$svc_name" ]; then
+            echo "$svc_name"
+        fi
+    done || true
 }
 
-# Restart a specific daemon
-restart_daemon() {
-    local label="$1"
-    local plist_path="$HOME/Library/LaunchAgents/${label}.plist"
-
-    if [[ -f "$plist_path" ]]; then
-        log "Restarting daemon: $label"
-        launchctl unload "$plist_path" 2>/dev/null || true
-        sleep 1
-        launchctl load -w "$plist_path" 2>/dev/null || true
-        return $?
+# Restart a specific daemon via daemon-manager.sh abstraction
+restart_backup_daemon() {
+    local service_name="$1"
+    log "Restarting daemon: $service_name"
+    if restart_daemon "$service_name"; then
+        log "Daemon restarted successfully: $service_name"
+        return 0
     else
-        log "Plist not found: $plist_path"
+        log "Failed to restart daemon: $service_name"
         return 1
     fi
 }
@@ -163,8 +207,8 @@ main() {
 
                     # Restart all found daemons
                     while IFS= read -r label; do
-                        [[ -z "$label" ]] && continue
-                        restart_daemon "$label"
+                        [ -z "$label" ] && continue
+                        restart_backup_daemon "$label"
                     done <<< "$daemons"
 
                     send_notification "Checkpoint Watchdog" "Restarted backup daemon after heartbeat timeout"
