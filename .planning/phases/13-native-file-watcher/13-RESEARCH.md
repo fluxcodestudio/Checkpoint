@@ -11,9 +11,11 @@ Researched the file watching ecosystem for replacing Claude Code hooks with nati
 
 The standard approach uses **fswatch on macOS** (FSEvents backend, excellent scalability) and **inotifywait on Linux** (kernel inotify, universally available), unified behind a platform-abstraction wrapper. Both tools support recursive watching, exclude patterns, and integrate well with bash. The existing debounce pattern (kill-and-restart sleep) is the canonical approach used by tools like debounce.sh, nodemon, and watchexec.
 
-Key finding: The existing implementation in `backup-watcher.sh` is already 90% correct. The main work is: (1) abstract the fswatch call behind a platform wrapper, (2) add inotifywait backend for Linux, (3) add poll fallback for environments without either tool, (4) remove the three Claude Code hook scripts.
+Key finding: The existing implementation in `backup-watcher.sh` is already 90% correct for file watching. However, **`smart-backup-trigger.sh` contains session detection and interval logic that the watcher must absorb** before it can be removed. The trigger tracks idle time (600s threshold) and enforces backup intervals (3600s) -- the watcher is purely event-driven and has neither.
 
-**Primary recommendation:** Create `lib/platform/file-watcher.sh` as a unified wrapper with fswatch/inotifywait/poll backends. Modify `backup-watcher.sh` to call the wrapper instead of fswatch directly. Remove `.claude/hooks/backup-on-*.sh` and `bin/smart-backup-trigger.sh`.
+The main work is: (1) abstract the fswatch call behind a platform wrapper, (2) add inotifywait backend for Linux, (3) add poll fallback, (4) absorb session/interval/drive logic from smart-backup-trigger.sh into watcher, (5) remove hooks and trigger script, (6) update install/uninstall scripts to remove hook setup.
+
+**Primary recommendation:** Create `lib/platform/file-watcher.sh` as a unified wrapper with fswatch/inotifywait/poll backends. Enhance `backup-watcher.sh` with session detection and interval pre-checking from smart-backup-trigger.sh. Then remove `.claude/hooks/backup-on-*.sh`, `bin/smart-backup-trigger.sh`, and `templates/claude-settings.json`. Update `bin/install.sh` and `bin/uninstall.sh` to remove all hook setup/teardown code.
 </research_summary>
 
 <standard_stack>
@@ -207,12 +209,64 @@ _watcher_poll() {
 **When to use:** Always -- this is the existing `reset_timer()` in backup-watcher.sh.
 **Key insight:** This is the canonical pattern used by debounce.sh, nodemon, and watchexec. The existing implementation is correct.
 
+### Pattern 6: Session-Aware Watcher (NEW -- from smart-backup-trigger.sh migration)
+**What:** The watcher must absorb session detection from smart-backup-trigger.sh. On startup, check if a new session started (idle > 10min) and trigger immediate backup. During watching, update session timestamp on each file change.
+**When to use:** Always -- ensures backup on first activity after idle period, not just on file changes.
+**Critical insight:** smart-backup-trigger.sh tracked three things the watcher currently doesn't:
+1. **Session idle detection** (SESSION_IDLE_THRESHOLD=600s) via `.current-session-time`
+2. **Backup interval pre-check** (BACKUP_INTERVAL=3600s) via `.last-backup-time`
+3. **Drive verification** (DRIVE_VERIFICATION_ENABLED) via marker file
+**Example:**
+```bash
+# Add to backup-watcher.sh startup
+check_new_session() {
+    local last_session
+    last_session=$(cat "$SESSION_FILE" 2>/dev/null || echo "0")
+    local now
+    now=$(date +%s)
+    if [ $((now - last_session)) -gt "${SESSION_IDLE_THRESHOLD:-600}" ]; then
+        echo "$now" > "$SESSION_FILE"
+        return 0  # New session
+    fi
+    return 1
+}
+
+should_backup_now() {
+    # Check interval
+    local last_backup
+    last_backup=$(cat "$BACKUP_TIME_STATE" 2>/dev/null || echo "0")
+    local now
+    now=$(date +%s)
+    if [ $((now - last_backup)) -lt "${BACKUP_INTERVAL:-3600}" ]; then
+        return 1  # Too soon
+    fi
+    # Check drive
+    if [ "${DRIVE_VERIFICATION_ENABLED:-false}" = true ] && [ ! -f "${DRIVE_MARKER_FILE:-}" ]; then
+        return 1  # Drive not connected
+    fi
+    return 0
+}
+
+# On startup: immediate backup if new session
+if check_new_session && should_backup_now; then
+    log "New session detected, triggering startup backup..."
+    "$SCRIPT_DIR/backup-daemon.sh" >> "$WATCHER_LOG" 2>&1 &
+fi
+
+# In debounce timer: update session timestamp on each file change
+on_file_change() {
+    echo "$(date +%s)" > "$SESSION_FILE"
+    reset_timer
+}
+```
+
 ### Anti-Patterns to Avoid
 - **Watching .git/ directory:** Generates 10-30 events per commit, 50-200+ per pull. Always exclude entirely.
 - **Using `modify` event with inotifywait:** Fires on every `write()` syscall (dozens per save). Use `close_write` instead -- fires once when file is fully written.
 - **Building custom file change detection:** The existing `has_changes` / `get_changed_files_fast` in backup-lib.sh handles this for the backup phase. The watcher only needs "something changed" signal.
 - **Watching build output directories:** Creates infinite feedback loops if watcher triggers builds. Always exclude dist/, build/, .next/, etc.
 - **Using associative arrays:** Bash 3.2 (macOS default) doesn't support `declare -A`. Use regular arrays or files.
+- **Removing smart-backup-trigger.sh without migrating its logic:** The trigger has session detection and interval enforcement that the watcher lacks. Must migrate BEFORE removing.
 </architecture_patterns>
 
 <dont_hand_roll>
@@ -472,28 +526,244 @@ check_watcher_available() {
 - **cannon.js / kqueue for file watching:** kqueue requires 1 fd per file, scales badly. Always use FSEvents on macOS (fswatch default).
 </sota_updates>
 
+<hook_removal_scope>
+## Hook Removal Scope (Deep Dive)
+
+Complete inventory of files affected by removing Claude Code hooks:
+
+### Files to Delete
+| File | Lines | Purpose |
+|------|-------|---------|
+| `.claude/hooks/backup-on-stop.sh` | 20 | Triggers on conversation end |
+| `.claude/hooks/backup-on-edit.sh` | 19 | Triggers on file edit/write |
+| `.claude/hooks/backup-on-commit.sh` | 16 | Triggers on git commit |
+| `bin/smart-backup-trigger.sh` | 98 | Session detection + interval enforcement (logic moves to watcher) |
+| `templates/claude-settings.json` | 38 | Hook configuration template for `.claude/settings.local.json` |
+
+### Files to Modify
+| File | What Changes |
+|------|-------------|
+| `bin/install.sh` | Remove: hook installation question (L754-760), `.claude/hooks` dir creation (L1098-1101), hook script copying (L1119-1124), HOOKS_ENABLED logic (L1227-1264), settings.json hook config (L1272-1338), old global hooks migration (L1276-1299) |
+| `bin/uninstall.sh` | Remove: hook script deletion (L166-178), jq-based hook removal from settings (L180-194), `.claude/hooks` dir cleanup |
+| `bin/install-global.sh` | Remove: entire "SESSION-START HOOKS" section (L392-499), hook installation within session-start (L453-496) |
+| `bin/backup-watcher.sh` | Add: session detection, interval pre-check, drive verification (from smart-backup-trigger.sh) |
+| `bin/backup-watch.sh` | Update: error messages for cross-platform, help text |
+| `templates/backup-config.sh` | Update: document watcher as primary trigger mechanism, remove HOOKS_ENABLED references |
+
+### Documentation to Update
+| File | Section |
+|------|---------|
+| `.planning/codebase/ARCHITECTURE.md` | L118-120: hook entry points |
+| `.planning/codebase/INTEGRATIONS.md` | L80-86: Claude Code integration |
+| `README.md` | Claude Code hook section |
+| `CHANGELOG.md` | Mark hooks removed |
+
+### State Files Affected
+| File | Current Owner | After Migration |
+|------|--------------|-----------------|
+| `.current-session-time` | smart-backup-trigger.sh | backup-watcher.sh |
+| `.last-backup-time` | smart-backup-trigger.sh + backup-daemon.sh | backup-watcher.sh (pre-check) + backup-daemon.sh (write) |
+
+### Hook Event Flow (Being Replaced)
+```
+BEFORE (hooks):
+  Claude Code event → hook script → smart-backup-trigger.sh → backup-daemon.sh
+
+AFTER (watcher):
+  Any editor saves → fswatch/inotifywait → backup-watcher.sh (debounce) → backup-daemon.sh
+  Watcher startup  → session check → immediate backup if idle > 10min
+```
+</hook_removal_scope>
+
+<exclude_improvements>
+## Exclude Pattern Improvements (Deep Dive)
+
+### Current Patterns (backup-watcher.sh:59-74)
+All 14 current patterns are **valid POSIX regex for fswatch**. Substring matching is acceptable (conservative -- excludes more, not less).
+
+### Missing Patterns to Add
+| Pattern | Category | Why |
+|---------|----------|-----|
+| `\.venv` | Python virtualenv | Thousands of files, not user content |
+| `venv/` | Python virtualenv | Alternative naming convention |
+| `vendor/` | PHP/Go deps | Similar to node_modules |
+| `\.idea` | JetBrains IDE | Noisy metadata |
+| `\.hg` | Mercurial VCS | Less common but valid |
+| `\.svn` | Subversion VCS | Legacy but valid |
+| `\.swo$` | Vim undo files | Complements existing `.swp$` |
+| `4913` | Vim test write | Vim writes this to test directory writability |
+| `\.\#` | Emacs lock files | Emacs creates `.#filename` lock symlinks |
+| `bower_components` | Legacy deps | Still used in some projects |
+| `\.terraform` | Terraform cache | Heavy cached state |
+| `\.parcel-cache` | Parcel bundler | Build cache |
+
+### Updated DEFAULT_EXCLUDES Array
+```bash
+DEFAULT_EXCLUDES=(
+    # Version control (MUST exclude -- extreme noise)
+    "\.git"
+    "\.hg"
+    "\.svn"
+    # Dependencies (MUST exclude -- massive file counts)
+    "node_modules"
+    "vendor/"
+    "\.venv"
+    "venv/"
+    "__pycache__"
+    "bower_components"
+    # Build output (MUST exclude -- generated content)
+    "dist/"
+    "build/"
+    "\.next/"
+    "\.nuxt/"
+    "\.parcel-cache"
+    "coverage/"
+    # IDE / Editor
+    "\.idea"
+    "\.swp$"
+    "\.swo$"
+    "4913"
+    "\.\#"
+    # OS metadata
+    "\.DS_Store"
+    # Project-specific
+    "backups/"
+    "\.cache"
+    "\.planning/"
+    "\.claudecode-backups"
+    "\.terraform"
+    # Compiled
+    "\.pyc$"
+)
+```
+
+### Configuration Template Gap
+`templates/backup-config.sh` (L234-238) documents WATCHER_EXCLUDES but the comment listing default patterns is **incomplete** -- only lists 10 of 14 current patterns. Update to list all defaults.
+
+### inotifywait Translation
+All patterns combined into single `--exclude` with `|` alternation:
+```bash
+--exclude '(\.git|\.hg|\.svn|node_modules|vendor/|\.venv|venv/|__pycache__|bower_components|dist/|build/|\.next/|\.nuxt/|\.parcel-cache|coverage/|\.idea|\.swp$|\.swo$|4913|\.\#|\.DS_Store|backups/|\.cache|\.planning/|\.claudecode-backups|\.terraform|\.pyc$)'
+```
+</exclude_improvements>
+
+<trigger_migration>
+## smart-backup-trigger.sh Migration Analysis (Deep Dive)
+
+### What the Trigger Does That the Watcher Doesn't
+
+| Feature | smart-backup-trigger.sh | backup-watcher.sh | backup-daemon.sh |
+|---------|------------------------|-------------------|------------------|
+| **Session idle detection** | Reads `.current-session-time`, compares to 600s threshold | None | None |
+| **Backup interval pre-check** | Reads `.last-backup-time`, compares to 3600s | None | Reads + enforces at runtime |
+| **Drive verification** | Checks marker file, exits silently if missing | None | Checks, logs warning, exits |
+| **Session timestamp update** | Writes current time on every prompt | None | None |
+
+### Migration Strategy (CRITICAL)
+
+The watcher must become **partially time-aware** in addition to event-driven:
+
+**On startup:**
+1. Check if idle > SESSION_IDLE_THRESHOLD (new session)
+2. If new session AND interval allows, trigger immediate backup
+3. This replaces the "first prompt after idle" trigger from hooks
+
+**On each file change:**
+1. Update `.current-session-time` (tracks user activity for session detection)
+2. Reset debounce timer (existing behavior)
+
+**Before debounce fires:**
+1. Check backup interval (don't call daemon if too soon -- saves a process spawn)
+2. Check drive verification (don't call daemon if drive disconnected)
+3. The daemon's own interval check stays as defensive redundancy
+
+### State File Ownership Transfer
+```
+BEFORE:
+  .current-session-time  ← written by smart-backup-trigger.sh (every prompt)
+  .last-backup-time      ← written by smart-backup-trigger.sh + backup-daemon.sh
+
+AFTER:
+  .current-session-time  ← written by backup-watcher.sh (every file change)
+  .last-backup-time      ← written by backup-daemon.sh only (no pre-write needed)
+```
+
+### Key Difference: Prompt-Based vs File-Based Session Tracking
+- **Before:** Session tracked by Claude Code prompts (every user message updates timestamp)
+- **After:** Session tracked by file changes (any editor save updates timestamp)
+- **Impact:** Minor -- file changes are a superset of Claude Code prompts for active development. The watcher captures all editor activity, not just Claude Code activity. This is actually better for editor-agnostic detection.
+
+### The Daemon's Interval Check Stays (Defense in Depth)
+`backup-daemon.sh:595-606` checks `BACKUP_INTERVAL` before executing. This MUST remain even after adding the pre-check to the watcher. Reasons:
+1. Multiple triggers can fire simultaneously (watcher + hourly launchd)
+2. Race conditions between debounce timer expiry and daemon startup
+3. The daemon is the last line of defense against duplicate backups
+</trigger_migration>
+
+<daemon_architecture>
+## Daemon Architecture (Deep Dive)
+
+### Three-Tier Runtime Architecture
+```
+┌─ Hourly Daemon (LaunchAgent, StartInterval=3600) ────────┐
+│  com.claudecode.backup.${PROJECT_NAME}                    │
+│  Script: backup-daemon.sh                                 │
+│  Writes: .checkpoint/daemon.heartbeat                     │
+└───────────────────────────────────────────────────────────┘
+
+┌─ File Watcher (LaunchAgent, KeepAlive=true) ──────────────┐
+│  com.claudecode.backup-watcher.${PROJECT_NAME}            │
+│  Script: backup-watcher.sh                                │
+│  Calls: backup-daemon.sh on debounce                      │
+│  Does NOT write heartbeat (gap for Phase 18)              │
+└───────────────────────────────────────────────────────────┘
+
+┌─ Watchdog (LaunchAgent, KeepAlive=true, GLOBAL) ──────────┐
+│  com.checkpoint.watchdog                                  │
+│  Script: checkpoint-watchdog.sh                           │
+│  Monitors: daemon heartbeat ONLY (not watcher)            │
+│  Action: Auto-restarts daemon after 3 consecutive stales  │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Phase 13 Impact on Daemon Architecture
+- **launchd-watcher.plist:** No changes needed. Platform abstraction is inside bash, not in plist.
+- **Watchdog:** No changes for Phase 13. Watchdog monitors daemon, not watcher. Phase 18 will add watcher monitoring.
+- **Hourly daemon:** No changes. Continues as independent scheduled backup.
+- **backup-watcher.sh:** Modified to use platform wrapper + absorb trigger logic.
+
+### Installation Points (in install.sh)
+1. Hourly daemon plist: inline generated (L1168-1203)
+2. Watcher plist: template + sed substitution (L1205-1220)
+3. Watchdog plist: separate `install-helper.sh` (L93-118)
+</daemon_architecture>
+
 <open_questions>
 ## Open Questions
 
 1. **Should the watcher replace or coexist with Claude Code hooks?**
    - What we know: Phase 13 roadmap says "remove .claude/hooks/backup-on-*.sh"
    - What's unclear: Should hooks be kept as an optional fallback for Claude Code-specific events (conversation end)?
-   - Recommendation: Remove hooks entirely. The watcher catches all file changes regardless of source. The hourly daemon handles the periodic backup cadence. Claude Code hooks add no value once native watching is active.
+   - Recommendation: **Remove hooks entirely.** The watcher catches all file changes regardless of source. Session detection on startup replaces the "first prompt" trigger. The hourly daemon handles periodic cadence. Hooks add no value once native watching is active.
 
 2. **Optimal default debounce for the watcher?**
    - What we know: Current default is 60s. Research shows 3s is typical for dev tools, but backup systems are less latency-sensitive.
    - What's unclear: Is 60s too long? Users might expect faster response.
-   - Recommendation: Keep 60s as default. This is a backup system, not a build tool. 60s coalesces editor saves, git operations, and even npm installs into a single backup. Make it configurable via `DEBOUNCE_SECONDS` (already is).
+   - Recommendation: **Keep 60s as default.** This is a backup system, not a build tool. 60s coalesces editor saves, git operations, and even npm installs into a single backup. Make it configurable via `DEBOUNCE_SECONDS` (already is).
 
 3. **Should the watcher auto-start on install?**
    - What we know: Currently requires `backup-watch start`. The launchd plist template exists but isn't auto-configured.
    - What's unclear: Should Phase 13 also set up auto-start, or defer to Phase 18 (Daemon Lifecycle)?
-   - Recommendation: Defer auto-start to Phase 18. Phase 13 focuses on cross-platform watching. Phase 18 handles lifecycle (auto-start, heartbeat, health monitoring).
+   - Recommendation: **Defer auto-start to Phase 18.** Phase 13 focuses on cross-platform watching + hook removal. Phase 18 handles lifecycle (auto-start, heartbeat, health monitoring).
 
 4. **Poll fallback interval?**
    - What we know: 30s is reasonable for degraded mode. Too frequent wastes CPU; too infrequent misses changes.
    - What's unclear: Should we even support poll mode, or just fail if no native watcher?
-   - Recommendation: Support poll as a degraded fallback with a warning. Some environments (Docker, CI) may not have fswatch/inotifywait. Default 30s interval, configurable via `POLL_INTERVAL`.
+   - Recommendation: **Support poll as degraded fallback with warning.** Some environments (Docker, CI) may not have fswatch/inotifywait. Default 30s interval, configurable via `POLL_INTERVAL`.
+
+5. **Session tracking: prompt-based vs file-based?** (RESOLVED)
+   - What we know: Currently sessions tracked by Claude Code prompts. After migration, tracked by file changes.
+   - Resolution: File changes are a superset of editor activity. This is actually better -- captures VS Code, Vim, any editor, not just Claude Code. Minor behavioral change: idle detection based on file activity, not just Claude Code prompts.
 </open_questions>
 
 <sources>
@@ -535,13 +805,20 @@ check_watcher_available() {
 - Code examples: HIGH - derived from official docs and existing working code in the project
 
 **Existing code analysis:**
-- `bin/backup-watcher.sh` - Working fswatch implementation with debounce, needs platform abstraction only
-- `bin/backup-watch.sh` - Management CLI (start/stop/status), needs updated error messages
-- `.claude/hooks/backup-on-{edit,commit,stop}.sh` - To be removed (replaced by native watching)
-- `bin/smart-backup-trigger.sh` - To be removed (debounce/session logic absorbed by watcher)
-- `templates/launchd-watcher.plist` - Existing plist template, keep for daemon setup
+- `bin/backup-watcher.sh` - Working fswatch + debounce; needs platform abstraction + session/interval logic from trigger
+- `bin/backup-watch.sh` - Management CLI (start/stop/status); needs cross-platform error messages
+- `bin/smart-backup-trigger.sh` - Session detection + interval enforcement; logic moves to watcher, then script deleted
+- `.claude/hooks/backup-on-{edit,commit,stop}.sh` - To be deleted (replaced by native watching)
+- `templates/claude-settings.json` - Hook config template; to be deleted
+- `bin/install.sh` - Hook setup code in ~6 sections; all hook-related code removed
+- `bin/uninstall.sh` - Hook teardown code; hook-related cleanup removed
+- `bin/install-global.sh` - Session-start hooks section (L392-499); removed
+- `templates/launchd-watcher.plist` - No changes needed (platform abstraction is in bash)
+- `bin/checkpoint-watchdog.sh` - No changes for Phase 13 (monitors daemon, not watcher)
+- `templates/backup-config.sh` - WATCHER_EXCLUDES docs incomplete; update default pattern list
 
 **Research date:** 2026-02-13
+**Updated:** 2026-02-13 (deep dive: hook removal scope, trigger migration, exclude improvements, daemon architecture)
 **Valid until:** 2026-03-15 (30 days - fswatch/inotify-tools ecosystems are stable)
 </metadata>
 
