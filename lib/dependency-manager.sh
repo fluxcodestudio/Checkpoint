@@ -247,7 +247,7 @@ install_rclone() {
         if [[ "$(uname -s)" == "Darwin" ]]; then
             echo "  brew install rclone"
         else
-            echo "  curl https://rclone.org/install.sh | sudo bash"
+            echo "  Visit https://rclone.org/install/ for platform-specific instructions"
         fi
         echo ""
         return 1
@@ -269,23 +269,27 @@ install_rclone() {
                 return 1
             fi
         else
-            echo "Homebrew not found, using official install script..."
-            if curl https://rclone.org/install.sh | bash; then
-                echo "✅ rclone installed"
+            echo "Homebrew not found, using secure download..."
+            source "$_CHECKPOINT_LIB_DIR/security/secure-download.sh" 2>/dev/null || \
+                source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/security/secure-download.sh"
+            if secure_install_rclone; then
+                echo "rclone installed"
                 return 0
             else
-                echo "❌ Installation failed"
+                echo "Installation failed"
                 return 1
             fi
         fi
     else
         # Linux
-        echo "Using official install script..."
-        if curl https://rclone.org/install.sh | sudo bash; then
-            echo "✅ rclone installed"
+        echo "Using secure download..."
+        source "$_CHECKPOINT_LIB_DIR/security/secure-download.sh" 2>/dev/null || \
+            source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/security/secure-download.sh"
+        if secure_install_rclone; then
+            echo "rclone installed"
             return 0
         else
-            echo "❌ Installation failed"
+            echo "Installation failed"
             return 1
         fi
     fi

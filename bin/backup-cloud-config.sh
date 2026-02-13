@@ -133,7 +133,7 @@ wizard() {
                     exit 1
                 }
             else
-                echo "⚠  Install rclone manually: curl https://rclone.org/install.sh | bash"
+                echo "⚠  Install rclone manually: Visit https://rclone.org/install/ for instructions"
                 exit 0
             fi
         fi

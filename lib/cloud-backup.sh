@@ -35,15 +35,17 @@ install_rclone() {
     echo "Installing rclone..."
 
     if [[ "$(uname -s)" == "Darwin" ]]; then
-        # macOS - try Homebrew first, fall back to curl
+        # macOS - try Homebrew first, fall back to secure download
         if command -v brew &>/dev/null; then
             brew install rclone
         else
-            curl https://rclone.org/install.sh | bash
+            source "${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/security/secure-download.sh"
+            secure_install_rclone
         fi
     else
-        # Linux - use official install script
-        curl https://rclone.org/install.sh | bash
+        # Linux - use secure download with SHA256 verification
+        source "${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/security/secure-download.sh"
+        secure_install_rclone
     fi
 
     # Verify installation succeeded
