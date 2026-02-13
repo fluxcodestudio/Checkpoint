@@ -222,9 +222,9 @@ USE_UTC_TIMESTAMPS=false
 # FILE WATCHER SETTINGS
 # ==============================================================================
 
-# Enable automatic file watching (triggers backup after quiet period)
-# When enabled, a LaunchAgent monitors file changes and triggers backup
-# after DEBOUNCE_SECONDS of inactivity (natural pause points in development)
+# Enable automatic file watching (primary trigger mechanism for backups)
+# Uses native file system events (fswatch on macOS, inotifywait on Linux)
+# with polling fallback. Triggers backup after quiet period.
 WATCHER_ENABLED=false
 
 # Seconds of inactivity before triggering backup (default: 60)
@@ -232,21 +232,21 @@ WATCHER_ENABLED=false
 DEBOUNCE_SECONDS=60
 
 # Additional paths to exclude from watching (beyond defaults)
-# Defaults always excluded: node_modules, .git, backups/, .cache, __pycache__,
-#                           dist/, build/, .next/, coverage/, .planning/
+# Defaults always excluded:
+#   VCS:          .git, .hg, .svn
+#   Dependencies: node_modules, vendor/, .venv, venv/, __pycache__, bower_components
+#   Build output: dist/, build/, .next/, .nuxt/, .parcel-cache, coverage/
+#   IDE/Editor:   .idea, .swp, .swo, 4913, .#
+#   OS metadata:  .DS_Store
+#   Project:      backups/, .cache, .planning/, .claudecode-backups, .terraform
+#   Compiled:     .pyc
 # Example: WATCHER_EXCLUDES=("vendor" "tmp" ".terraform")
 # WATCHER_EXCLUDES=()
 
-# ==============================================================================
-# CLAUDE CODE HOOKS SETTINGS
-# ==============================================================================
-
-# Enable Claude Code hooks for backup triggers (requires Claude Code CLI)
-HOOKS_ENABLED=false
-
-# Which events trigger backups (comma-separated)
-# Options: stop (conversation end), edit (file changes), commit (git commits)
-HOOKS_TRIGGERS="stop,edit,commit"
+# Poll interval in seconds (only used when no native file watcher available)
+# Native watchers (fswatch, inotifywait) don't use this — they're event-driven
+# Default: 30 seconds
+# POLL_INTERVAL=30
 
 # ==============================================================================
 # LOGGING
