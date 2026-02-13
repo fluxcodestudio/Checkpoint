@@ -145,7 +145,7 @@ echo ""
 echo "⚠️  WARNING: This will remove the backup system"
 echo ""
 echo "What will be removed:"
-echo "  - Backup scripts (.claude/backup-daemon.sh, hooks)"
+echo "  - Backup scripts (.claude/backup-daemon.sh)"
 echo "  - LaunchAgent (hourly daemon)"
 echo "  - Configuration file (.backup-config.sh)"
 echo ""
@@ -162,36 +162,6 @@ fi
 
 echo ""
 echo "Uninstalling..."
-
-# Remove Claude Code hooks if they exist
-CLAUDE_HOOKS_DIR="$PROJECT_DIR/.claude/hooks"
-if [ -d "$CLAUDE_HOOKS_DIR" ]; then
-    # Remove backup hook scripts
-    rm -f "$CLAUDE_HOOKS_DIR/backup-on-stop.sh"
-    rm -f "$CLAUDE_HOOKS_DIR/backup-on-edit.sh"
-    rm -f "$CLAUDE_HOOKS_DIR/backup-on-commit.sh"
-
-    # Remove directory if empty
-    rmdir "$CLAUDE_HOOKS_DIR" 2>/dev/null || true
-
-    echo "  Claude Code hooks removed"
-fi
-
-# Remove hooks from .claude/settings.json if jq is available
-CLAUDE_SETTINGS="$PROJECT_DIR/.claude/settings.json"
-if [ -f "$CLAUDE_SETTINGS" ] && command -v jq &> /dev/null; then
-    # Check if our hooks are in the settings
-    if jq -e '.hooks.Stop[0].hooks[0].command | contains("backup-on-stop")' "$CLAUDE_SETTINGS" &> /dev/null; then
-        # Remove our hook entries (preserving other hooks)
-        jq 'del(.hooks.Stop[] | select(.hooks[].command | contains("backup-on")))
-            | del(.hooks.PostToolUse[] | select(.hooks[].command | contains("backup-on")))
-            | if .hooks.Stop == [] then del(.hooks.Stop) else . end
-            | if .hooks.PostToolUse == [] then del(.hooks.PostToolUse) else . end
-            | if .hooks == {} then del(.hooks) else . end' "$CLAUDE_SETTINGS" > "$CLAUDE_SETTINGS.tmp"
-        mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"
-        echo "  Hooks removed from .claude/settings.json"
-    fi
-fi
 
 # Stop and remove watcher LaunchAgent if exists
 WATCHER_PLIST_NAME="com.claudecode.backup-watcher.${PROJECT_NAME}.plist"
@@ -222,16 +192,6 @@ if [ -f "$PROJECT_DIR/.claude/backup-daemon.sh" ]; then
     echo "✅ Removed backup-daemon.sh"
 fi
 
-if [ -f "$PROJECT_DIR/.claude/hooks/backup-trigger.sh" ]; then
-    rm "$PROJECT_DIR/.claude/hooks/backup-trigger.sh"
-    echo "✅ Removed backup-trigger.sh"
-fi
-
-if [ -f "$PROJECT_DIR/.claude/hooks/pre-database.sh" ]; then
-    rm "$PROJECT_DIR/.claude/hooks/pre-database.sh"
-    echo "✅ Removed pre-database.sh"
-fi
-
 # Remove configuration
 if [ -f "$CONFIG_FILE" ]; then
     rm "$CONFIG_FILE"
@@ -239,10 +199,6 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 # Clean up empty directories
-if [ -d "$PROJECT_DIR/.claude/hooks" ] && [ -z "$(ls -A "$PROJECT_DIR/.claude/hooks")" ]; then
-    rmdir "$PROJECT_DIR/.claude/hooks"
-fi
-
 if [ -d "$PROJECT_DIR/.claude" ] && [ -z "$(ls -A "$PROJECT_DIR/.claude")" ]; then
     rmdir "$PROJECT_DIR/.claude"
 fi

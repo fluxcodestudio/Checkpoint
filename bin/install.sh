@@ -164,7 +164,7 @@ source "$PACKAGE_DIR/lib/database-detector.sh" 2>/dev/null || true
 
 # === Question 1: Database Backups ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  1/5: Auto-Detecting Databases"
+echo "  1/4: Auto-Detecting Databases"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 detected_dbs=$(detect_databases "$PROJECT_DIR" 2>/dev/null || echo "")
@@ -217,7 +217,7 @@ echo ""
 
 # === Question 2: Cloud Backup ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  2/5: Cloud Backup (Optional)"
+echo "  2/4: Cloud Backup (Optional)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "  Which cloud service do you use?"
@@ -745,23 +745,15 @@ echo ""
 
 # === Question 3: Automated Hourly Backups ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  3/5: Automated Hourly Backups (macOS only)"
+echo "  3/4: Automated Hourly Backups (macOS only)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Install hourly backup schedule? (Y/n): " install_daemon
 install_daemon=${install_daemon:-y}
 echo ""
 
-# === Question 4: Claude Code Integration ===
+# === Question 4: Initial Backup ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  4/5: Claude Code Integration (Optional)"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-read -p "  Add backup trigger to Claude Code? (Y/n): " install_hook
-install_hook=${install_hook:-y}
-echo ""
-
-# === Question 5: Initial Backup ===
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  5/5: Initial Backup"
+echo "  4/4: Initial Backup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Run initial backup after installation? (Y/n): " run_initial
 run_initial=${run_initial:-y}
@@ -874,7 +866,7 @@ echo ""
 # CREATE CONFIGURATION FILE
 # ==============================================================================
 
-echo "  [1/5] Creating configuration..."
+echo "  [1/4] Creating configuration..."
 
 CONFIG_FILE="$PROJECT_DIR/.backup-config.sh"
 
@@ -1095,16 +1087,10 @@ GLOBAL_CONFIG
 fi
 
 # ==============================================================================
-# CREATE .CLAUDE DIRECTORY
-# ==============================================================================
-
-mkdir -p "$PROJECT_DIR/.claude/hooks" >/dev/null 2>&1
-
-# ==============================================================================
 # COPY SCRIPTS
 # ==============================================================================
 
-echo "  [2/5] Installing scripts..."
+echo "  [2/4] Installing scripts..."
 
 # Create bin/ directory for easy access to commands
 mkdir -p "$PROJECT_DIR/bin"
@@ -1116,12 +1102,10 @@ cp "$PACKAGE_DIR/bin/backup-restore.sh" "$PROJECT_DIR/bin/"
 cp "$PACKAGE_DIR/bin/backup-cleanup.sh" "$PROJECT_DIR/bin/"
 cp "$PACKAGE_DIR/bin/backup-cloud-config.sh" "$PROJECT_DIR/bin/"
 cp "$PACKAGE_DIR/bin/backup-daemon.sh" "$PROJECT_DIR/.claude/"
-cp "$PACKAGE_DIR/bin/smart-backup-trigger.sh" "$PROJECT_DIR/.claude/hooks/backup-trigger.sh"
 
 # Make all scripts executable
 chmod +x "$PROJECT_DIR/bin/"*.sh
 chmod +x "$PROJECT_DIR/.claude/backup-daemon.sh"
-chmod +x "$PROJECT_DIR/.claude/hooks/backup-trigger.sh"
 
 # Copy library files
 mkdir -p "$PROJECT_DIR/.claude/lib"
@@ -1133,7 +1117,7 @@ echo "        ✓ Scripts installed"
 # UPDATE .GITIGNORE
 # ==============================================================================
 
-echo "  [3/5] Configuring .gitignore..."
+echo "  [3/4] Configuring .gitignore..."
 
 GITIGNORE="$PROJECT_DIR/.gitignore"
 [ ! -f "$GITIGNORE" ] && touch "$GITIGNORE"
@@ -1166,7 +1150,7 @@ echo "        ✓ .gitignore updated"
 # ==============================================================================
 
 if [[ "$install_daemon" =~ ^[Yy] ]]; then
-    echo "  [4/5] Installing automation..."
+    echo "  [4/4] Installing automation..."
     PLIST_FILE="$HOME/Library/LaunchAgents/com.claudecode.backup.${PROJECT_NAME}.plist"
     DAEMON_SCRIPT="$PROJECT_DIR/.claude/backup-daemon.sh"
 
@@ -1221,123 +1205,6 @@ EOF
 fi
 
 # ==============================================================================
-# INSTALL CLAUDE CODE HOOKS (if enabled)
-# ==============================================================================
-
-if [ "${HOOKS_ENABLED:-false}" = "true" ]; then
-    echo "Installing Claude Code hooks..."
-
-    # Create .claude/hooks directory
-    mkdir -p "$PROJECT_DIR/.claude/hooks"
-
-    # Copy hook scripts
-    cp "$PACKAGE_DIR/.claude/hooks/backup-on-stop.sh" "$PROJECT_DIR/.claude/hooks/"
-    cp "$PACKAGE_DIR/.claude/hooks/backup-on-edit.sh" "$PROJECT_DIR/.claude/hooks/"
-    cp "$PACKAGE_DIR/.claude/hooks/backup-on-commit.sh" "$PROJECT_DIR/.claude/hooks/"
-
-    # Make hooks executable
-    chmod +x "$PROJECT_DIR/.claude/hooks/"*.sh
-
-    # Merge hooks into existing .claude/settings.json or create new one
-    CLAUDE_SETTINGS="$PROJECT_DIR/.claude/settings.json"
-    HOOKS_TEMPLATE="$PACKAGE_DIR/templates/claude-settings.json"
-
-    if [ -f "$CLAUDE_SETTINGS" ]; then
-        # Backup existing settings
-        cp "$CLAUDE_SETTINGS" "$CLAUDE_SETTINGS.backup.$(date +%Y%m%d%H%M%S)"
-
-        # Merge hooks into existing settings using jq
-        if command -v jq &> /dev/null; then
-            jq -s '.[0] * .[1]' "$CLAUDE_SETTINGS" "$HOOKS_TEMPLATE" > "$CLAUDE_SETTINGS.tmp"
-            mv "$CLAUDE_SETTINGS.tmp" "$CLAUDE_SETTINGS"
-        else
-            echo "  Warning: jq not found, cannot merge hooks into existing settings"
-            echo "  Manually add hooks from $HOOKS_TEMPLATE to $CLAUDE_SETTINGS"
-        fi
-    else
-        # Create new settings file
-        mkdir -p "$PROJECT_DIR/.claude"
-        cp "$HOOKS_TEMPLATE" "$CLAUDE_SETTINGS"
-    fi
-
-    echo "  Claude Code hooks installed (${HOOKS_TRIGGERS:-stop,edit,commit})"
-fi
-
-# ==============================================================================
-# CONFIGURE CLAUDE CODE HOOKS (PROJECT-LOCAL)
-# ==============================================================================
-# NOTE: Hooks are added to PROJECT-LOCAL settings (.claude/settings.local.json)
-# NOT global settings. This ensures each project's hook only runs in that project.
-
-if [[ "$install_hook" =~ ^[Yy] ]]; then
-    echo "  [5/5] Configuring Claude Code integration..."
-
-    # -------------------------------------------------------------------------
-    # UPGRADE: Remove old global hooks from previous versions
-    # -------------------------------------------------------------------------
-    GLOBAL_SETTINGS_FILE="$HOME/.config/claude/settings.json"
-    if [ -f "$GLOBAL_SETTINGS_FILE" ]; then
-        if grep -q "backup-trigger.sh\|smart-backup-trigger" "$GLOBAL_SETTINGS_FILE" 2>/dev/null; then
-            echo "        ⚠ Found old backup hook in global settings - migrating to project-local..."
-
-            # Create backup of global settings
-            cp "$GLOBAL_SETTINGS_FILE" "$GLOBAL_SETTINGS_FILE.bak.$(date +%Y%m%d%H%M%S)"
-
-            # Remove backup-trigger hooks from global settings using jq if available
-            if command -v jq &>/dev/null; then
-                # Remove any hooks containing "backup-trigger" from UserPromptSubmit
-                jq 'walk(if type == "array" then map(select(. | tostring | contains("backup-trigger") | not)) else . end)' \
-                    "$GLOBAL_SETTINGS_FILE" > "$GLOBAL_SETTINGS_FILE.tmp" 2>/dev/null && \
-                    mv "$GLOBAL_SETTINGS_FILE.tmp" "$GLOBAL_SETTINGS_FILE"
-                echo "        ✓ Removed old global hook (backup saved)"
-            else
-                # Without jq, just warn the user
-                echo "        ⚠ Please manually remove backup-trigger hooks from:"
-                echo "          $GLOBAL_SETTINGS_FILE"
-            fi
-        fi
-    fi
-    # -------------------------------------------------------------------------
-
-    # Use project-local settings (not global!)
-    LOCAL_SETTINGS_FILE="$PROJECT_DIR/.claude/settings.local.json"
-
-    mkdir -p "$PROJECT_DIR/.claude"
-
-    if [ -f "$LOCAL_SETTINGS_FILE" ]; then
-        # Check if hook already exists
-        if grep -q "backup-trigger.sh" "$LOCAL_SETTINGS_FILE" 2>/dev/null; then
-            echo "        ✓ Claude Code hook already configured"
-        else
-            echo "⚠️  Project has existing .claude/settings.local.json"
-            echo "   Add this to UserPromptSubmit hooks manually:"
-            echo ""
-            echo "   {\"type\": \"command\", \"command\": \"$PROJECT_DIR/.claude/hooks/backup-trigger.sh\", \"timeout\": 1}"
-            echo ""
-        fi
-    else
-        cat > "$LOCAL_SETTINGS_FILE" << EOF
-{
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$PROJECT_DIR/.claude/hooks/backup-trigger.sh",
-            "timeout": 1
-          }
-        ]
-      }
-    ]
-  }
-}
-EOF
-        echo "        ✓ Claude Code integration enabled (project-local)"
-    fi
-fi
-
-# ==============================================================================
 # INITIAL BACKUP
 # ==============================================================================
 
@@ -1367,8 +1234,7 @@ if [[ "$CLOUD_CONFIGURED" == "true" ]]; then
     echo "  3. Check backups: ls -la $PROJECT_DIR/backups/"
 else
     echo "  1. Backups run automatically every hour"
-    echo "  2. Backups trigger on first Claude Code prompt in new session"
-    echo "  3. Check backups: ls -la $PROJECT_DIR/backups/"
+    echo "  2. Check backups: ls -la $PROJECT_DIR/backups/"
     echo "  4. View logs: tail -f $PROJECT_DIR/backups/backup.log"
 fi
 echo ""
