@@ -31,6 +31,9 @@ else
     PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 fi
 
+# Source secure download library for SHA256 verification
+source "$LIB_DIR/security/secure-download.sh"
+
 CHECK_ONLY=false
 
 # Parse arguments
@@ -162,13 +165,50 @@ echo "Downloading update..."
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf '$TEMP_DIR'" EXIT
 
-# Download latest release
-cd "$TEMP_DIR"
-curl -sL "https://github.com/nizernoj/Checkpoint/archive/refs/tags/v${LATEST_VERSION}.tar.gz" -o checkpoint.tar.gz
+# Download latest release with integrity verification
+download_url="https://github.com/nizernoj/Checkpoint/archive/refs/tags/v${LATEST_VERSION}.tar.gz"
+checksums_url="https://github.com/nizernoj/Checkpoint/releases/download/v${LATEST_VERSION}/SHA256SUMS"
 
-if [[ ! -f checkpoint.tar.gz ]]; then
-    echo "❌ Download failed"
-    exit 1
+cd "$TEMP_DIR"
+
+# Try to download SHA256SUMS for integrity verification
+if curl -fsSL "$checksums_url" -o "$TEMP_DIR/SHA256SUMS" 2>/dev/null; then
+    # SHA256SUMS available - download and verify
+    curl -sL "$download_url" -o checkpoint.tar.gz
+
+    if [[ ! -f checkpoint.tar.gz ]]; then
+        echo "❌ Download failed"
+        exit 1
+    fi
+
+    # Compute SHA256 of downloaded file
+    actual_hash=$(compute_sha256 "$TEMP_DIR/checkpoint.tar.gz") || {
+        echo "❌ Failed to compute SHA256 hash"
+        exit 1
+    }
+
+    # Extract expected hash (grep for .tar.gz line in checksums file)
+    expected_hash=$(grep '\.tar\.gz' "$TEMP_DIR/SHA256SUMS" | head -1 | awk '{print $1}')
+
+    if [[ -z "$expected_hash" ]]; then
+        echo "⚠  SHA256SUMS file found but no tar.gz entry — skipping integrity verification"
+    elif [[ "$actual_hash" != "$expected_hash" ]]; then
+        echo "❌ SECURITY: Download integrity check failed"
+        echo "   Expected: $expected_hash"
+        echo "   Actual:   $actual_hash"
+        exit 1
+    else
+        echo "✓ Integrity verified (SHA256)"
+    fi
+else
+    # SHA256SUMS not available - warn and continue
+    echo "⚠  No checksum available for v${LATEST_VERSION} — skipping integrity verification"
+    curl -sL "$download_url" -o checkpoint.tar.gz
+
+    if [[ ! -f checkpoint.tar.gz ]]; then
+        echo "❌ Download failed"
+        exit 1
+    fi
 fi
 
 # Extract
