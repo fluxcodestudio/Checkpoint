@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Checkpoint - Main Backup Daemon
 # Handles database backups, file backups, archiving, and cleanup
-# Can be triggered by: LaunchAgent (hourly), Claude Code hooks (on prompt), or manually
+# Can be triggered by: daemon scheduler (hourly), Claude Code hooks (on prompt), or manually
 
 set -euo pipefail
 
@@ -89,21 +89,17 @@ HEARTBEAT_FILE="${HEARTBEAT_FILE:-$HEARTBEAT_DIR/daemon.heartbeat}"
 # Check if project still exists - self-disable if deleted
 
 if [ ! -d "$PROJECT_DIR" ]; then
-    echo "⚠️  Project directory no longer exists: $PROJECT_DIR" >&2
-    echo "   This LaunchAgent appears to be orphaned." >&2
+    echo "  Project directory no longer exists: $PROJECT_DIR" >&2
+    echo "   This daemon appears to be orphaned." >&2
 
-    # Try to unload the LaunchAgent automatically
-    PLIST_NAME="com.claudecode.backup.${PROJECT_NAME}.plist"
-    PLIST_PATH="$HOME/Library/LaunchAgents/$PLIST_NAME"
-
-    if [ -f "$PLIST_PATH" ]; then
-        echo "   Attempting to unload orphaned LaunchAgent..." >&2
-        if launchctl unload "$PLIST_PATH" 2>/dev/null; then
-            rm -f "$PLIST_PATH"
-            echo "✅ Orphaned LaunchAgent removed: $PLIST_NAME" >&2
+    # Source daemon-manager.sh for cross-platform removal
+    if [ -f "$LIB_DIR/platform/daemon-manager.sh" ]; then
+        source "$LIB_DIR/platform/daemon-manager.sh"
+        echo "   Attempting to remove orphaned daemon..." >&2
+        if uninstall_daemon "$PROJECT_NAME" 2>/dev/null; then
+            echo "   Orphaned daemon removed: $PROJECT_NAME" >&2
         else
-            echo "   Failed to unload. Run manually:" >&2
-            echo "   launchctl unload '$PLIST_PATH' && rm '$PLIST_PATH'" >&2
+            echo "   Failed to remove daemon. Run: uninstall.sh --cleanup-orphans" >&2
         fi
     fi
 

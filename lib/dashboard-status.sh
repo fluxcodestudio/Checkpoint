@@ -5,6 +5,14 @@
 # Collects live status data for dashboard display
 # ==============================================================================
 
+# Source cross-platform daemon manager if not already loaded
+if [ -z "${_DAEMON_MANAGER_LOADED:-}" ]; then
+    _ds_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+    if [ -f "$_ds_lib_dir/platform/daemon-manager.sh" ]; then
+        source "$_ds_lib_dir/platform/daemon-manager.sh"
+    fi
+fi
+
 # ==============================================================================
 # STATUS DATA COLLECTION
 # ==============================================================================
@@ -71,33 +79,28 @@ get_last_backup_time() {
 
 # Get next backup time (countdown)
 get_next_backup_time() {
-    # Check if LaunchAgent is running
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        local project_name=$(get_project_name)
-        local plist_label="com.checkpoint.backup.$(echo "$project_name" | tr '[:upper:]' '[:lower:]')"
+    # Check if daemon is running (cross-platform via daemon-manager.sh)
+    local project_name=$(get_project_name)
 
-        if launchctl list | grep -q "$plist_label" 2>/dev/null; then
-            # Get backup interval from config
-            local interval="${BACKUP_INTERVAL:-3600}"
-            local minutes=$((interval / 60))
+    if type status_daemon >/dev/null 2>&1 && status_daemon "$project_name" 2>/dev/null; then
+        # Get backup interval from config
+        local interval="${BACKUP_INTERVAL:-3600}"
+        local minutes=$((interval / 60))
 
-            # Try to estimate next run
-            local last_time=$(get_last_backup_time)
-            if [[ "$last_time" =~ ([0-9]+)\ minutes\ ago ]]; then
-                local elapsed="${BASH_REMATCH[1]}"
-                local remaining=$((minutes - elapsed))
-                if [[ $remaining -gt 0 ]]; then
-                    echo "$remaining minutes"
-                    return
-                fi
+        # Try to estimate next run
+        local last_time=$(get_last_backup_time)
+        if [[ "$last_time" =~ ([0-9]+)\ minutes\ ago ]]; then
+            local elapsed="${BASH_REMATCH[1]}"
+            local remaining=$((minutes - elapsed))
+            if [[ $remaining -gt 0 ]]; then
+                echo "$remaining minutes"
+                return
             fi
-
-            echo "~$minutes minutes"
-        else
-            echo "Not scheduled"
         fi
+
+        echo "~$minutes minutes"
     else
-        echo "Manual only"
+        echo "Not scheduled"
     fi
 }
 
@@ -153,23 +156,15 @@ get_backup_status() {
         fi
     fi
 
-    # Check LaunchAgent status
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        local project_name=$(get_project_name)
-        local plist_label="com.checkpoint.backup.$(echo "$project_name" | tr '[:upper:]' '[:lower:]')"
+    # Check daemon status (cross-platform via daemon-manager.sh)
+    local project_name=$(get_project_name)
 
-        if launchctl list | grep -q "$plist_label" 2>/dev/null; then
-            echo "⚡ Active"
-        else
-            echo "○ Inactive"
-        fi
+    if type status_daemon >/dev/null 2>&1 && status_daemon "$project_name" 2>/dev/null; then
+        echo "⚡ Active"
+    elif [[ -f "$PWD/.backup-config.sh" ]]; then
+        echo "○ Inactive"
     else
-        # Check if backup-config exists
-        if [[ -f "$PWD/.backup-config.sh" ]]; then
-            echo "✓ Ready"
-        else
-            echo "○ Not Setup"
-        fi
+        echo "○ Not Setup"
     fi
 }
 

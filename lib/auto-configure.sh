@@ -21,6 +21,15 @@ if [[ -f "$SCRIPT_DIR/database-detector.sh" ]]; then
     source "$SCRIPT_DIR/database-detector.sh"
 fi
 
+# Source cross-platform daemon manager
+if [[ -f "$SCRIPT_DIR/platform/daemon-manager.sh" ]]; then
+    source "$SCRIPT_DIR/platform/daemon-manager.sh"
+elif [[ -f "$HOME/.local/lib/checkpoint/lib/platform/daemon-manager.sh" ]]; then
+    source "$HOME/.local/lib/checkpoint/lib/platform/daemon-manager.sh"
+elif [[ -f "/usr/local/lib/checkpoint/lib/platform/daemon-manager.sh" ]]; then
+    source "/usr/local/lib/checkpoint/lib/platform/daemon-manager.sh"
+fi
+
 # ==============================================================================
 # CONFIGURATION
 # ==============================================================================
@@ -1197,7 +1206,7 @@ SMARTEOF
 # INSTALL DAEMON FOR PROJECT
 # ==============================================================================
 
-# Install LaunchAgent for a project
+# Install backup daemon for a project (cross-platform via daemon-manager.sh)
 # Args: $1 = project directory
 install_project_daemon() {
     local project_dir="$1"
@@ -1206,7 +1215,6 @@ install_project_daemon() {
     local safe_name
     safe_name=$(echo "$project_name" | tr ' ' '_' | tr -cd '[:alnum:]_-')
 
-    local plist_file="$HOME/Library/LaunchAgents/com.checkpoint.backup.${safe_name}.plist"
     local daemon_script
 
     # Find daemon script
@@ -1215,46 +1223,12 @@ install_project_daemon() {
     elif [[ -f "/usr/local/lib/checkpoint/bin/backup-daemon.sh" ]]; then
         daemon_script="/usr/local/lib/checkpoint/bin/backup-daemon.sh"
     else
-        echo "Warning: Daemon script not found, skipping LaunchAgent for $project_name"
+        echo "Warning: Daemon script not found, skipping daemon for $project_name"
         return 1
     fi
 
-    # Create log directory
-    mkdir -p "$HOME/.checkpoint/logs"
-
-    cat > "$plist_file" << PLISTEOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.checkpoint.backup.${safe_name}</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>$daemon_script</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>$project_dir</string>
-    <key>StartInterval</key>
-    <integer>3600</integer>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>$HOME/.checkpoint/logs/${safe_name}.log</string>
-    <key>StandardErrorPath</key>
-    <string>$HOME/.checkpoint/logs/${safe_name}.err</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:$HOME/.local/bin</string>
-    </dict>
-</dict>
-</plist>
-PLISTEOF
-
-    # Load the agent
-    launchctl unload "$plist_file" 2>/dev/null || true
-    launchctl load -w "$plist_file" 2>/dev/null
+    # Install via daemon-manager.sh (handles launchd/systemd/cron automatically)
+    install_daemon "$safe_name" "$daemon_script" "$project_dir" "$project_name" "daemon"
 
     return 0
 }

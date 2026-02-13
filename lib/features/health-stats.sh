@@ -16,22 +16,30 @@
 # Lib directory (set by loader, fallback for standalone sourcing)
 _CHECKPOINT_LIB_DIR="${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
+# Source cross-platform daemon manager if not already loaded
+if [ -z "${_DAEMON_MANAGER_LOADED:-}" ]; then
+    _hs_dm_path="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/platform/daemon-manager.sh"
+    if [ -f "$_hs_dm_path" ]; then
+        source "$_hs_dm_path"
+    fi
+fi
+
 # ==============================================================================
 # COMPONENT HEALTH CHECKS
 # ==============================================================================
 
-# Check if daemon is running
+# Check if daemon is running (cross-platform via daemon-manager.sh)
 # Returns: 0 if running, 1 if not
 check_daemon_status() {
     # Check for global daemon first (new architecture)
-    if launchctl list 2>/dev/null | grep -q "com.checkpoint.global-daemon"; then
-        return 0
-    fi
+    if type status_daemon >/dev/null 2>&1; then
+        if status_daemon "global-daemon" 2>/dev/null; then
+            return 0
+        fi
 
-    # Fallback: check for per-project daemons (legacy)
-    local project_name="${PROJECT_NAME:-}"
-    if [ -n "$project_name" ]; then
-        if launchctl list 2>/dev/null | grep -qE "com\.(claudecode|checkpoint)\.backup\."; then
+        # Fallback: check for per-project daemons
+        local project_name="${PROJECT_NAME:-}"
+        if [ -n "$project_name" ] && status_daemon "$project_name" 2>/dev/null; then
             return 0
         fi
     fi

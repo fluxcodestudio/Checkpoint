@@ -8,8 +8,17 @@
 
 set -euo pipefail
 
+# Helper app is macOS only (native menu bar app)
+if [ "$(uname -s)" != "Darwin" ]; then
+    echo "Helper app is macOS only"
+    exit 0
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Source cross-platform daemon manager
+source "$PACKAGE_DIR/lib/platform/daemon-manager.sh"
 HELPER_DIR="$PACKAGE_DIR/helper"
 APP_NAME="CheckpointHelper"
 APP_PATH="/Applications/$APP_NAME.app"
@@ -20,11 +29,7 @@ echo "Checkpoint Helper - Menu Bar App"
 echo "═══════════════════════════════════════════════"
 echo ""
 
-# Check if we're on macOS
-if [[ "$OSTYPE" != "darwin"* ]]; then
-    echo "⚠️  Menu bar app is only available on macOS"
-    exit 0
-fi
+# Already guarded at top of script — we're on macOS
 
 # Check for Xcode command line tools
 if ! xcode-select -p &>/dev/null; then
@@ -90,32 +95,8 @@ osascript -e "tell application \"System Events\" to make login item at end with 
     echo "   Add manually: System Preferences → Users & Groups → Login Items"
 }
 
-# Create LaunchAgent for helper (runs at login, restarts if crashed)
-HELPER_PLIST="$HOME/Library/LaunchAgents/com.checkpoint.helper.plist"
-cat > "$HELPER_PLIST" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.checkpoint.helper</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>$APP_PATH/Contents/MacOS/$APP_NAME</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>ProcessType</key>
-    <string>Interactive</string>
-</dict>
-</plist>
-EOF
-
-# Load the LaunchAgent
-launchctl unload "$HELPER_PLIST" 2>/dev/null || true
-launchctl load "$HELPER_PLIST"
+# Install helper daemon via daemon-manager.sh (handles launchd/systemd/cron)
+install_daemon "helper" "$APP_PATH/Contents/MacOS/$APP_NAME" "$HOME" "checkpoint" "watchdog"
 
 # Start the app
 echo "Starting Checkpoint Helper..."

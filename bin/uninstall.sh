@@ -4,6 +4,10 @@
 
 set -euo pipefail
 
+# Source cross-platform daemon manager
+_UNINSTALL_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$_UNINSTALL_SCRIPT_DIR/../lib/platform/daemon-manager.sh"
+
 # ==============================================================================
 # ORPHAN CLEANUP MODE (Issue #8)
 # ==============================================================================
@@ -13,59 +17,105 @@ cleanup_orphans() {
     echo "Checkpoint - Orphan Cleanup"
     echo "═══════════════════════════════════════════════"
     echo ""
-    echo "Scanning for orphaned LaunchAgents..."
+    echo "Scanning for orphaned daemons..."
     echo ""
 
     local orphans_found=0
     local orphans_cleaned=0
 
-    # Scan all Checkpoint LaunchAgents
-    for plist in "$HOME/Library/LaunchAgents"/com.claudecode.backup.*.plist; do
-        [ -f "$plist" ] || continue
+    # List all checkpoint daemons via daemon-manager.sh (handles launchd/systemd/cron)
+    local daemon_list
+    daemon_list="$(list_daemons "checkpoint" 2>/dev/null || true)"
+    # Also check legacy naming
+    local legacy_list
+    legacy_list="$(list_daemons "claudecode" 2>/dev/null || true)"
 
-        # Extract project name from plist filename
-        local basename="${plist##*/}"
-        local project_name="${basename#com.claudecode.backup.}"
-        project_name="${project_name%.plist}"
-
-        # Try to find project directory from plist
-        local project_dir=""
-        if command -v /usr/libexec/PlistBuddy &>/dev/null; then
-            project_dir=$(/usr/libexec/PlistBuddy -c "Print :WorkingDirectory" "$plist" 2>/dev/null || echo "")
+    if [ -n "$legacy_list" ]; then
+        if [ -n "$daemon_list" ]; then
+            daemon_list="$(printf '%s\n%s' "$daemon_list" "$legacy_list")"
+        else
+            daemon_list="$legacy_list"
         fi
+    fi
 
-        # If we couldn't extract from plist, check state directory
-        if [ -z "$project_dir" ]; then
-            local state_dir="$HOME/.claudecode-backups/state/$project_name"
-            if [ -f "$state_dir/.project-dir" ]; then
-                project_dir=$(cat "$state_dir/.project-dir" 2>/dev/null || echo "")
-            fi
+    if [ -z "$daemon_list" ]; then
+        echo "═══════════════════════════════════════════════"
+        echo "✅ No orphaned daemons found"
+        echo "═══════════════════════════════════════════════"
+        return 0
+    fi
+
+    # Extract service names from platform-specific list output
+    echo "$daemon_list" | while IFS= read -r line; do
+        [ -z "$line" ] && continue
+
+        # Extract service name from various formats
+        local service_name=""
+        case "$line" in
+            *com.checkpoint.*)
+                # launchd format: extract after com.checkpoint.
+                service_name="$(echo "$line" | sed 's/.*com\.checkpoint\.\([^ 	]*\).*/\1/')"
+                ;;
+            *com.claudecode.backup.*)
+                # legacy launchd format: extract after com.claudecode.backup.
+                service_name="$(echo "$line" | sed 's/.*com\.claudecode\.backup\.\([^ 	]*\).*/\1/')"
+                ;;
+            *checkpoint-*)
+                # systemd format: extract after checkpoint-
+                service_name="$(echo "$line" | sed 's/.*checkpoint-\([^ 	.]*\).*/\1/')"
+                ;;
+            *"# checkpoint:"*)
+                # cron format: extract after # checkpoint:
+                service_name="$(echo "$line" | sed 's/.*# checkpoint:\(.*\)/\1/')"
+                ;;
+        esac
+
+        [ -z "$service_name" ] && continue
+
+        # Skip non-project daemons (watchdog, helper, watcher prefixes handled below)
+        case "$service_name" in
+            watchdog|helper) continue ;;
+        esac
+
+        # Strip watcher- prefix to get project name for directory check
+        local project_name="$service_name"
+        case "$service_name" in
+            watcher-*) project_name="${service_name#watcher-}" ;;
+        esac
+
+        # Try to find project directory from state
+        local project_dir=""
+        local state_dir="$HOME/.claudecode-backups/state/$project_name"
+        if [ -f "$state_dir/.project-dir" ]; then
+            project_dir="$(cat "$state_dir/.project-dir" 2>/dev/null || true)"
+        fi
+        # Also check new state location
+        local state_dir2="$HOME/.checkpoint/state/$project_name"
+        if [ -z "$project_dir" ] && [ -f "$state_dir2/.project-dir" ]; then
+            project_dir="$(cat "$state_dir2/.project-dir" 2>/dev/null || true)"
         fi
 
         # Check if project directory exists
         if [ -n "$project_dir" ] && [ ! -d "$project_dir" ]; then
             orphans_found=$((orphans_found + 1))
-            echo "⚠️  Orphan found: $project_name"
+            echo "  Orphan found: $service_name"
             echo "   Missing: $project_dir"
 
             if [ "${DRY_RUN:-false}" = "true" ]; then
-                echo "   [DRY RUN] Would remove: $plist"
+                echo "   [DRY RUN] Would remove daemon: $service_name"
             else
-                # Unload and remove
-                if launchctl unload "$plist" 2>/dev/null; then
-                    rm -f "$plist"
+                # Uninstall via daemon-manager.sh (handles launchd/systemd/cron)
+                if uninstall_daemon "$service_name"; then
                     orphans_cleaned=$((orphans_cleaned + 1))
-                    echo "   ✅ Removed LaunchAgent"
+                    echo "   Removed daemon"
                 else
-                    echo "   ❌ Failed to unload (may already be unloaded)"
-                    rm -f "$plist" 2>/dev/null && orphans_cleaned=$((orphans_cleaned + 1))
+                    echo "   Failed to remove (may already be removed)"
                 fi
 
                 # Clean up state directory
-                local state_dir="$HOME/.claudecode-backups/state/$project_name"
                 if [ -d "$state_dir" ]; then
                     rm -rf "$state_dir"
-                    echo "   ✅ Cleaned state files"
+                    echo "   Cleaned state files"
                 fi
 
                 # Clean up lock directory
@@ -80,7 +130,7 @@ cleanup_orphans() {
 
     echo "═══════════════════════════════════════════════"
     if [ $orphans_found -eq 0 ]; then
-        echo "✅ No orphaned LaunchAgents found"
+        echo "✅ No orphaned daemons found"
     elif [ "${DRY_RUN:-false}" = "true" ]; then
         echo "Found $orphans_found orphan(s). Run without --dry-run to clean."
     else
@@ -104,11 +154,11 @@ Checkpoint - Uninstaller
 
 USAGE:
     uninstall.sh [PROJECT_DIR]       Uninstall from specific project
-    uninstall.sh --cleanup-orphans   Find and remove orphaned LaunchAgents
+    uninstall.sh --cleanup-orphans   Find and remove orphaned daemons
     uninstall.sh --orphans --dry-run Preview orphans without removing
 
 OPTIONS:
-    --cleanup-orphans, --orphans  Scan for and remove orphaned LaunchAgents
+    --cleanup-orphans, --orphans  Scan for and remove orphaned daemons
     --dry-run                     Preview changes without making them
     --help, -h                    Show this help message
 
@@ -146,7 +196,7 @@ echo "⚠️  WARNING: This will remove the backup system"
 echo ""
 echo "What will be removed:"
 echo "  - Backup scripts (.claude/backup-daemon.sh)"
-echo "  - LaunchAgent (hourly daemon)"
+echo "  - Backup daemon (hourly schedule)"
 echo "  - Configuration file (.backup-config.sh)"
 echo ""
 echo "What will be KEPT:"
@@ -163,28 +213,16 @@ fi
 echo ""
 echo "Uninstalling..."
 
-# Stop and remove watcher LaunchAgent if exists
-WATCHER_PLIST_NAME="com.claudecode.backup-watcher.${PROJECT_NAME}.plist"
-WATCHER_PLIST_PATH="$HOME/Library/LaunchAgents/$WATCHER_PLIST_NAME"
-if [ -f "$WATCHER_PLIST_PATH" ]; then
-    launchctl unload "$WATCHER_PLIST_PATH" 2>/dev/null || true
-    rm -f "$WATCHER_PLIST_PATH"
-    echo "✅ File watcher removed"
-fi
+# Stop and remove watcher daemon via daemon-manager.sh (handles launchd/systemd/cron)
+uninstall_daemon "watcher-$PROJECT_NAME" 2>/dev/null && echo "✅ File watcher removed" || true
 
 # Clean up watcher PID files
 STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
 PROJECT_STATE_DIR="$STATE_DIR/${PROJECT_NAME}"
 rm -f "$PROJECT_STATE_DIR/.watcher.pid" "$PROJECT_STATE_DIR/.watcher-timer.pid" 2>/dev/null
 
-# Stop and remove LaunchAgent
-PLIST_FILE="$HOME/Library/LaunchAgents/com.claudecode.backup.${PROJECT_NAME}.plist"
-
-if [ -f "$PLIST_FILE" ]; then
-    launchctl unload "$PLIST_FILE" 2>/dev/null || true
-    rm "$PLIST_FILE"
-    echo "✅ LaunchAgent removed"
-fi
+# Stop and remove backup daemon via daemon-manager.sh (handles launchd/systemd/cron)
+uninstall_daemon "$PROJECT_NAME" 2>/dev/null && echo "✅ Backup daemon removed" || true
 
 # Remove backup scripts
 if [ -f "$PROJECT_DIR/.claude/backup-daemon.sh" ]; then
