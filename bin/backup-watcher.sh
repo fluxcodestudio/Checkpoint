@@ -3,7 +3,8 @@
 # Checkpoint - File Watcher with Debounced Backup Triggering
 # ==============================================================================
 # Watches project files for changes and triggers backup after inactivity period.
-# Uses fswatch with FSEvents backend (macOS) for efficient file monitoring.
+# Uses platform-specific file watcher: fswatch (macOS), inotifywait (Linux),
+# or poll fallback. Backend selected automatically via lib/platform/file-watcher.sh.
 #
 # Usage: Called by backup-watch.sh (not directly)
 # ==============================================================================
@@ -33,6 +34,9 @@ fi
 
 source "$CONFIG_FILE"
 
+# Load cross-platform file watcher abstraction
+source "$LIB_DIR/platform/file-watcher.sh"
+
 # ==============================================================================
 # DEFAULTS
 # ==============================================================================
@@ -57,32 +61,46 @@ mkdir -p "$PROJECT_STATE_DIR"
 
 # Default excludes for common non-source directories
 DEFAULT_EXCLUDES=(
-    "node_modules"
+    # Version control (MUST exclude -- extreme event noise)
     "\.git"
-    "backups/"
-    "\.cache"
+    "\.hg"
+    "\.svn"
+    # Dependencies (MUST exclude -- massive file counts)
+    "node_modules"
+    "vendor/"
+    "\.venv"
+    "venv/"
     "__pycache__"
-    "\.pyc$"
-    "\.swp$"
-    "\.DS_Store"
+    "bower_components"
+    # Build output (MUST exclude -- generated content)
     "dist/"
     "build/"
     "\.next/"
+    "\.nuxt/"
+    "\.parcel-cache"
     "coverage/"
+    # IDE / Editor temporaries
+    "\.idea"
+    "\.swp$"
+    "\.swo$"
+    "4913"
+    "\.\#"
+    # OS metadata
+    "\.DS_Store"
+    # Infrastructure / project-specific
+    "backups/"
+    "\.cache"
     "\.planning/"
     "\.claudecode-backups"
+    "\.terraform"
+    # Compiled artifacts
+    "\.pyc$"
 )
 
-# Build fswatch exclude arguments
-FSWATCH_EXCLUDES=()
-for pattern in "${DEFAULT_EXCLUDES[@]}"; do
-    FSWATCH_EXCLUDES+=(-e "$pattern")
-done
-
-# Add custom excludes from config if defined
+# Append custom excludes from config if defined
 if [ -n "${WATCHER_EXCLUDES:-}" ]; then
     for pattern in "${WATCHER_EXCLUDES[@]}"; do
-        FSWATCH_EXCLUDES+=(-e "$pattern")
+        DEFAULT_EXCLUDES+=("$pattern")
     done
 fi
 
@@ -99,15 +117,15 @@ log() {
 # CLEANUP
 # ==============================================================================
 
-FSWATCH_PID=""
+WATCHER_PID=""
 
 cleanup() {
     log "Watcher shutting down..."
 
-    # Kill fswatch process if running
-    if [ -n "$FSWATCH_PID" ] && kill -0 "$FSWATCH_PID" 2>/dev/null; then
-        kill "$FSWATCH_PID" 2>/dev/null || true
-        wait "$FSWATCH_PID" 2>/dev/null || true
+    # Kill watcher process if running
+    if [ -n "$WATCHER_PID" ] && kill -0 "$WATCHER_PID" 2>/dev/null; then
+        kill "$WATCHER_PID" 2>/dev/null || true
+        wait "$WATCHER_PID" 2>/dev/null || true
     fi
 
     # Kill pending timer if exists
@@ -172,24 +190,23 @@ log "Project: $PROJECT_DIR"
 log "Debounce: ${DEBOUNCE_SECONDS}s"
 log "═══════════════════════════════════════════════"
 
-# Check fswatch is installed
-if ! command -v fswatch &>/dev/null; then
-    log "ERROR: fswatch not installed. Run: brew install fswatch"
-    echo "Error: fswatch not installed. Run: brew install fswatch" >&2
-    exit 1
+# Detect file watcher backend (warns on stderr if poll mode)
+WATCHER_BACKEND="$(check_watcher_available)"
+log "Watcher backend: $WATCHER_BACKEND"
+
+if [ "$WATCHER_BACKEND" = "poll" ]; then
+    log "WARNING: No native file watcher found. Using poll fallback (${POLL_INTERVAL:-30}s interval)"
+    log "Install fswatch (macOS: brew install fswatch) or inotify-tools (Linux: apt install inotify-tools)"
 fi
 
-# Start fswatch in one-per-batch mode and process events
-# -o: one event per batch (coalesce multiple rapid changes)
-# -r: recursive
-# --batch-marker: mark end of batch (not needed with -o)
-fswatch -o -r "${FSWATCH_EXCLUDES[@]}" "$PROJECT_DIR" | while read -r _count; do
-    log "File change detected"
+# Start watcher and process events through debounce
+start_watcher "$PROJECT_DIR" "${DEFAULT_EXCLUDES[@]}" | while read -r _event; do
+    log "File change detected (via $WATCHER_BACKEND)"
     reset_timer
 done &
 
-FSWATCH_PID=$!
-log "fswatch started (PID: $FSWATCH_PID)"
+WATCHER_PID=$!
+log "Watcher started (PID: $WATCHER_PID, backend: $WATCHER_BACKEND)"
 
-# Wait for fswatch to exit (cleanup will handle signals)
-wait "$FSWATCH_PID"
+# Wait for watcher to exit (cleanup will handle signals)
+wait "$WATCHER_PID"
