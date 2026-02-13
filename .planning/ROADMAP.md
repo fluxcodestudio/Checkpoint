@@ -69,7 +69,9 @@ None
 **Plans**: TBD
 
 Plans:
-- [ ] 11-01: TBD (run /gsd:plan-phase 11 to break down)
+- [ ] 11-01: Extract core + ops modules (error-codes, output, config, file-ops, state, init)
+- [ ] 11-02: Extract ui + features modules (formatting, time-size-utils, 8 feature modules)
+- [ ] 11-03: Cutover — thin loader + full verification
 
 #### Phase 12: Bootstrap Deduplication
 
