@@ -103,10 +103,12 @@ Plans:
 **Depends on**: Phase 13
 **Research**: Likely (macOS keychain API via `security` command, checksum verification workflows)
 **Research topics**: macOS `security` CLI for keychain access, Linux secret-tool/pass, GPG signature verification for rclone binaries
-**Plans**: TBD
+**Plans**: 3
 
 Plans:
-- [ ] 14-01: TBD (run /gsd:plan-phase 14 to break down)
+- [ ] 14-01: Secure download library + rclone migration (replace curl|bash with download-verify-execute)
+- [ ] 14-02: Credential provider abstraction (macOS Keychain, Linux secret-tool/pass, env var fallback)
+- [ ] 14-03: Self-update integrity + install messaging (SHA256 verification for backup-update.sh)
 
 #### Phase 15: Linux Systemd Support
 
