@@ -160,16 +160,13 @@ log() {
 # CLEANUP
 # ==============================================================================
 
-WATCHER_PID=""
+CLEANUP_DONE=false
 
 cleanup() {
-    log "Watcher shutting down..."
+    [ "$CLEANUP_DONE" = true ] && return
+    CLEANUP_DONE=true
 
-    # Kill watcher process if running
-    if [ -n "$WATCHER_PID" ] && kill -0 "$WATCHER_PID" 2>/dev/null; then
-        kill "$WATCHER_PID" 2>/dev/null || true
-        wait "$WATCHER_PID" 2>/dev/null || true
-    fi
+    log "Watcher shutting down..."
 
     # Kill pending timer if exists
     if [ -f "$TIMER_PID_FILE" ]; then
@@ -182,10 +179,9 @@ cleanup() {
     fi
 
     log "Watcher stopped"
-    exit 0
 }
 
-trap cleanup SIGTERM SIGINT EXIT
+trap cleanup SIGTERM SIGINT SIGHUP EXIT
 
 # ==============================================================================
 # DEBOUNCE LOGIC
@@ -203,8 +199,9 @@ reset_timer() {
         rm -f "$TIMER_PID_FILE"
     fi
 
-    # Start new timer in background
+    # Start new timer in background (close inherited FDs to avoid blocking pipe)
     (
+        exec 0<&- 1>/dev/null  # close stdin, redirect stdout
         sleep "$DEBOUNCE_SECONDS"
         rm -f "$TIMER_PID_FILE"
 
@@ -214,7 +211,9 @@ reset_timer() {
         # Pre-check: skip daemon spawn if interval not elapsed or drive unavailable
         if should_backup_now; then
             log "Debounce timer expired, triggering backup..."
-            "$SCRIPT_DIR/backup-daemon.sh" >> "$WATCHER_LOG" 2>&1 &
+            if ! "$SCRIPT_DIR/backup-daemon.sh" >> "$WATCHER_LOG" 2>&1; then
+                log "ERROR: backup-daemon.sh failed with exit code $?"
+            fi
         else
             log "Debounce timer expired, backup skipped (interval not elapsed or drive unavailable)"
         fi
@@ -229,6 +228,12 @@ reset_timer() {
 # ==============================================================================
 # MAIN
 # ==============================================================================
+
+# Log rotation on startup
+MAX_LOG_SIZE="${MAX_LOG_SIZE:-1048576}"  # 1MB default
+if [ -f "$WATCHER_LOG" ] && [ "$(wc -c < "$WATCHER_LOG" 2>/dev/null || echo 0)" -gt "$MAX_LOG_SIZE" ]; then
+    mv "$WATCHER_LOG" "${WATCHER_LOG}.old"
+fi
 
 log "═══════════════════════════════════════════════"
 log "Watcher starting for: $PROJECT_NAME"
@@ -259,15 +264,16 @@ if check_new_session; then
 fi
 update_session_time
 
-# Start watcher and process events through debounce
-start_watcher "$PROJECT_DIR" "${DEFAULT_EXCLUDES[@]}" | while read -r _event; do
+# Start watcher and process events through debounce (process substitution
+# ensures watcher runs in current process group, killed by cleanup)
+log "Watcher started (backend: $WATCHER_BACKEND)"
+while read -r _event; do
+    # Health check: verify project directory still exists
+    if [ ! -d "$PROJECT_DIR" ]; then
+        log "ERROR: Project directory no longer exists: $PROJECT_DIR"
+        break
+    fi
     update_session_time
     log "File change detected (via $WATCHER_BACKEND)"
     reset_timer
-done &
-
-WATCHER_PID=$!
-log "Watcher started (PID: $WATCHER_PID, backend: $WATCHER_BACKEND)"
-
-# Wait for watcher to exit (cleanup will handle signals)
-wait "$WATCHER_PID"
+done < <(start_watcher "$PROJECT_DIR" "${DEFAULT_EXCLUDES[@]}")

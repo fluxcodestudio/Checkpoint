@@ -67,7 +67,7 @@ is_watcher_running() {
         return 1
     fi
 
-    if kill -0 "$pid" 2>/dev/null; then
+    if kill -0 "$pid" 2>/dev/null && ps -p "$pid" -o command= 2>/dev/null | grep -q "backup-watcher"; then
         return 0
     else
         # Stale PID file
