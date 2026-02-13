@@ -8,23 +8,11 @@ set -euo pipefail
 # INITIALIZATION
 # ==============================================================================
 
-# Resolve symlinks to get actual script location
-SCRIPT_PATH="${BASH_SOURCE[0]}"
-while [ -L "$SCRIPT_PATH" ]; do
-    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
-    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
-done
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-LIB_DIR="$(cd "$SCRIPT_DIR/../lib" && pwd)"
+# Bootstrap: resolve symlinks, set SCRIPT_DIR/LIB_DIR/PROJECT_ROOT
+source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 
 # Source foundation library
-if [ -f "$LIB_DIR/backup-lib.sh" ]; then
-    source "$LIB_DIR/backup-lib.sh"
-else
-    echo "Error: Foundation library not found: $LIB_DIR/backup-lib.sh" >&2
-    exit 1
-fi
+source "$LIB_DIR/backup-lib.sh"
 
 # ==============================================================================
 # COMMAND LINE OPTIONS

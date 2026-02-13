@@ -8,23 +8,11 @@ set -euo pipefail
 # LOAD LIBRARY & CONFIGURATION
 # ==============================================================================
 
-# Resolve symlinks to get actual script location
-SCRIPT_PATH="${BASH_SOURCE[0]}"
-while [ -L "$SCRIPT_PATH" ]; do
-    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
-    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
-done
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-LIB_DIR="$SCRIPT_DIR/../lib"
+# Bootstrap: resolve symlinks, set SCRIPT_DIR/LIB_DIR/PROJECT_ROOT
+source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 
-# Load backup library
-if [ -f "$LIB_DIR/backup-lib.sh" ]; then
-    source "$LIB_DIR/backup-lib.sh"
-else
-    echo "❌ Error: backup-lib.sh not found" >&2
-    exit 1
-fi
+# Source foundation library
+source "$LIB_DIR/backup-lib.sh"
 
 # Load restore library for point-in-time functions
 if [ -f "$LIB_DIR/restore-lib.sh" ]; then

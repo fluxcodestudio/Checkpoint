@@ -20,29 +20,15 @@ set -euo pipefail
 # CONFIGURATION
 # ==============================================================================
 
-# Resolve symlinks to get actual script location
-SCRIPT_PATH="${BASH_SOURCE[0]}"
-while [ -L "$SCRIPT_PATH" ]; do
-    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
-    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
-done
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-LIBBACKUP_PATH="$PROJECT_ROOT/lib/backup-lib.sh"
-CLOUD_DETECTOR_PATH="$PROJECT_ROOT/lib/cloud-folder-detector.sh"
+# Bootstrap: resolve symlinks, set SCRIPT_DIR/LIB_DIR/PROJECT_ROOT
+source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 
-# Load backup library
-if [[ -f "$LIBBACKUP_PATH" ]]; then
-    source "$LIBBACKUP_PATH"
-else
-    echo "Error: Cannot find backup library at: $LIBBACKUP_PATH" >&2
-    exit 1
-fi
+# Source foundation library
+source "$LIB_DIR/backup-lib.sh"
 
 # Load cloud folder detector (optional - for wizard)
-if [[ -f "$CLOUD_DETECTOR_PATH" ]]; then
-    source "$CLOUD_DETECTOR_PATH"
+if [[ -f "$LIB_DIR/cloud-folder-detector.sh" ]]; then
+    source "$LIB_DIR/cloud-folder-detector.sh"
 fi
 
 # ==============================================================================

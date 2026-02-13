@@ -4,20 +4,13 @@
 
 set -euo pipefail
 
-# Resolve symlinks to get actual script location
-SCRIPT_PATH="${BASH_SOURCE[0]}"
-while [ -L "$SCRIPT_PATH" ]; do
-    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
-    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
-done
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Bootstrap: resolve symlinks, set SCRIPT_DIR/LIB_DIR/PROJECT_ROOT
+source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 
 # Load libraries
-source "$PROJECT_ROOT/lib/backup-lib.sh"
-source "$PROJECT_ROOT/lib/cloud-backup.sh"
-source "$PROJECT_ROOT/lib/dependency-manager.sh"
+source "$LIB_DIR/backup-lib.sh"
+source "$LIB_DIR/cloud-backup.sh"
+source "$LIB_DIR/dependency-manager.sh"
 
 # ==============================================================================
 # CLOUD CONFIGURATION WIZARD

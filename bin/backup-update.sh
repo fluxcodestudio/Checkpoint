@@ -8,14 +8,8 @@
 
 set -euo pipefail
 
-# Resolve symlinks to get actual script location
-SCRIPT_PATH="${BASH_SOURCE[0]}"
-while [ -L "$SCRIPT_PATH" ]; do
-    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
-    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
-done
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+# Bootstrap: resolve symlinks, set SCRIPT_DIR/LIB_DIR/PROJECT_ROOT
+source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 
 # Detect installation mode
 if [[ "$SCRIPT_DIR" == *"/.local/bin"* ]] || [[ "$SCRIPT_DIR" == *"/usr/local/bin"* ]]; then

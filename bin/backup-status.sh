@@ -8,23 +8,11 @@ set -euo pipefail
 # INITIALIZATION
 # ==============================================================================
 
-# Resolve symlinks to find actual script location
-SOURCE="${BASH_SOURCE[0]}"
-while [ -L "$SOURCE" ]; do
-    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-    SOURCE="$(readlink "$SOURCE")"
-    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
-done
-SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-LIB_DIR="$SCRIPT_DIR/../lib"
+# Bootstrap: resolve symlinks, set SCRIPT_DIR/LIB_DIR/PROJECT_ROOT
+source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 
 # Source foundation library
-if [ -f "$LIB_DIR/backup-lib.sh" ]; then
-    source "$LIB_DIR/backup-lib.sh"
-else
-    echo "Error: Foundation library not found: $LIB_DIR/backup-lib.sh" >&2
-    exit 1
-fi
+source "$LIB_DIR/backup-lib.sh"
 
 # ==============================================================================
 # COMMAND LINE OPTIONS
@@ -429,8 +417,7 @@ fi
 # Cloud Backup Status
 if [ "${CLOUD_ENABLED:-false}" = "true" ]; then
     # Load cloud library to get status
-    SCRIPT_DIR="$(dirname "$0")"
-    CLOUD_LIB="$SCRIPT_DIR/../lib/cloud-backup.sh"
+    CLOUD_LIB="$LIB_DIR/cloud-backup.sh"
     if [ -f "$CLOUD_LIB" ]; then
         source "$CLOUD_LIB"
         cloud_last_upload=$(get_cloud_status)

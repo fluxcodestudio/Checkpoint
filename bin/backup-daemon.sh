@@ -9,14 +9,8 @@ set -euo pipefail
 # LOAD CONFIGURATION
 # ==============================================================================
 
-# Resolve symlinks to get actual script location
-SCRIPT_PATH="${BASH_SOURCE[0]}"
-while [ -L "$SCRIPT_PATH" ]; do
-    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
-    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
-    [[ $SCRIPT_PATH != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
-done
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+# Bootstrap: resolve symlinks, set SCRIPT_DIR/LIB_DIR/PROJECT_ROOT
+source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 
 # Find config file (check project root first, then script directory)
 CONFIG_FILE=""
@@ -67,13 +61,9 @@ BACKUP_LARGE_FILES="${BACKUP_LARGE_FILES:-false}"
 USE_UTC_TIMESTAMPS="${USE_UTC_TIMESTAMPS:-false}"
 
 # Load cloud backup library if cloud enabled
-CLOUD_LIB="$SCRIPT_DIR/../lib/cloud-backup.sh"
-if [[ -f "$CLOUD_LIB" ]] && [[ "${CLOUD_ENABLED:-false}" == "true" ]]; then
-    source "$CLOUD_LIB"
+if [[ -f "$LIB_DIR/cloud-backup.sh" ]] && [[ "${CLOUD_ENABLED:-false}" == "true" ]]; then
+    source "$LIB_DIR/cloud-backup.sh"
 fi
-
-# Load library files
-LIB_DIR="$SCRIPT_DIR/../lib"
 
 # Core backup library (provides has_changes, get_changed_files_fast)
 if [ -f "$LIB_DIR/backup-lib.sh" ]; then
