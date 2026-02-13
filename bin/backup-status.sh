@@ -313,8 +313,8 @@ if [ "$OUTPUT_MODE" = "timeline" ]; then
         color_cyan "Database Backups ($db_count):"
         echo ""
         find "$DATABASE_DIR" -name "*.db.gz" -type f 2>/dev/null | while read -r file; do
-            local mtime=$(stat -f%m "$file")
-            local size=$(stat -f%z "$file")
+            local mtime=$(get_file_mtime "$file")
+            local size=$(get_file_size "$file")
             local ago=$(format_time_ago $mtime)
             local date=$(date -r $mtime '+%Y-%m-%d %H:%M:%S')
             local size_human=$(format_bytes $size)
@@ -328,8 +328,8 @@ if [ "$OUTPUT_MODE" = "timeline" ]; then
     echo ""
     if [ -d "$FILES_DIR" ]; then
         find "$FILES_DIR" -type f 2>/dev/null | while read -r file; do
-            local mtime=$(stat -f%m "$file")
-            local size=$(stat -f%z "$file")
+            local mtime=$(get_file_mtime "$file")
+            local size=$(get_file_size "$file")
             local ago=$(format_time_ago $mtime)
             local date=$(date -r $mtime '+%Y-%m-%d %H:%M:%S')
             local rel_path="${file#$FILES_DIR/}"

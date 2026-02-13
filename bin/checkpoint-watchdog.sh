@@ -4,6 +4,12 @@
 
 set -euo pipefail
 
+# Resolve script directory for sourcing sibling modules
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Cross-platform helpers (stat, notifications)
+source "$SCRIPT_DIR/../lib/platform/compat.sh"
+
 # Configuration
 HEARTBEAT_DIR="${HOME}/.checkpoint"
 HEARTBEAT_FILE="${HEARTBEAT_DIR}/daemon.heartbeat"
@@ -22,7 +28,7 @@ log() {
     echo "$message" >> "$LOG_FILE"
 
     # Rotate log if too large
-    if [[ -f "$LOG_FILE" ]] && [[ $(stat -f%z "$LOG_FILE" 2>/dev/null || echo 0) -gt $MAX_LOG_SIZE ]]; then
+    if [ -f "$LOG_FILE" ] && [ "$(get_file_size "$LOG_FILE")" -gt "$MAX_LOG_SIZE" ]; then
         mv "$LOG_FILE" "${LOG_FILE}.old"
     fi
 }
@@ -98,13 +104,7 @@ trigger_backup() {
     fi
 }
 
-# Send notification (macOS native)
-send_notification() {
-    local title="$1"
-    local message="$2"
-
-    osascript -e "display notification \"$message\" with title \"$title\"" 2>/dev/null || true
-}
+# send_notification() is provided by lib/platform/compat.sh (cross-platform)
 
 # Write watchdog status file (for menu bar app to read)
 write_status() {

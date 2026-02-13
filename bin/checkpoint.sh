@@ -20,6 +20,9 @@ else
     INSTALL_MODE="Per-Project"
 fi
 
+# Cross-platform helpers (stat, notifications)
+source "$CHECKPOINT_LIB/lib/platform/compat.sh"
+
 # Global config location
 GLOBAL_CONFIG_DIR="$HOME/.config/checkpoint"
 GLOBAL_CONFIG_FILE="$GLOBAL_CONFIG_DIR/config.sh"
@@ -50,7 +53,7 @@ load_project_config() {
     if [[ -f "$config_file" ]]; then
         # Security: Check file ownership matches current user
         local file_owner
-        file_owner=$(stat -f "%u" "$config_file" 2>/dev/null || stat -c "%u" "$config_file" 2>/dev/null)
+        file_owner=$(get_file_owner_uid "$config_file")
         local current_user
         current_user=$(id -u)
         if [[ "$file_owner" != "$current_user" ]]; then
@@ -150,7 +153,7 @@ show_command_center() {
         if [[ -d "${BACKUP_DIR:-./backups}" ]]; then
             local last_backup=$(find "${BACKUP_DIR:-./backups}" -type f -name "*.gz" -o -name "*.sql" 2>/dev/null | head -1)
             if [[ -n "$last_backup" ]]; then
-                local backup_age=$(( ($(date +%s) - $(stat -f %m "$last_backup" 2>/dev/null || stat -c %Y "$last_backup")) / 60 ))
+                local backup_age=$(( ($(date +%s) - $(get_file_mtime "$last_backup")) / 60 ))
                 if [[ $backup_age -lt 60 ]]; then
                     echo "  Last Backup:           $backup_age minutes ago"
                 elif [[ $backup_age -lt 1440 ]]; then

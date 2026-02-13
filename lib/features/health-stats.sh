@@ -144,11 +144,19 @@ days_until_prune() {
 
     [ ! -d "$dir" ] && echo "-1" && return
 
-    local oldest_file=$(find "$dir" -type f -print0 2>/dev/null | xargs -0 stat -f%m -t%s 2>/dev/null | sort -n | head -1 | cut -d' ' -f1)
-    [ -z "$oldest_file" ] && echo "-1" && return
+    local oldest_mtime=""
+    local f
+    while IFS= read -r -d '' f; do
+        local mt
+        mt=$(get_file_mtime "$f")
+        if [ -z "$oldest_mtime" ] || [ "$mt" -lt "$oldest_mtime" ]; then
+            oldest_mtime="$mt"
+        fi
+    done < <(find "$dir" -type f -print0 2>/dev/null)
+    [ -z "$oldest_mtime" ] && echo "-1" && return
 
     local now=$(date +%s)
-    local age_seconds=$((now - oldest_file))
+    local age_seconds=$((now - oldest_mtime))
     local age_days=$((age_seconds / 86400))
     local days_remaining=$((retention_days - age_days))
 
