@@ -191,8 +191,8 @@ get_db_state() {
         return
     fi
 
-    size=$(stat -f%z "$DB_PATH" 2>/dev/null || echo "0")
-    mtime=$(stat -f%m "$DB_PATH" 2>/dev/null || echo "0")
+    size=$(get_file_size "$DB_PATH")
+    mtime=$(get_file_mtime "$DB_PATH")
     echo "$size:$mtime"
 }
 
@@ -446,7 +446,7 @@ run_tiered_cleanup() {
         if [[ -d "$ARCHIVED_DIR" ]]; then
             while IFS= read -r file; do
                 [[ -z "$file" ]] && continue
-                local size=$(stat -f%z "$file" 2>/dev/null || echo 0)
+                local size=$(get_file_size "$file")
                 if rm -f "$file" 2>/dev/null; then
                     ((total_pruned++))
                     total_freed=$((total_freed + size))
@@ -461,7 +461,7 @@ run_tiered_cleanup() {
         if [[ -d "$DATABASE_DIR" ]]; then
             while IFS= read -r file; do
                 [[ -z "$file" ]] && continue
-                local size=$(stat -f%z "$file" 2>/dev/null || echo 0)
+                local size=$(get_file_size "$file")
                 if rm -f "$file" 2>/dev/null; then
                     ((total_pruned++))
                     total_freed=$((total_freed + size))

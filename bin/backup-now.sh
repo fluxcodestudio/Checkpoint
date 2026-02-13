@@ -396,7 +396,7 @@ if [ "$DRY_RUN" = true ]; then
     # Database changes
     if [ "$FILES_ONLY" = false ]; then
         if [ -n "$DB_PATH" ] && [ -f "$DB_PATH" ]; then
-            current_state=$(stat -f%z "$DB_PATH" 2>/dev/null || echo "0")
+            current_state=$(get_file_size "$DB_PATH")
             last_state=$(cat "$DB_STATE_FILE" 2>/dev/null || echo "")
 
             if [ "$current_state" != "$last_state" ] || [ "$FORCE_BACKUP" = true ]; then
@@ -578,7 +578,7 @@ if [ "$FILES_ONLY" = false ]; then
                    gzip -c "/tmp/${PROJECT_NAME}_temp.db" > "$backup_file" && \
                    rm "/tmp/${PROJECT_NAME}_temp.db"; then
 
-                    backup_size=$(stat -f%z "$backup_file")
+                    backup_size=$(get_file_size "$backup_file")
                     backup_size_human=$(format_bytes $backup_size)
                     log_success "   ▸ Database: ✅ Done ($backup_size_human compressed)"
                 else
@@ -752,7 +752,7 @@ if [ "$DATABASE_ONLY" = false ]; then
             if [[ "$file" == backups/* ]] || [ ! -f "$file" ]; then
                 continue
             fi
-            file_size=$(stat -f%z "$file" 2>/dev/null || echo "0")
+            file_size=$(get_file_size "$file")
             echo "$file|$file_size" >> "$manifest_file"
         done < <(sort -u "$changed_files")
 
@@ -788,7 +788,7 @@ if [ "$DATABASE_ONLY" = false ]; then
 
             # Issue #6: Check file size limits
             if [ "$MAX_BACKUP_FILE_SIZE" -gt 0 ] && [ "$BACKUP_LARGE_FILES" != "true" ]; then
-                file_size=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file" 2>/dev/null || echo "0")
+                file_size=$(get_file_size "$file")
                 if [ "$file_size" -gt "$MAX_BACKUP_FILE_SIZE" ]; then
                     skipped_large_files=$((skipped_large_files + 1))
                     file_size_mb=$((file_size / 1048576))
@@ -948,7 +948,7 @@ if [ "$DATABASE_ONLY" = false ]; then
                 log_error "      ✗ Verification failed: $file (missing from backup)"
             else
                 # Check size matches
-                actual_size=$(stat -f%z "$backup_file" 2>/dev/null || echo "0")
+                actual_size=$(get_file_size "$backup_file")
                 if [ "$actual_size" != "$expected_size" ]; then
                     # Size mismatch - use standardized error code
                     error_code=$(map_error_to_code "size_mismatch")
