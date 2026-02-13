@@ -13,7 +13,7 @@ None
 - ✅ [v1.0 Automated Backup System](milestones/v1.0-ROADMAP.md) (Phases 1-6) — SHIPPED 2026-01-11
 - ✅ [v1.1 Polish & Performance](milestones/v1.1-ROADMAP.md) (Phases 7-9) — SHIPPED 2026-01-12
 - ✅ [v1.2 Dashboard UX](milestones/v1.2-ROADMAP.md) (Phase 10) — SHIPPED 2026-01-12
-- 🚧 **v2.5 Architecture & Independence** — Phases 11-17 (in progress)
+- 🚧 **v2.5 Architecture & Independence** — Phases 11-18 (in progress)
 
 ## Completed Milestones
 
@@ -70,7 +70,7 @@ None
 
 Plans:
 - [x] 11-01: Extract core + ops modules (error-codes, output, config, file-ops, state, init)
-- [ ] 11-02: Extract ui + features modules (formatting, time-size-utils, 8 feature modules)
+- [x] 11-02: Extract ui + features modules (formatting, time-size-utils, 8 feature modules)
 - [ ] 11-03: Cutover — thin loader + full verification
 
 #### Phase 12: Bootstrap Deduplication
@@ -136,6 +136,17 @@ Plans:
 Plans:
 - [ ] 17-01: TBD (run /gsd:plan-phase 17 to break down)
 
+#### Phase 18: Daemon Lifecycle & Health Monitoring
+
+**Goal**: Auto-start daemon on install; implement heartbeat monitoring with periodic health checks; auto-restart if daemon fails or dies (cross-platform: launchd KeepAlive + systemd Restart=on-failure); present warning notification if backups cease (no successful backup within configurable threshold)
+**Depends on**: Phase 13 (daemon), Phase 15 (platform service support)
+**Research**: Likely (launchd KeepAlive patterns, heartbeat file strategies, backup cessation detection)
+**Research topics**: launchd KeepAlive vs watchdog patterns, systemd watchdog integration, heartbeat file vs PID-based health checks, configurable staleness thresholds
+**Plans**: TBD
+
+Plans:
+- [ ] 18-01: TBD (run /gsd:plan-phase 18 to break down)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -150,10 +161,11 @@ Plans:
 | 8. Monitoring Enhancements | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 9. Configuration UX | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 10. Dashboard Settings Integration | v1.2 | 2/2 | Complete | 2026-01-12 |
-| 11. Modularize Foundation Library | v2.5 | 1/3 | In progress | - |
+| 11. Modularize Foundation Library | v2.5 | 2/3 | In progress | - |
 | 12. Bootstrap Deduplication | v2.5 | 0/? | Not started | - |
 | 13. Native File Watcher Daemon | v2.5 | 0/? | Not started | - |
 | 14. Security Hardening | v2.5 | 0/? | Not started | - |
 | 15. Linux Systemd Support | v2.5 | 0/? | Not started | - |
 | 16. Backup Verification | v2.5 | 0/? | Not started | - |
 | 17. Error Logging Overhaul | v2.5 | 0/? | Not started | - |
+| 18. Daemon Lifecycle & Health Monitoring | v2.5 | 0/? | Not started | - |
