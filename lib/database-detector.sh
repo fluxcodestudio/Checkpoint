@@ -15,6 +15,46 @@
 # ==============================================================================
 
 # ==============================================================================
+# CREDENTIAL STORE INTEGRATION (opt-in)
+# ==============================================================================
+
+# Look up a database credential from the credential store.
+# Only active when CHECKPOINT_USE_CREDENTIAL_STORE="true" in config.
+# Args: $1=db_type (postgres/mysql/mongodb), $2=database_name
+# Output: password to stdout (empty if not found or not enabled)
+# Returns: 0 if found, 1 if not found or not enabled
+_get_db_credential() {
+    local db_type="$1"
+    local database_name="$2"
+
+    # Only check credential store if explicitly enabled
+    if [[ "${CHECKPOINT_USE_CREDENTIAL_STORE:-false}" != "true" ]]; then
+        return 1
+    fi
+
+    # Source credential provider if not already loaded
+    if [[ -z "${_CHECKPOINT_CREDENTIAL_PROVIDER:-}" ]]; then
+        local cred_provider="${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}/security/credential-provider.sh"
+        if [[ -f "$cred_provider" ]]; then
+            source "$cred_provider"
+        else
+            return 1
+        fi
+    fi
+
+    # Try to get credential from store
+    local stored_password
+    stored_password="$(credential_get "checkpoint-db" "${db_type}-${database_name}" 2>/dev/null)" || true
+
+    if [[ -n "$stored_password" ]]; then
+        echo "$stored_password"
+        return 0
+    fi
+
+    return 1
+}
+
+# ==============================================================================
 # DETECTION: SQLITE
 # ==============================================================================
 
@@ -554,6 +594,12 @@ backup_single_database() {
             # PostgreSQL: Use pg_dump with verification
             IFS='|' read -r host port database user is_local password full_url <<< "$rest"
 
+            # Try credential store if password is empty
+            if [[ -z "$password" ]]; then
+                local cred_password
+                cred_password="$(_get_db_credential "postgres" "$database")" && password="$cred_password"
+            fi
+
             # Check if remote databases should be backed up
             if [[ "$is_local" != "true" ]]; then
                 if [[ "${BACKUP_REMOTE_DATABASES:-false}" != "true" ]]; then
@@ -718,6 +764,12 @@ backup_single_database() {
             # MySQL: Use mysqldump with verification
             IFS='|' read -r host port database user is_local password full_url <<< "$rest"
 
+            # Try credential store if password is empty
+            if [[ -z "$password" ]]; then
+                local cred_password
+                cred_password="$(_get_db_credential "mysql" "$database")" && password="$cred_password"
+            fi
+
             # Check if remote databases should be backed up
             if [[ "$is_local" != "true" ]]; then
                 if [[ "${BACKUP_REMOTE_DATABASES:-false}" != "true" ]]; then
@@ -855,6 +907,12 @@ backup_single_database() {
         mongodb)
             # MongoDB: Use mongodump with verification
             IFS='|' read -r host port database user is_local password full_url <<< "$rest"
+
+            # Try credential store if password is empty
+            if [[ -z "$password" ]]; then
+                local cred_password
+                cred_password="$(_get_db_credential "mongodb" "$database")" && password="$cred_password"
+            fi
 
             # Check if remote databases should be backed up
             if [[ "$is_local" != "true" ]]; then

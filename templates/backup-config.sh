@@ -48,6 +48,17 @@ DB_PATH=""
 DB_TYPE="sqlite"
 
 # ==============================================================================
+# CREDENTIAL STORAGE
+# ==============================================================================
+
+# Use OS-native credential store for database passwords
+# Options: true/false (default: false)
+# When true, Checkpoint checks macOS Keychain / Linux secret-tool / pass
+# before falling back to .env file passwords
+# Store credentials: checkpoint credential store <db-type> <db-name>
+CHECKPOINT_USE_CREDENTIAL_STORE="false"
+
+# ==============================================================================
 # RETENTION POLICIES
 # ==============================================================================
 
