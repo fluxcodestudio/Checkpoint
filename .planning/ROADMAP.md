@@ -114,12 +114,15 @@ Plans:
 
 **Goal**: Create systemd unit file template alongside existing macOS plist; platform-aware daemon installer that detects launchd vs systemd vs cron
 **Depends on**: Phase 14
-**Research**: Likely (systemd unit file patterns, cross-platform daemon management)
-**Research topics**: systemd user service files, ExecStart/Restart directives, journalctl integration, platform detection
-**Plans**: TBD
+**Research**: Complete (15-RESEARCH.md — systemd user services, init detection, stat portability, cron fallback)
+**Plans**: 5
 
 Plans:
-- [ ] 15-01: TBD (run /gsd:plan-phase 15 to break down)
+- [ ] 15-01: Platform compatibility layer (stat portability + notifications for core scripts)
+- [ ] 15-02: stat portability across all backup operation scripts
+- [ ] 15-03: Daemon manager abstraction + systemd/cron templates
+- [ ] 15-04: Core daemon script migration (watchdog, pause, install-global, uninstall-global)
+- [ ] 15-05: Complete daemon migration (install, configure, uninstall, helper, auto-configure)
 
 #### Phase 16: Backup Verification
 
