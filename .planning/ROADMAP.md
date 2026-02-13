@@ -69,7 +69,7 @@ None
 **Plans**: TBD
 
 Plans:
-- [ ] 11-01: Extract core + ops modules (error-codes, output, config, file-ops, state, init)
+- [x] 11-01: Extract core + ops modules (error-codes, output, config, file-ops, state, init)
 - [ ] 11-02: Extract ui + features modules (formatting, time-size-utils, 8 feature modules)
 - [ ] 11-03: Cutover — thin loader + full verification
 
@@ -150,7 +150,7 @@ Plans:
 | 8. Monitoring Enhancements | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 9. Configuration UX | v1.1 | 3/3 | Complete | 2026-01-12 |
 | 10. Dashboard Settings Integration | v1.2 | 2/2 | Complete | 2026-01-12 |
-| 11. Modularize Foundation Library | v2.5 | 0/? | Not started | - |
+| 11. Modularize Foundation Library | v2.5 | 1/3 | In progress | - |
 | 12. Bootstrap Deduplication | v2.5 | 0/? | Not started | - |
 | 13. Native File Watcher Daemon | v2.5 | 0/? | Not started | - |
 | 14. Security Hardening | v2.5 | 0/? | Not started | - |
