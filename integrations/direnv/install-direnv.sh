@@ -28,7 +28,7 @@ if ! command -v direnv &>/dev/null; then
     echo "" >&2
     echo "  macOS:   brew install direnv" >&2
     echo "  Ubuntu:  apt install direnv" >&2
-    echo "  Generic: curl -sfL https://direnv.net/install.sh | bash" >&2
+    echo "  Generic: See https://direnv.net/docs/installation.html" >&2
     echo "" >&2
     echo "Then configure your shell:" >&2
     echo "" >&2

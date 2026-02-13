@@ -24,8 +24,7 @@ brew install direnv
 # Ubuntu/Debian
 apt install direnv
 
-# Or universal installer
-curl -sfL https://direnv.net/install.sh | bash
+# Or see: https://direnv.net/docs/installation.html
 ```
 
 Configure your shell (add to `~/.bashrc` or `~/.zshrc`):

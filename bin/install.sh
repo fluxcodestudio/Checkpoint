@@ -1246,4 +1246,6 @@ if [[ "$CLOUD_CONFIGURED" != "true" ]]; then
 fi
 echo "  - Uninstall: $PACKAGE_DIR/bin/uninstall.sh"
 echo ""
+echo "🔒 Security: Downloads are SHA256-verified, credentials use OS keychain"
+echo ""
 echo "═══════════════════════════════════════════════"
