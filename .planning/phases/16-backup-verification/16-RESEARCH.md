@@ -322,23 +322,180 @@ action_verify_backups() {
 - **Per-file checksum sidecar files:** Use a single manifest instead
 </sota_updates>
 
+<codebase_integration>
+## Deep Dive: Codebase Integration Points
+
+### 1. Module Loader Registration
+
+New module must be added to `lib/backup-lib.sh` (the thin module loader):
+
+```bash
+# Current features section (lib/backup-lib.sh:44-52):
+source "$_CHECKPOINT_LIB_DIR/features/backup-discovery.sh"
+source "$_CHECKPOINT_LIB_DIR/features/restore.sh"
+source "$_CHECKPOINT_LIB_DIR/features/cleanup.sh"
+source "$_CHECKPOINT_LIB_DIR/features/malware.sh"
+source "$_CHECKPOINT_LIB_DIR/features/health-stats.sh"
+source "$_CHECKPOINT_LIB_DIR/features/change-detection.sh"
+source "$_CHECKPOINT_LIB_DIR/features/cloud-destinations.sh"
+source "$_CHECKPOINT_LIB_DIR/features/github-auth.sh"
+# ADD: source "$_CHECKPOINT_LIB_DIR/features/verification.sh"
+```
+
+Module header convention (from existing modules):
+```bash
+# @requires: core/output (for color functions, json helpers),
+#            core/config (for BACKUP_DIR, DATABASE_DIR),
+#            ops/file-ops (for get_file_hash, get_file_size),
+#            features/restore (for verify_sqlite_integrity, verify_compressed_backup)
+# @provides: verify_backup, verify_files, verify_databases, verify_cloud,
+#            generate_manifest, generate_verification_report
+```
+
+Include guard pattern:
+```bash
+[ -n "${_CHECKPOINT_VERIFICATION:-}" ] && return || readonly _CHECKPOINT_VERIFICATION=1
+```
+
+### 2. Existing Manifest in backup-now.sh (Lines 742-963)
+
+The current manifest is **temporary** and **primitive** — pipe-delimited `file|size` stored in mktemp, deleted after verification:
+
+```bash
+# Current flow (backup-now.sh):
+manifest_file=$(mktemp)                          # Line 743
+echo "$file|$file_size" >> "$manifest_file"      # Line 756 (per file)
+# ... post-backup verification reads it ...       # Lines 940-960
+rm -f "$manifest_file"                           # Line 963
+```
+
+**What needs to change:** Instead of deleting, persist as JSON manifest at `$BACKUP_DIR/.checkpoint-manifest.json`. The verification module reads this manifest later. The manifest should include:
+- File entries: path, size, sha256 (hash is already computed during backup via `get_file_hash()`)
+- Database entries: path, size, sha256, table count
+- Timestamp and project name
+- Manifest version number
+
+### 3. Backup State JSON Convention
+
+The existing `.checkpoint-state.json` (written by `write_backup_state()` in `lib/ops/state.sh:429-472`) sets the pattern for verification state:
+
+```json
+{
+  "backup_id": "20260117_143825",
+  "timestamp": 1768678705,
+  "exit_code": 0,
+  "status": "complete_success",
+  "summary": {
+    "total_files": 11,
+    "succeeded_files": 0,
+    "failed_files": 0,
+    "total_databases": 0,
+    "succeeded_databases": 0
+  },
+  "severity": { "level": "none", "requires_immediate_action": false },
+  "failures": [],
+  "actions": { "retry_recommended": true, "send_notification": false }
+}
+```
+
+Verification report JSON should follow this same convention (flat structure, snake_case keys, severity object). Store at: `$STATE_DIR/${PROJECT_NAME}/last-verification.json`.
+
+### 4. JSON Helper Functions
+
+Available in `lib/core/output.sh`:
+- `json_escape(str)` — escape backslashes, quotes, newlines
+- `json_kv(key, value)` — string key-value: `"key": "value"`
+- `json_kv_num(key, value)` — number key-value: `"key": 42`
+- `json_kv_bool(key, value)` — boolean key-value: `"key": true`
+
+**No jq dependency** — the codebase builds JSON manually with heredocs and these helpers. Verification output must follow the same pattern.
+
+### 5. CLI Command Pattern (bin/backup-verify.sh)
+
+Follow `bin/backup-status.sh` as the template — it's the closest analog:
+- Bootstrap: `source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"`
+- Load lib: `source "$LIB_DIR/backup-lib.sh"`
+- Parse args: `--json`, `--full`, `--cloud`, `--help`
+- Load config: `load_backup_config "$PROJECT_DIR"`
+- Exit codes: 0=pass, 1=fail, 2=error (matches backup-status.sh's 0/1/2 convention)
+- Output modes: dashboard (default), json, compact
+
+### 6. Dashboard Integration
+
+`action_verify_backups()` at `bin/checkpoint-dashboard.sh:430-432` is a simple placeholder. Other actions show the pattern:
+
+```bash
+# action_cleanup_backups delegates to action_quick_cleanup (line 426)
+# action_browse_restore_points delegates to action_restore_files (line 421)
+# action_view_history reads backup_dir and uses clear_screen + echo (lines 388-417)
+```
+
+Dashboard does NOT use `jq` — it calls commands and parses text output. The verification dashboard action should:
+1. Call `backup-verify --compact` or source verification.sh directly
+2. Display results using `show_msgbox` or `clear_screen` + formatted echo
+3. NOT depend on `--json` output (no jq in dashboard)
+
+### 7. Cloud Backup Integration
+
+`lib/cloud-backup.sh` uses these config variables:
+- `CLOUD_REMOTE_NAME` — rclone remote name
+- `CLOUD_BACKUP_PATH` — destination path on remote
+- `CLOUD_ENABLED` — feature flag (true/false)
+- `CLOUD_SYNC_DATABASES` / `CLOUD_SYNC_CRITICAL` / `CLOUD_SYNC_FILES` — what to sync
+
+Cloud upload function: `cloud_upload()` (line 218). No verification post-upload exists.
+
+For `rclone check` integration:
+```bash
+# Full remote path pattern used in codebase:
+local full_path="${CLOUD_REMOTE_NAME}:${CLOUD_BACKUP_PATH}"
+# Verification would use:
+rclone check "$BACKUP_DIR" "$full_path" --one-way --size-only
+```
+
+### 8. Error Code Pattern
+
+From `lib/core/error-codes.sh`, codes follow format: `E{CATEGORY}{NNN}`
+- `EFILE001` through `EFILE005` — file errors
+- `EDB001` through `EDB003` — database errors
+- `ENET001`, `ENET002` — network errors
+
+Verification should add:
+- `EVER001` — File missing from backup (verification found gap)
+- `EVER002` — File size mismatch
+- `EVER003` — File hash mismatch
+- `EVER004` — Database integrity check failed
+- `EVER005` — Manifest missing or corrupt
+- `EVER006` — Cloud sync verification failed
+
+### 9. Test Framework Pattern
+
+From `tests/test-framework.sh`:
+```bash
+test_suite "Verification Tests"
+test_case "VERIFY 1: File existence check passes"
+# ... setup, execute, assert ...
+test_pass / test_fail "message"
+```
+
+Available assertions: `assert_equals`, `assert_contains`, `assert_file_exists`, `assert_exit_code`.
+Test temp dirs via `TEST_TEMP_DIR`, fixtures via `TEST_FIXTURES_DIR`.
+</codebase_integration>
+
 <open_questions>
 ## Open Questions
 
-1. **Manifest generation timing**
-   - What we know: Manifests should be generated at backup completion. The existing post-backup verification in backup-now.sh (lines 933-963) already builds a temporary manifest.
-   - What's unclear: Should we refactor backup-now.sh to persist its manifest, or generate a separate one in verification.sh?
-   - Recommendation: Extend backup-now.sh to persist its manifest as `.checkpoint-manifest.json`. Less duplication.
+1. **Manifest generation timing** — RESOLVED
+   - Extend `backup-now.sh` to persist its temp manifest as `$BACKUP_DIR/.checkpoint-manifest.json` in JSON format (currently pipe-delimited in mktemp, deleted after use). The manifest generation function should live in `verification.sh` and be called from `backup-now.sh`.
 
-2. **Verification scheduling**
-   - What we know: Phase 18 (Daemon Lifecycle & Health Monitoring) includes health checks. Verification could be scheduled there.
-   - What's unclear: Should Phase 16 add any scheduled/automatic verification, or keep it purely on-demand?
-   - Recommendation: Phase 16 = on-demand only. Phase 18 can add scheduled verification via daemon heartbeat.
+2. **Verification scheduling** — RESOLVED
+   - Phase 16 = on-demand only (`backup-verify` command + dashboard action). Phase 18 can add scheduled verification via daemon heartbeat.
 
-3. **Cloud verification scope**
-   - What we know: `rclone check` works but requires network and can be slow.
-   - What's unclear: Should cloud verification check all historical backups or just the latest?
-   - Recommendation: Latest only by default. `--all` flag for comprehensive check.
+3. **Cloud verification scope** — RESOLVED
+   - Skip cloud by default (requires network, can be slow). `--cloud` flag to include. Check `CLOUD_ENABLED` config before attempting. Verify latest backup only.
+
+4. **jq dependency** — RESOLVED
+   - Dashboard does NOT use jq. JSON output for `--json` flag uses manual construction with `json_kv()` helpers from `lib/core/output.sh`. Dashboard action parses command text output, not JSON.
 </open_questions>
 
 <sources>
