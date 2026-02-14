@@ -56,11 +56,13 @@
 
 ## Performance Bottlenecks
 
-**Silent error suppression:**
+**Silent error suppression:** RESOLVED (Phase 17)
 - Problem: Heavy use of `2>/dev/null` across critical operations
-- Files: `bin/backup-now.sh` (77 occurrences), `bin/backup-daemon.sh` (52), `lib/cloud-backup.sh` (9)
-- Cause: Defensive programming to avoid noisy error output
-- Improvement path: Log suppressed errors to debug log file instead of discarding
+- Resolution: Replaced with structured logging in Phase 17. Centralized logging module (`lib/core/logging.sh`) provides log_error/warn/info/debug/trace with size-based rotation, --debug/--trace CLI flags, and SIGUSR1 runtime toggle.
+- Before: ~932 total occurrences (~823 in active code)
+- After: ~538 remaining — all confirmed KEEP-category (command existence checks, platform detection, read-with-fallback, daemon management, find/ls scanning)
+- Replaced ~285 occurrences across 13 files with stderr-to-logfile redirects and structured log_debug/log_error calls
+- Files migrated: bin/backup-now.sh, bin/backup-daemon.sh, bin/checkpoint-watchdog.sh, lib/database-detector.sh, lib/cloud-backup.sh, lib/platform/daemon-manager.sh, lib/features/verification.sh, lib/features/cleanup.sh, lib/features/restore.sh, lib/ops/file-ops.sh, lib/ops/init.sh, lib/ops/state.sh, and log_set_context added to all bin/ scripts sourcing backup-lib.sh
 
 **Large file hash computation:**
 - Problem: SHA-256 computation on every file for change detection
@@ -138,5 +140,5 @@
 
 ---
 
-*Concerns audit: 2026-02-12*
+*Concerns audit: 2026-02-13*
 *Update as issues are fixed or new ones discovered*
