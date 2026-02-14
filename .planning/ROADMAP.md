@@ -137,13 +137,16 @@ Plans:
 
 #### Phase 17: Error Logging Overhaul
 
-**Goal**: Replace 77+ occurrences of 2>/dev/null with structured debug logging; add log rotation; debug mode toggle for troubleshooting
+**Goal**: Replace 932 occurrences of 2>/dev/null with structured debug logging; add log rotation; debug mode toggle for troubleshooting
 **Depends on**: Phase 16
-**Research**: Unlikely (internal logging patterns)
-**Plans**: TBD
+**Research**: Complete (17-RESEARCH.md — bash structured logging, log rotation, debug mode patterns)
+**Plans**: 4
 
 Plans:
-- [ ] 17-01: TBD (run /gsd:plan-phase 17 to break down)
+- [ ] 17-01: Logging foundation (lib/core/logging.sh module + config/output integration)
+- [ ] 17-02: Core script migration (backup-now, backup-daemon, checkpoint-watchdog)
+- [ ] 17-03: Library module migration (database-detector, cloud-backup, daemon-manager, features/, ops/)
+- [ ] 17-04: CLI & integration migration + end-to-end verification
 
 #### Phase 18: Daemon Lifecycle & Health Monitoring
 
