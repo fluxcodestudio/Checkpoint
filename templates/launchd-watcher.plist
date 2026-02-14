@@ -17,7 +17,10 @@
     <true/>
 
     <key>KeepAlive</key>
-    <true/>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
 
     <key>StandardOutPath</key>
     <string>HOME_PLACEHOLDER/.claudecode-backups/logs/watcher-PROJECT_NAME_PLACEHOLDER.log</string>
