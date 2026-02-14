@@ -212,7 +212,7 @@ daemon_log() {
 
 # Get database state (size + modification time)
 get_db_state() {
-    if [ -z "$DB_PATH" ] || [ ! -f "$DB_PATH" ]; then
+    if [ -z "${DB_PATH:-}" ] || [ ! -f "${DB_PATH:-}" ]; then
         echo "0:0"
         return
     fi
@@ -224,7 +224,7 @@ get_db_state() {
 
 # Check if database changed since last backup
 db_changed() {
-    [ -z "$DB_PATH" ] && return 1  # No database configured
+    [ -z "${DB_PATH:-}" ] && return 1  # No database configured
 
     current_state=$(get_db_state)
 
@@ -248,7 +248,7 @@ db_changed() {
 # ==============================================================================
 
 backup_database() {
-    if [ -z "$DB_PATH" ] || [ ! -f "$DB_PATH" ]; then
+    if [ -z "${DB_PATH:-}" ] || [ ! -f "${DB_PATH:-}" ]; then
         return 0  # No database to backup
     fi
 
@@ -354,7 +354,7 @@ backup_changed_files() {
 
     if [ "$BACKUP_LOCAL_DATABASES" = true ]; then
         # Exclude the main DB_PATH if it's in the project
-        main_db_name=$(basename "$DB_PATH" 2>/dev/null || echo "")
+        main_db_name=$(basename "${DB_PATH:-}" 2>/dev/null || echo "")
         find . -maxdepth 3 -type f \( -name "*.db" -o -name "*.sqlite" -o -name "*.sql" \) \
             ! -name "$main_db_name" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
     fi
