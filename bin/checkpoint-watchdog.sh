@@ -28,8 +28,13 @@ CHECK_INTERVAL=60    # Check every minute
 STATE_DIR="${HOME}/.checkpoint"
 LOG_FILE="${STATE_DIR}/logs/watchdog.log"
 
+# Notification cooldown periods (seconds)
+NOTIFY_COOLDOWN_WARNING=$((4 * 3600))   # 4 hours between warning notifications
+NOTIFY_COOLDOWN_CRITICAL=$((2 * 3600))  # 2 hours between critical notifications
+NOTIFY_STATE_DIR="${STATE_DIR}/notify-cooldown"
+
 # Ensure directories exist
-mkdir -p "$HEARTBEAT_DIR" "${STATE_DIR}/logs"
+mkdir -p "$HEARTBEAT_DIR" "${STATE_DIR}/logs" "$NOTIFY_STATE_DIR"
 
 # Initialize structured logging (replaces manual log rotation)
 init_logging "$LOG_FILE" 10485760  # 10MB max, rotation handled by logging.sh
@@ -191,6 +196,32 @@ write_watchdog_heartbeat() {
 }
 EOF
     mv "$tmp_file" "${HEARTBEAT_DIR}/watchdog.heartbeat"
+}
+
+# Check if enough time has passed since last notification for this severity
+# Args: $1=context (e.g. "global"), $2=severity (warning|critical), $3=cooldown_seconds
+# Returns: 0 if should notify, 1 if in cooldown
+should_notify() {
+    local context="$1"
+    local severity="$2"
+    local cooldown="$3"
+    local state_file="${NOTIFY_STATE_DIR}/${context}-${severity}"
+
+    mkdir -p "$NOTIFY_STATE_DIR"
+
+    local now last elapsed
+    now=$(date +%s)
+    last=$(cat "$state_file" 2>/dev/null || echo "0")
+    elapsed=$((now - last))
+
+    if [[ $elapsed -lt $cooldown ]]; then
+        log_trace "Notification suppressed: $context/$severity (cooldown: ${elapsed}s < ${cooldown}s)"
+        return 1
+    fi
+
+    echo "$now" > "$state_file"
+    log_debug "Notification allowed: $context/$severity (elapsed: ${elapsed}s)"
+    return 0
 }
 
 # Main watchdog loop
