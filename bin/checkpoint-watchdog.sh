@@ -168,7 +168,8 @@ write_status() {
     local last_check
     last_check=$(date +%s)
 
-    cat > "${HEARTBEAT_DIR}/watchdog.status" <<EOF
+    local tmp_file="${HEARTBEAT_DIR}/.watchdog-status.tmp.$$"
+    cat > "$tmp_file" <<EOF
 {
   "status": "$status",
   "daemon_count": $daemon_count,
@@ -176,6 +177,20 @@ write_status() {
   "pid": $$
 }
 EOF
+    mv "$tmp_file" "${HEARTBEAT_DIR}/watchdog.status"
+}
+
+# Write watchdog self-heartbeat for external monitoring
+write_watchdog_heartbeat() {
+    local tmp_file="${HEARTBEAT_DIR}/.watchdog-heartbeat.tmp.$$"
+    cat > "$tmp_file" <<EOF
+{
+  "timestamp": $(date +%s),
+  "pid": $$,
+  "status": "running"
+}
+EOF
+    mv "$tmp_file" "${HEARTBEAT_DIR}/watchdog.heartbeat"
 }
 
 # Main watchdog loop
@@ -194,6 +209,7 @@ main() {
         if [[ $daemon_count -eq 0 ]]; then
             log_debug "No backup daemons found"
             write_status "no_daemons" 0
+            write_watchdog_heartbeat
             sleep "$CHECK_INTERVAL"
             continue
         fi
@@ -242,6 +258,7 @@ main() {
                 ;;
         esac
 
+        write_watchdog_heartbeat
         sleep "$CHECK_INTERVAL"
     done
 }
@@ -250,8 +267,9 @@ main() {
 cleanup() {
     log_info "Watchdog stopping (received signal)"
     write_status "stopped" 0
-    # Clean up PID file
+    # Clean up PID file and watchdog heartbeat
     rm -f "${STATE_DIR}/watchdog.pid" 2>/dev/null
+    rm -f "${HEARTBEAT_DIR}/watchdog.heartbeat" 2>/dev/null
     exit 0
 }
 
