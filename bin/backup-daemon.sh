@@ -161,8 +161,9 @@ write_heartbeat() {
 
     mkdir -p "$HEARTBEAT_DIR"
 
-    # Write JSON heartbeat file
-    cat > "$HEARTBEAT_FILE" <<EOF
+    # Write JSON heartbeat file atomically (temp+rename prevents partial reads)
+    local tmp_file="${HEARTBEAT_DIR}/.heartbeat.tmp.$$"
+    cat > "$tmp_file" <<EOF
 {
   "timestamp": $timestamp,
   "status": "$status",
@@ -173,6 +174,7 @@ write_heartbeat() {
   "pid": $$
 }
 EOF
+    mv "$tmp_file" "$HEARTBEAT_FILE"
 }
 
 # Check if external drive is mounted (if verification enabled)
