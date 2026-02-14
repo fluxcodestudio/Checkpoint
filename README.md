@@ -8,7 +8,7 @@
 
 Automated, intelligent backup system for any development environment. Battle-tested with comprehensive test coverage, cloud backup support, and multi-platform integrations.
 
-**Version:** 2.4.0
+**Version:** 2.5.0
 **Test Coverage:** 164/164 (100%)
 **License:** GPL v3
 
@@ -16,70 +16,89 @@ Automated, intelligent backup system for any development environment. Battle-tes
 
 ---
 
-## What's New in v2.4.0
+## What's New in v2.5.0
 
-☁️ **Remote Database Backup**
-- Backup cloud databases: Neon, Supabase, PlanetScale, MongoDB Atlas
-- Automatic SSL for secure connections
-- 120-second timeout for slow connections
-- Enable with `BACKUP_REMOTE_DATABASES=true`
+<details open>
+<summary><strong>v2.5.0 — Daemon Lifecycle & Health Monitoring</strong></summary>
 
-🐳 **Docker Database Backup**
-- Auto-detect databases in docker-compose.yml
-- Backup PostgreSQL, MySQL, MongoDB from containers
-- Auto-start Docker Desktop if not running
-- Smart shutdown: only stops Docker after ALL backups complete (if we started it)
+**Daemon Reliability**
+- Atomic heartbeat writes prevent partial-read corruption
+- Watchdog self-monitoring with its own heartbeat
+- KeepAlive/SuccessfulExit — daemons auto-restart on crash but not on clean stop
+- Auto-start daemons immediately after installation (no reboot required)
+- Post-update migration patches existing installations automatically
 
-🔄 **Auto-Start Local Databases**
-- Start PostgreSQL/MySQL automatically for backup, stop after
-- Graceful skip when database doesn't exist on current machine
-- Perfect for multi-computer workflows
+**Backup Staleness Detection**
+- Warning alert if no successful backup in 24 hours
+- Critical alert if no successful backup in 72 hours
+- Notification cooldown system prevents alert fatigue (4h warning, 2h critical)
 
-🖥️ **Machine Tracking**
-- State files include hostname, username, OS version, machine model
-- Know which computer created each backup
-- Seamless multi-computer development
+**Modular Architecture**
+- Refactored from monolithic `backup-lib.sh` to modular library structure
+- `lib/core/` — config, logging, error codes, output formatting
+- `lib/ops/` — file operations, initialization, state management
+- `lib/features/` — change detection, cleanup, health stats, restore, verification
+- `lib/platform/` — daemon management, file watcher, compatibility
+- `lib/security/` — credential provider, secure downloads
+- `lib/ui/` — formatting, time/size utilities
 
-⚡ **Session-Start Hooks**
-- Global installer now offers per-project prompt hooks
-- Select high-activity projects for session-start backups
-- Hooks are project-local (not global) - no cross-project interference
+**Native File Watcher**
+- Real-time file change detection using `fswatch` (macOS) / `inotifywait` (Linux)
+- Replaces session-start hooks with continuous monitoring
+- Configurable debounce and ignore patterns
 
----
+**Structured Logging**
+- Machine-parseable JSON log output
+- Log levels: DEBUG, INFO, WARN, ERROR
+- Context-aware logging with component tags
 
-## What's New in v2.3.x
+**Full Linux Support**
+- Native systemd service units (daemon, watchdog, watcher)
+- `systemctl --user` integration for user-level services
+- Cross-platform daemon manager handles launchd, systemd, and cron
 
-🌐 **Global Multi-Project System**
-- **Auto-registration**: Run `backup-now` in any directory → config auto-created, project registered
-- **Single global daemon**: One LaunchAgent backs up ALL projects hourly
-- **Projects registry**: Tracks all your projects in `~/.config/checkpoint/projects.json`
-- **`backup-all` command**: Manually trigger backup of all registered projects
+**Security Hardening**
+- Secure download verification with checksums
+- Credential provider abstraction
+- Malware scanning integration
 
-🎛️ **Interactive Command Center**
-- `/checkpoint` skill with arrow-key menus (Claude Code)
-- Manage all projects from one place
-- Per-project settings adjustable via command center
+**Backup Verification**
+- Post-backup integrity checks
+- Verify backup completeness and file counts
 
----
+</details>
 
-## What's New in v2.2.x
+<details>
+<summary><strong>v2.4.0 — Remote & Docker Database Backup</strong></summary>
 
-🚀 **Universal Database Support**
-- Auto-detects PostgreSQL, MySQL, MongoDB (in addition to SQLite)
-- Distinguishes local vs remote databases
-- Progressive installation of database tools (pg_dump, mysqldump, mongodump)
+- Remote database backup: Neon, Supabase, PlanetScale, MongoDB Atlas with SSL
+- Docker database backup: auto-detect from docker-compose.yml
+- Auto-start local databases for backup, stop after
+- Machine tracking: hostname, OS, model in state files
+- Session-start hooks for high-activity projects
 
-⚡ **Lightning-Fast Installation**
-- Streamlined wizard: 5 questions, ~20 seconds
-- All questions upfront → uninterrupted installation
-- Clear progress indicators: [1/5] [2/5] [3/5] [4/5] [5/5]
-- One consolidated approval for all dependencies
+</details>
 
-🎯 **Improved UX**
-- Clean, minimal output
-- Smart defaults (no more 15+ questions)
-- Per-project mode now includes all commands in `./bin/`
-- Better error messages and progress feedback
+<details>
+<summary><strong>v2.3.x — Global Multi-Project System</strong></summary>
+
+- Auto-registration: `backup-now` in any directory auto-creates config
+- Single global daemon backs up ALL projects hourly
+- Projects registry in `~/.config/checkpoint/projects.json`
+- `backup-all` command for all registered projects
+- Interactive command center via `/checkpoint` skill
+
+</details>
+
+<details>
+<summary><strong>v2.2.x — Universal Database Support</strong></summary>
+
+- Auto-detects PostgreSQL, MySQL, MongoDB (plus SQLite)
+- Progressive installation of database tools
+- Streamlined 5-question installer (~20 seconds)
+- Per-project mode with all commands in `./bin/`
+
+</details>
 
 ---
 
@@ -88,19 +107,21 @@ Automated, intelligent backup system for any development environment. Battle-tes
 ### Core Capabilities
 - **Organized Backup Structure** — Databases, current files, and archived versions in separate folders
 - **Smart Change Detection** — Only backs up modified files
-- **Works Without Git** — Automatic fallback for non-git directories (uses filesystem scan + mtime)
-- **Instant Failure Alerts** — Native macOS notifications when backup fails (spam-prevented, actionable)
-- **Universal Database Detection** — Auto-detects and backs up SQLite, PostgreSQL, MySQL, MongoDB (local, remote, and Docker)
-- **Remote Database Backup** — Backup cloud databases (Neon, Supabase, PlanetScale, MongoDB Atlas) with SSL
+- **Works Without Git** — Automatic fallback for non-git directories (filesystem scan + mtime)
+- **Failure Notifications** — Native macOS notifications when backup fails (spam-prevented, actionable)
+- **Staleness Alerts** — Warning at 24h, critical at 72h without successful backup
+- **Universal Database Detection** — Auto-detects SQLite, PostgreSQL, MySQL, MongoDB (local, remote, Docker)
+- **Remote Database Backup** — Cloud databases (Neon, Supabase, PlanetScale, MongoDB Atlas) with SSL
 - **Docker Database Backup** — Auto-detect and backup databases from Docker containers
 - **Database Snapshots** — Compressed timestamped backups with proper tools (sqlite3, pg_dump, mysqldump, mongodump)
-- **Multi-Computer Support** — Graceful handling when databases don't exist on current machine, machine tracking in state files
-- **Version Archiving** — Old versions preserved when files change (not deleted)
-- **Critical File Coverage** — Backs up .env, credentials, cloud configs (AWS, GCP), Terraform secrets, IDE settings, notes, local overrides (kept out of Git)
+- **Multi-Computer Support** — Graceful handling when databases don't exist on current machine
+- **Version Archiving** — Old versions preserved when files change
+- **Critical File Coverage** — .env, credentials, cloud configs, Terraform secrets, IDE settings
 - **Cloud Backup** — Off-site protection via rclone (Dropbox, Google Drive, OneDrive, iCloud)
-- **Drive Verification** — Ensures backing up to correct external drive
-- **Automated Triggers** — Hourly daemon + session detection
-- **Universal Integrations** — Works with Shell, Git, Vim, VS Code, Tmux
+- **Backup Verification** — Post-backup integrity checks
+- **Native File Watcher** — Real-time change detection via fswatch/inotifywait
+- **Daemon Health Monitoring** — Watchdog process with heartbeat tracking and auto-restart
+- **Cross-Platform** — macOS (launchd) and Linux (systemd) with cron fallback
 - **100% Test Coverage** — All functionality validated
 
 ### Backup Structure
@@ -160,6 +181,7 @@ backup-now
 - Install once, use everywhere
 - Commands available system-wide: `backup-now`, `backup-all`, `backup-status`, etc.
 - Single daemon backs up ALL projects hourly
+- Watchdog monitors daemon health with auto-restart
 - Easy updates: `git pull && ./bin/install-global.sh`
 
 **2. Per-Project**
@@ -168,58 +190,33 @@ backup-now
 - No system modifications
 - Good for: shared systems, containers
 
-**The installer is fast and streamlined (5 questions, ~20 seconds):**
+**The installer is fast and streamlined (6 questions, ~30 seconds):**
 
 1. **Auto-detects databases** (SQLite, PostgreSQL, MySQL, MongoDB)
-   - Shows what was found
-   - "Back up these databases? (Y/n)"
-
-2. **Cloud backup?** (optional)
-   - One-time approval to install rclone if needed
-
-3. **Hourly backups?** (macOS LaunchAgent)
-
+2. **Cloud backup?** (optional, auto-installs rclone)
+3. **Hourly backups?** (daemon schedule)
 4. **Claude Code integration?** (optional)
-
-5. **Run initial backup?**
-
-Then installs without interruption:
-```
-[1/5] Creating configuration... ✓
-[2/5] Installing scripts... ✓
-[3/5] Configuring .gitignore... ✓
-→ Running initial backup... ✓
-✅ Done!
-```
+5. **GitHub auto-push?** (optional, configurable frequency)
+6. **Run initial backup?**
 
 ### Cloud Backup Setup
 
 **During Installation:**
 - Installer asks: "Do you want cloud backup?"
-- If yes → Auto-installs rclone → Configure provider
+- If yes: auto-installs rclone, configure provider
 
 **After Installation:**
 ```bash
-# Enable cloud backup later
-backup-cloud-config  # (global mode)
-# or
-./bin/backup-cloud-config.sh  # (per-project mode)
+backup-cloud-config       # global mode
+./bin/backup-cloud-config.sh  # per-project mode
 ```
-
-**What Happens:**
-- Checks for rclone, auto-installs if missing (with permission)
-- Choose provider: Dropbox, Google Drive, OneDrive, iCloud
-- OAuth authentication via browser
-- Configure backup path
-- Done!
 
 ### Verification
 
 ```bash
-# Check status
-./bin/backup-status.sh
+backup-status             # global mode
+./bin/backup-status.sh    # per-project mode
 
-# View backups
 ls -la backups/databases/
 ls -la backups/files/
 ```
@@ -230,82 +227,68 @@ ls -la backups/files/
 
 **Global Mode:** Commands available system-wide
 **Per-Project Mode:** Run from `bin/` directory
-**Claude Code:** All commands available as slash commands (`/checkpoint`, `/backup-now`, etc.)
-
-### Main Control Panel
-
-Use `/checkpoint` (Claude Code) or `backup-status` for quick overview:
-
-```bash
-/checkpoint              # Control panel with status and updates
-backup-status            # Detailed system health
-```
 
 ### All Commands
 
 | Command | Global | Per-Project | Description |
 |---------|--------|-------------|-------------|
-| `backup-now` | ✓ | `./bin/backup-now.sh` | Backup current project (auto-creates config if new) |
-| `backup-all` | ✓ | — | Backup ALL registered projects |
-| `backup-status` | ✓ | `./bin/backup-status.sh` | View backup health, statistics, cloud status |
-| `backup-restore` | ✓ | `./bin/backup-restore.sh` | Restore from backups |
-| `backup-cleanup` | ✓ | `./bin/backup-cleanup.sh` | Manage old backups and disk space |
-| `backup-update` | ✓ | `./bin/backup-update.sh` | Update Checkpoint from GitHub |
-| `backup-pause` | ✓ | `./bin/backup-pause.sh` | Pause/resume automatic backups |
-| `backup-cloud-config` | ✓ | `./bin/backup-cloud-config.sh` | Configure cloud backup |
-| `install.sh` | N/A | `./bin/install.sh` | Install Checkpoint |
-| `uninstall.sh` | ✓ | `./bin/uninstall.sh` | Uninstall Checkpoint |
+| `backup-now` | yes | `./bin/backup-now.sh` | Backup current project (auto-creates config if new) |
+| `backup-all` | yes | — | Backup ALL registered projects |
+| `backup-status` | yes | `./bin/backup-status.sh` | View backup health and statistics |
+| `backup-restore` | yes | `./bin/backup-restore.sh` | Restore from backups |
+| `backup-cleanup` | yes | `./bin/backup-cleanup.sh` | Manage old backups and disk space |
+| `backup-update` | yes | `./bin/backup-update.sh` | Update Checkpoint from GitHub |
+| `backup-pause` | yes | `./bin/backup-pause.sh` | Pause/resume automatic backups |
+| `backup-verify` | yes | `./bin/backup-verify.sh` | Verify backup integrity |
+| `backup-cloud-config` | yes | `./bin/backup-cloud-config.sh` | Configure cloud backup |
+| `backup-watch` | yes | `./bin/backup-watch.sh` | Start native file watcher |
+| `install.sh` | N/A | `./bin/install.sh` | Install per-project |
+| `uninstall.sh` | yes | `./bin/uninstall.sh` | Uninstall Checkpoint |
 
 ### Command Examples
 
-**Control Panel (Claude Code):**
-```bash
-/checkpoint                          # Status, updates, help
-/checkpoint --update                 # Update Checkpoint
-/checkpoint --check-update           # Check for updates
-```
-
 **Check Status:**
 ```bash
-./bin/backup-status.sh
-./bin/backup-status.sh --compact
+backup-status
+backup-status --compact
 ```
 
 **Manual Backup:**
 ```bash
-./bin/backup-now.sh
-./bin/backup-now.sh --force          # Ignore change detection
-./bin/backup-now.sh --local-only     # Skip cloud upload
+backup-now
+backup-now --force          # Ignore change detection
+backup-now --local-only     # Skip cloud upload
 ```
 
 **Update System:**
 ```bash
-./bin/backup-update.sh               # Update from GitHub
-./bin/backup-update.sh --check-only  # Check without installing
+backup-update               # Update from GitHub
+backup-update --check-only  # Check without installing
 ```
 
 **Pause/Resume:**
 ```bash
-./bin/backup-pause.sh                # Pause automatic backups
-./bin/backup-pause.sh --resume       # Resume backups
-./bin/backup-pause.sh --status       # Check if paused
-```
-
-**Configure Cloud:**
-```bash
-./bin/backup-cloud-config.sh         # Interactive wizard
+backup-pause                # Pause automatic backups
+backup-pause --resume       # Resume backups
+backup-pause --status       # Check if paused
 ```
 
 **Restore:**
 ```bash
-./bin/backup-restore.sh              # Interactive menu
-./bin/backup-restore.sh --help       # See all options
+backup-restore              # Interactive menu
+backup-restore --help       # See all options
 ```
 
 **Cleanup:**
 ```bash
-./bin/backup-cleanup.sh              # Preview cleanup
-./bin/backup-cleanup.sh --execute    # Execute cleanup
+backup-cleanup              # Preview cleanup
+backup-cleanup --execute    # Execute cleanup
+```
+
+**Orphan Cleanup:**
+```bash
+uninstall.sh --cleanup-orphans    # Remove daemons for deleted projects
+uninstall.sh --orphans --dry-run  # Preview without removing
 ```
 
 ---
@@ -324,22 +307,21 @@ backup-status            # Detailed system health
 ### Smart Upload Strategy
 
 **Always Uploaded (Recommended):**
-- ✅ Database backups (~2MB compressed each)
-- ✅ Critical files (.env, credentials, keys, cloud configs, Terraform secrets, local overrides)
+- Database backups (~2MB compressed each)
+- Critical files (.env, credentials, keys, cloud configs, Terraform secrets)
 
 **Optional:**
-- ❌ Project files (already in Git)
+- Project files (already in Git)
 
 **Estimated Storage:**
-- 10MB database → 2MB compressed
-- 30 days retention → ~60MB total
+- 10MB database -> 2MB compressed
+- 30 days retention -> ~60MB total
 - **Fits in all free tiers!**
 
 ### Setup
 
 ```bash
-# Run wizard
-./bin/backup-cloud-config.sh
+backup-cloud-config
 ```
 
 Follow prompts:
@@ -368,14 +350,13 @@ Cloud uploads happen **automatically** after each local backup (in background).
 
 ```bash
 # Normal backup (includes cloud if enabled)
-./bin/backup-now.sh
+backup-now
 
 # Skip cloud for one backup
-./bin/backup-now.sh --local-only
+backup-now --local-only
 
 # Check cloud status
-./bin/backup-status.sh
-# Shows: "Cloud: 2 hours ago"
+backup-status
 ```
 
 See [docs/CLOUD-BACKUP.md](docs/CLOUD-BACKUP.md) for complete guide.
@@ -396,7 +377,7 @@ BACKUP_DIR="$PROJECT_DIR/backups"
 
 # Database
 DB_PATH="/path/to/database.db"
-DB_TYPE="sqlite"  # or "none"
+DB_TYPE="sqlite"  # or "auto" or "none"
 DB_RETENTION_DAYS=30
 
 # Files
@@ -410,6 +391,10 @@ SESSION_IDLE_THRESHOLD=600        # 10 minutes
 DRIVE_VERIFICATION_ENABLED=true
 DRIVE_MARKER_FILE="/Volumes/Drive/.backup-drive-marker"
 
+# GitHub Auto-Push
+GIT_AUTO_PUSH_ENABLED=false
+GIT_PUSH_INTERVAL=7200           # 2 hours
+
 # Critical Files
 BACKUP_ENV_FILES=true              # .env, .env.*
 BACKUP_CREDENTIALS=true            # Keys, certs, cloud configs, Terraform
@@ -418,71 +403,36 @@ BACKUP_LOCAL_NOTES=true            # NOTES.md, TODO.local.md
 BACKUP_LOCAL_DATABASES=true        # *.db, *.sqlite (non-primary)
 ```
 
-**What's Backed Up:**
-- `BACKUP_ENV_FILES`: `.env`, `.env.*` (all environment files)
-- `BACKUP_CREDENTIALS`:
-  - Certificates: `*.pem`, `*.key`, `*.p12`, `*.pfx`
-  - Secrets: `credentials.json`, `secrets.*`
-  - Cloud: `.aws/credentials`, `.gcp/*.json`
-  - Infrastructure: `terraform.tfvars`, `*.tfvars`, `.firebase/*.json`
-  - Local overrides: `*.local.*`, `local.settings.json`, `appsettings.*.json`, `docker-compose.override.yml`
-- `BACKUP_IDE_SETTINGS`: `.vscode/settings.json`, `.vscode/launch.json`, `.vscode/extensions.json`, `.idea/workspace.xml`, `.idea/codeStyles/*`
-- `BACKUP_LOCAL_NOTES`: `NOTES.md`, `TODO.local.md`, `*.private.md`
-- `BACKUP_LOCAL_DATABASES`: Local `*.db`, `*.sqlite`, `*.sql` files (excluding primary database)
-
 Edit anytime to change settings.
-
-### Cloud Configuration
-
-```bash
-# Cloud Backup
-BACKUP_LOCATION="both"           # local | cloud | both
-CLOUD_ENABLED=true
-CLOUD_PROVIDER="gdrive"
-CLOUD_REMOTE_NAME="mygdrive"
-CLOUD_BACKUP_PATH="/Backups/MyProject"
-CLOUD_SYNC_DATABASES=true
-CLOUD_SYNC_CRITICAL=true
-CLOUD_SYNC_FILES=false
-```
 
 ---
 
 ## Failure Notifications
 
-**Never miss a backup failure** - Get instant macOS notifications when something goes wrong.
+**Never miss a backup failure** — get instant notifications when something goes wrong.
 
 ### How It Works
 
 **When Backup Fails:**
 1. Native notification appears immediately
 2. Shows error count and type
-3. Plays warning sound ("Basso")
+3. Plays warning sound ("Basso" on macOS)
 4. Includes actionable message: "Run 'backup-status' to check"
 
 **When Backup Recovers:**
 1. Success notification appears
 2. Confirms backup is working again
-3. Plays success sound ("Glass")
+3. Plays success sound ("Glass" on macOS)
+
+**Staleness Detection (v2.5):**
+- Warning alert if no successful backup in 24 hours
+- Critical alert if no successful backup in 72 hours
+- Cooldown prevents repeated alerts (4h for warnings, 2h for critical)
 
 **Spam Prevention:**
-- Only notifies **ONCE** on first failure
+- Only notifies **once** on first failure
 - Won't spam you every hour while issue persists
 - Automatically clears when backup succeeds
-
-### Examples
-
-**Failure Notification:**
-```
-⚠️ Checkpoint Backup Failed
-AI_GUARD failed with 1 error(s). Run 'backup-status' to check.
-```
-
-**Success After Failure:**
-```
-✅ Checkpoint Backup Restored
-AI_GUARD is working again!
-```
 
 ### Configuration
 
@@ -493,29 +443,22 @@ Notifications are **enabled by default**. To disable:
 NOTIFICATIONS_ENABLED=false
 ```
 
-### Troubleshooting
-
-**Not receiving notifications?**
-1. Check System Preferences → Notifications → Script Editor (allow notifications)
-2. Test notification: `osascript -e 'display notification "Test" with title "Checkpoint"'`
-3. Verify `NOTIFICATIONS_ENABLED=true` in config
-
 ---
 
 ## Universal Integrations
 
-Checkpoint works anywhere—not just Claude Code!
+Checkpoint works anywhere — not just Claude Code!
 
 ### Available Integrations
 
 | Integration | Auto-Trigger | Visual Status | Setup |
 |-------------|--------------|---------------|-------|
-| **Shell (Bash/Zsh)** | ✅ On `cd` | ✅ Prompt indicator | `./integrations/shell/install.sh` |
-| **Git Hooks** | ✅ Pre-commit | ✅ Messages | `./integrations/git/install-git-hooks.sh` |
-| **Vim/Neovim** | ✅ On save | ✅ Statusline | See `integrations/vim/README.md` |
-| **VS Code** | - | - | `./integrations/vscode/install-vscode.sh` |
-| **Tmux** | ⏱️ 60s refresh | ✅ Status bar | `./integrations/tmux/install-tmux.sh` |
-| **Direnv** | ✅ On enter | - | `./integrations/direnv/install.sh` |
+| **Shell (Bash/Zsh)** | On `cd` | Prompt indicator | `./integrations/shell/install.sh` |
+| **Git Hooks** | Pre-commit | Messages | `./integrations/git/install-git-hooks.sh` |
+| **Vim/Neovim** | On save | Statusline | See `integrations/vim/README.md` |
+| **VS Code** | — | — | `./integrations/vscode/install-vscode.sh` |
+| **Tmux** | 60s refresh | Status bar | `./integrations/tmux/install-tmux.sh` |
+| **Direnv** | On enter | — | `./integrations/direnv/install.sh` |
 
 ### Shell Integration
 
@@ -526,9 +469,9 @@ Shows backup status in prompt, auto-triggers on `cd`:
 source ~/.bashrc  # or ~/.zshrc
 
 # Now you have:
-✅ user@host ~/project $           # Status in prompt
-bs                                  # Quick status check
-bn                                  # Quick backup
+user@host ~/project $           # Status in prompt
+bs                              # Quick status check
+bn                              # Quick backup
 ```
 
 ### Git Hooks
@@ -538,8 +481,6 @@ Auto-backup before every commit:
 ```bash
 cd /your/project
 /path/to/Checkpoint/integrations/git/install-git-hooks.sh
-
-# Now git commit automatically backs up first!
 ```
 
 See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for all integrations.
@@ -549,21 +490,20 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for all integrations.
 ## Requirements
 
 ### Platform Support
-- **macOS** — Full support (LaunchAgent, all features)
-- **Linux** — Partial support (manual/cron, no LaunchAgent)
+- **macOS** — Full support (launchd, fswatch, notifications)
+- **Linux** — Full support (systemd, inotifywait, cron fallback)
 
 ### Dependencies
 
 | Tool | Required | Purpose | Installation |
 |------|----------|---------|--------------|
-| `bash` 3.2+ | ✅ Yes | Script execution | Pre-installed |
-| `git` | ✅ Yes | Change detection | `brew install git` |
-| `sqlite3` | Conditional | Database backups | `brew install sqlite3` |
-| `gzip` | ✅ Yes | Compression | Pre-installed |
-| `rclone` | Optional | Cloud backups | **Auto-installed** when you enable cloud backup |
-| `launchctl` | macOS only | Scheduling | Pre-installed on macOS |
-
-**Note:** rclone is automatically installed (with your permission) when you choose cloud backup during installation or run `backup-cloud-config`.
+| `bash` 3.2+ | Yes | Script execution | Pre-installed |
+| `git` | Yes | Change detection | `brew install git` / `apt install git` |
+| `sqlite3` | Conditional | Database backups | `brew install sqlite3` / `apt install sqlite3` |
+| `gzip` | Yes | Compression | Pre-installed |
+| `rclone` | Optional | Cloud backups | Auto-installed when enabled |
+| `fswatch` | Optional | File watcher (macOS) | `brew install fswatch` |
+| `inotify-tools` | Optional | File watcher (Linux) | `apt install inotify-tools` |
 
 ---
 
@@ -585,26 +525,36 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for all integrations.
    - Archive old versions to `archived/`
    - Copy new versions to `files/`
 
-4. **Cloud Upload** (if enabled)
+4. **Verification** (v2.5)
+   - Post-backup integrity checks
+   - Validate backup completeness
+
+5. **Cloud Upload** (if enabled)
    - Upload in background (doesn't block)
    - Retry on failure
    - Track upload time
 
-5. **Cleanup**
+6. **Cleanup**
    - Remove old database backups (>30 days)
    - Remove old archived files (>60 days)
 
 ### Automation
 
 **Hourly Daemon:**
-- Runs every hour (macOS LaunchAgent)
-- Checks for changes
-- Coordinates to avoid duplicates
+- Runs every hour (launchd on macOS, systemd on Linux, cron fallback)
+- Checks for changes before backing up
+- Coordinates to avoid duplicate backups
 
-**Session Detection:**
-- Detects new work session (>10 min idle)
-- Triggers immediate backup
-- Works with Claude Code hooks
+**File Watcher:**
+- Detects file changes in real-time via fswatch/inotifywait
+- Configurable debounce interval
+- Triggers backup on significant changes
+
+**Watchdog (v2.5):**
+- Monitors daemon health via heartbeat files
+- Auto-restarts crashed daemons (KeepAlive/Restart=on-failure)
+- Staleness detection with configurable thresholds
+- Notification cooldown prevents alert fatigue
 
 **Cloud Uploads:**
 - Background process after local backup
@@ -639,7 +589,7 @@ rclone lsd remotename:    # Test connection
 
 **No backups running**
 ```bash
-./bin/backup-status.sh    # Check status
+backup-status             # Check status
 ```
 
 **Drive not found**
@@ -648,10 +598,10 @@ ls -la /path/to/.backup-drive-marker
 touch /path/to/.backup-drive-marker  # Create if missing
 ```
 
-**Files not backed up**
+**Orphaned daemons (deleted projects still have running daemons)**
 ```bash
-git status               # See what changed
-git diff                 # See file changes
+uninstall.sh --cleanup-orphans    # Find and remove orphans
+uninstall.sh --orphans --dry-run  # Preview first
 ```
 
 See [docs/CLOUD-BACKUP.md](docs/CLOUD-BACKUP.md) for cloud troubleshooting.
@@ -660,11 +610,11 @@ See [docs/CLOUD-BACKUP.md](docs/CLOUD-BACKUP.md) for cloud troubleshooting.
 
 ## FAQ
 
+**Q: Does this work on Linux?**
+A: Yes! v2.5 has full Linux support with native systemd service units. Cron fallback available for systems without systemd.
+
 **Q: Does cloud backup slow down my backups?**
 A: No. Cloud uploads run in background and don't block local backups.
-
-**Q: Does this work on Windows/Linux?**
-A: macOS fully supported. Linux partial (manual/cron backups, no LaunchAgent).
 
 **Q: What happens if I lose internet?**
 A: Local backups continue normally. Cloud uploads queue and retry when connection restored.
@@ -673,44 +623,46 @@ A: Local backups continue normally. Cloud uploads queue and retry when connectio
 A: Free tier works for most projects! Google Drive: 15GB free, Dropbox: 2GB free.
 
 **Q: Can I use this without Claude Code?**
-A: Yes! Hourly daemon + integrations work standalone. Claude Code hooks optional.
+A: Yes! Hourly daemon + integrations work standalone. Claude Code is not required.
 
 **Q: What if I have multiple projects?**
-A: Install in each project. Each gets own config and backups.
+A: Use global mode. One daemon backs up all registered projects. Run `backup-now` in any project to register it.
 
 **Q: How do I restore a file?**
-A: Run `./bin/backup-restore.sh`, choose file, select version.
+A: Run `backup-restore`, choose file, select version.
 
 **Q: Can I change retention after setup?**
 A: Yes. Edit `.backup-config.sh`, change `DB_RETENTION_DAYS` and `FILE_RETENTION_DAYS`.
 
 **Q: What databases are supported?**
-A: SQLite, PostgreSQL, MySQL, and MongoDB! v2.2.1 auto-detects all databases and installs required tools (pg_dump, mysqldump, mongodump) progressively.
+A: SQLite, PostgreSQL, MySQL, and MongoDB. Auto-detects all databases and installs required tools (pg_dump, mysqldump, mongodump) progressively.
 
 **Q: How do I update Checkpoint?**
-A: Use `/checkpoint --update` (Claude Code) or `./bin/backup-update.sh`. Updates automatically from GitHub.
+A: Run `backup-update`. Updates automatically from GitHub, including migrating existing installations.
 
 **Q: Can I pause backups temporarily?**
-A: Yes! Use `/backup-pause` to pause automatic backups (manual backups still work). Resume with `/backup-pause --resume`.
+A: Yes! Use `backup-pause` to pause (manual backups still work). Resume with `backup-pause --resume`.
 
-**Q: What's the `/checkpoint` command?**
-A: Control panel showing version, status, updates, and all available commands. Use `/checkpoint --info` to see installation mode (Global vs Per-Project).
+**Q: What if a daemon crashes?**
+A: The watchdog detects crashes via heartbeat monitoring and the KeepAlive/Restart policy auto-restarts the daemon. You'll get a notification if backups go stale.
 
 **Q: How do I uninstall?**
-A: Use `/uninstall` (keeps backups by default) or `./bin/uninstall.sh`. Add `--no-keep-backups` to remove everything.
+A: Global: `./bin/uninstall-global.sh`. Per-project: `./bin/uninstall.sh`. Backup data is preserved by default.
+
+**Q: What about orphaned daemons from deleted projects?**
+A: Run `uninstall.sh --cleanup-orphans` to find and remove daemons for projects that no longer exist.
 
 ---
 
 ## Documentation
 
-- **[Cloud Backup Guide](docs/CLOUD-BACKUP.md)** - Complete cloud setup, providers, troubleshooting
-- **[Commands Reference](docs/COMMANDS.md)** - All commands and options
-- **[Integrations Guide](docs/INTEGRATIONS.md)** - Shell, Git, Vim, VS Code, Tmux
-- **[API Reference](docs/API.md)** - Library functions for developers
-- **[Development Guide](docs/DEVELOPMENT.md)** - Contributing guidelines
-- **[Migration Guide](docs/MIGRATION.md)** - Upgrading from older versions
-- **[Testing Guide](docs/TESTING.md)** - Running tests (164/164 passing + 115 v2.2.1)
-- **[Testing Report](TESTING-REPORT.md)** - Comprehensive v2.2.1 validation results
+- **[Cloud Backup Guide](docs/CLOUD-BACKUP.md)** — Complete cloud setup, providers, troubleshooting
+- **[Commands Reference](docs/COMMANDS.md)** — All commands and options
+- **[Integrations Guide](docs/INTEGRATIONS.md)** — Shell, Git, Vim, VS Code, Tmux
+- **[API Reference](docs/API.md)** — Library functions for developers
+- **[Development Guide](docs/DEVELOPMENT.md)** — Contributing guidelines
+- **[Migration Guide](docs/MIGRATION.md)** — Upgrading from older versions
+- **[Testing Guide](docs/TESTING.md)** — Running tests
 
 ---
 
@@ -720,39 +672,70 @@ A: Use `/uninstall` (keeps backups by default) or `./bin/uninstall.sh`. Add `--n
 
 ```
 Checkpoint/
-├── bin/                          # Command scripts
-│   ├── backup-status.sh
-│   ├── backup-now.sh
-│   ├── backup-config.sh
-│   ├── backup-restore.sh
-│   ├── backup-cleanup.sh
-│   ├── backup-update.sh          # Update from GitHub (v2.2.1)
-│   ├── backup-pause.sh           # Pause/resume (v2.2.1)
-│   ├── backup-cloud-config.sh    # Cloud setup
-│   ├── backup-daemon.sh
-│   ├── install.sh
-│   └── uninstall.sh
-├── lib/                          # Core libraries
-│   ├── backup-lib.sh
-│   ├── cloud-backup.sh           # Cloud functions
-│   ├── database-detector.sh      # Universal DB detection (v2.2.1)
-│   └── dependency-manager.sh     # Progressive installs (v2.2.1)
-├── integrations/                 # Universal integrations
-│   ├── shell/
-│   ├── git/
-│   ├── vim/
-│   ├── vscode/
-│   └── tmux/
-├── .claude/skills/              # Claude Code commands (v2.2.1)
-│   ├── checkpoint/              # Control panel
-│   ├── backup-update/           # Update command
-│   ├── backup-pause/            # Pause/resume
-│   ├── uninstall/               # Safe uninstall
-│   └── [8 more skills]
-├── docs/                         # Documentation
-├── tests/                        # Test suite (164 tests)
-├── templates/
-└── examples/
+├── bin/                              # Command scripts
+│   ├── backup-now.sh                 # Manual backup
+│   ├── backup-status.sh              # Status display
+│   ├── backup-restore.sh             # File restoration
+│   ├── backup-cleanup.sh             # Retention management
+│   ├── backup-update.sh              # Self-update + migration
+│   ├── backup-pause.sh               # Pause/resume
+│   ├── backup-verify.sh              # Backup integrity checks
+│   ├── backup-watch.sh               # Native file watcher
+│   ├── backup-cloud-config.sh        # Cloud setup
+│   ├── backup-daemon.sh              # Hourly backup daemon
+│   ├── backup-all-projects.sh        # Multi-project backup
+│   ├── checkpoint-watchdog.sh         # Daemon health monitor
+│   ├── install-global.sh             # Global installer
+│   ├── install.sh                    # Per-project installer
+│   ├── uninstall.sh                  # Per-project uninstaller
+│   └── uninstall-global.sh           # Global uninstaller
+├── lib/                              # Modular library
+│   ├── core/                         # Foundation
+│   │   ├── config.sh                 # Configuration loading
+│   │   ├── logging.sh                # Structured logging
+│   │   ├── error-codes.sh            # Error code definitions
+│   │   └── output.sh                 # Output formatting
+│   ├── ops/                          # Operations
+│   │   ├── file-ops.sh               # File backup operations
+│   │   ├── init.sh                   # Initialization
+│   │   └── state.sh                  # State management
+│   ├── features/                     # Feature modules
+│   │   ├── change-detection.sh       # Smart change detection
+│   │   ├── cleanup.sh                # Retention cleanup
+│   │   ├── health-stats.sh           # Health statistics
+│   │   ├── restore.sh                # Restore operations
+│   │   ├── verification.sh           # Backup verification
+│   │   └── ...
+│   ├── platform/                     # Platform abstraction
+│   │   ├── daemon-manager.sh         # launchd/systemd/cron
+│   │   ├── file-watcher.sh           # fswatch/inotifywait
+│   │   └── compat.sh                 # Cross-platform compat
+│   ├── security/                     # Security modules
+│   │   ├── credential-provider.sh    # Credential management
+│   │   └── secure-download.sh        # Verified downloads
+│   └── ui/                           # UI utilities
+│       ├── formatting.sh             # Output formatting
+│       └── time-size-utils.sh        # Time/size helpers
+├── integrations/                     # Editor/shell integrations
+│   ├── shell/                        # Bash/Zsh prompt
+│   ├── git/                          # Git hooks
+│   ├── vim/                          # Vim/Neovim
+│   ├── vscode/                       # VS Code
+│   ├── tmux/                         # Tmux status bar
+│   └── direnv/                       # Direnv
+├── templates/                        # Service templates
+│   ├── launchd-watcher.plist         # macOS file watcher
+│   ├── com.checkpoint.watchdog.plist # macOS watchdog
+│   ├── systemd-daemon.service        # Linux backup daemon
+│   ├── systemd-daemon.timer          # Linux backup timer
+│   ├── systemd-watchdog.service      # Linux watchdog
+│   └── systemd-watcher.service       # Linux file watcher
+├── helper/                           # macOS menu bar app
+│   ├── CheckpointHelper/             # Swift source
+│   └── build.sh                      # Build script
+├── .claude/skills/                   # Claude Code skills
+├── docs/                             # Documentation
+└── tests/                            # Test suite (164 tests)
 ```
 
 ### Project After Installation
@@ -772,20 +755,20 @@ your-project/
 
 ## Testing
 
-**Test Coverage: 100% (164/164 tests passing + 115 v2.2.1 tests)**
+**Test Coverage: 100% (164/164 tests passing)**
 
 ```bash
 # Run all tests
 ./tests/run-all-tests.sh
 
-# Test suites:
-./tests/unit/test-core-functions.sh              # 22/22
-./tests/integration/test-backup-restore-workflow.sh  # 16/16
-./tests/integration/test-cloud-backup.sh         # 13/13 (cloud)
-./tests/e2e/test-user-journeys.sh                # 34/34
-./tests/compatibility/test-bash-compatibility.sh  # 34/36 (2 platform skipped)
-./tests/stress/test-edge-cases.sh                # 36/36
-./tests/smoke-test.sh                            # 22/22
+# Individual test suites:
+./tests/unit/test-core-functions.sh
+./tests/integration/test-backup-restore-workflow.sh
+./tests/integration/test-cloud-backup.sh
+./tests/e2e/test-user-journeys.sh
+./tests/compatibility/test-bash-compatibility.sh
+./tests/stress/test-edge-cases.sh
+./tests/smoke-test.sh
 ```
 
 See [docs/TESTING.md](docs/TESTING.md) for details.
@@ -797,8 +780,6 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 **Author:** Jon Rezin
 **Repository:** https://github.com/nizernoj/Checkpoint
 **License:** GPL v3
-
-Built from real-world usage with comprehensive testing and cloud backup support.
 
 ---
 
