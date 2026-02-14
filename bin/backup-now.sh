@@ -959,6 +959,16 @@ if [ "$DATABASE_ONLY" = false ]; then
             fi
         done < "$manifest_file"
 
+        # Persist JSON manifest for later verification audits
+        if type persist_manifest_json &>/dev/null; then
+            log_verbose "   Persisting verification manifest..."
+            if persist_manifest_json "$BACKUP_DIR" "$FILES_DIR" "$DATABASE_DIR" "$PROJECT_NAME"; then
+                log_verbose "   Manifest saved: $BACKUP_DIR/.checkpoint-manifest.json"
+            else
+                log_warn "   Warning: Could not persist verification manifest (non-fatal)"
+            fi
+        fi
+
         # Cleanup temp files
         rm -f "$manifest_file"
 
