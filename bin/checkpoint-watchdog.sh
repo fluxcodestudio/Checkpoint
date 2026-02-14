@@ -7,14 +7,14 @@ set -euo pipefail
 # Resolve script directory for sourcing sibling modules
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Core logging module (must load before daemon-manager which calls log_set_context)
+source "$SCRIPT_DIR/../lib/core/logging.sh"
+
 # Cross-platform helpers (stat, notifications)
 source "$SCRIPT_DIR/../lib/platform/compat.sh"
 
 # Platform-agnostic daemon lifecycle management
 source "$SCRIPT_DIR/../lib/platform/daemon-manager.sh"
-
-# Core logging module
-source "$SCRIPT_DIR/../lib/core/logging.sh"
 
 # Projects registry and health scoring for staleness detection
 source "$SCRIPT_DIR/../lib/projects-registry.sh"

@@ -62,8 +62,9 @@ get_changed_files_fast() {
     tmp2=$(mktemp) || { rm -f "$tmp1"; return 1; }
     tmp3=$(mktemp) || { rm -f "$tmp1" "$tmp2"; return 1; }
 
-    # Trap to ensure cleanup
-    trap 'rm -f "$tmp1" "$tmp2" "$tmp3" 2>/dev/null' RETURN
+    # Trap to ensure cleanup (use ${var:-} to avoid set -u errors when trap
+    # leaks to calling function scope on RETURN)
+    trap 'rm -f "${tmp1:-}" "${tmp2:-}" "${tmp3:-}" 2>/dev/null; trap - RETURN' RETURN
 
     # Parallel execution of git commands
     git diff --name-only > "$tmp1" 2>/dev/null &
