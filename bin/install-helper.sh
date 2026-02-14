@@ -17,7 +17,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Source cross-platform daemon manager
+source "$PACKAGE_DIR/lib/core/logging.sh"
 source "$PACKAGE_DIR/lib/platform/daemon-manager.sh"
 HELPER_DIR="$PACKAGE_DIR/helper"
 APP_NAME="CheckpointHelper"

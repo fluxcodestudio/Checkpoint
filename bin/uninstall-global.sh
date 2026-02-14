@@ -18,7 +18,7 @@ done
 _UNINSTALL_SCRIPT_DIR="$(cd "$(dirname "$_uninstall_script")" && pwd)"
 unset _uninstall_script _uninstall_dir
 
-# Platform-agnostic daemon lifecycle management
+source "$_UNINSTALL_SCRIPT_DIR/../lib/core/logging.sh"
 source "$_UNINSTALL_SCRIPT_DIR/../lib/platform/daemon-manager.sh"
 
 echo "═══════════════════════════════════════════════"

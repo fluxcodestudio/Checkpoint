@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
-# Source cross-platform daemon manager
 _UNINSTALL_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$_UNINSTALL_SCRIPT_DIR/../lib/core/logging.sh"
 source "$_UNINSTALL_SCRIPT_DIR/../lib/platform/daemon-manager.sh"
 
 # ==============================================================================

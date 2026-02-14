@@ -10,6 +10,9 @@ set -euo pipefail
 
 PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Load logging (required by daemon-manager)
+source "$PACKAGE_DIR/lib/core/logging.sh"
+
 # Load dependency manager
 source "$PACKAGE_DIR/lib/dependency-manager.sh"
 

@@ -12,7 +12,7 @@ set -euo pipefail
 PROJECT_DIR="${1:-$PWD}"
 PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Source cross-platform daemon manager
+source "$PACKAGE_DIR/lib/core/logging.sh"
 source "$PACKAGE_DIR/lib/platform/daemon-manager.sh"
 
 # Verify project directory exists

@@ -7,6 +7,9 @@ set -euo pipefail
 PACKAGE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_DIR="${1:-$PWD}"
 
+# Source logging (required by daemon-manager)
+source "$PACKAGE_DIR/lib/core/logging.sh"
+
 # Source cross-platform daemon manager
 source "$PACKAGE_DIR/lib/platform/daemon-manager.sh"
 
