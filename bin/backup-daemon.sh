@@ -19,7 +19,7 @@ if [ -f "$PWD/.backup-config.sh" ]; then
 elif [ -f "$SCRIPT_DIR/../templates/backup-config.sh" ]; then
     CONFIG_FILE="$SCRIPT_DIR/../templates/backup-config.sh"
 else
-    echo "❌ Configuration file not found. Run install.sh first." >&2
+    echo "Configuration file not found. Run install.sh first." >&2
     exit 1
 fi
 
@@ -75,6 +75,23 @@ if [ -f "$LIB_DIR/retention-policy.sh" ]; then
     source "$LIB_DIR/retention-policy.sh"
 fi
 
+# ==============================================================================
+# STRUCTURED LOGGING INITIALIZATION
+# ==============================================================================
+
+# Initialize structured logging (logging.sh loaded via backup-lib.sh)
+_init_checkpoint_logging
+log_set_context "daemon"
+
+# Parse CLI flags for log level (--debug, --trace, --quiet)
+parse_log_flags "$@"
+
+# SIGUSR1 debug toggle: send `kill -USR1 <daemon_pid>` to toggle debug logging
+trap '_toggle_debug_level' USR1
+
+log_info "Daemon starting, PID=$$, project=$PROJECT_NAME"
+log_debug "Config: LOG_FILE=$LOG_FILE, BACKUP_DIR=$BACKUP_DIR"
+
 # Tiered cleanup interval (in daemon cycles, e.g., 6 = every 6 hours if hourly daemon)
 CLEANUP_INTERVAL="${CLEANUP_INTERVAL:-6}"
 CLEANUP_COUNTER=0
@@ -89,6 +106,8 @@ HEARTBEAT_FILE="${HEARTBEAT_FILE:-$HEARTBEAT_DIR/daemon.heartbeat}"
 # Check if project still exists - self-disable if deleted
 
 if [ ! -d "$PROJECT_DIR" ]; then
+    log_error "Project directory no longer exists: $PROJECT_DIR"
+    log_warn "Daemon appears to be orphaned"
     echo "  Project directory no longer exists: $PROJECT_DIR" >&2
     echo "   This daemon appears to be orphaned." >&2
 
@@ -96,10 +115,13 @@ if [ ! -d "$PROJECT_DIR" ]; then
     if [ -f "$LIB_DIR/platform/daemon-manager.sh" ]; then
         source "$LIB_DIR/platform/daemon-manager.sh"
         echo "   Attempting to remove orphaned daemon..." >&2
-        if uninstall_daemon "$PROJECT_NAME" 2>/dev/null; then
+        log_info "Attempting to remove orphaned daemon: $PROJECT_NAME"
+        if uninstall_daemon "$PROJECT_NAME" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
             echo "   Orphaned daemon removed: $PROJECT_NAME" >&2
+            log_info "Orphaned daemon removed: $PROJECT_NAME"
         else
             echo "   Failed to remove daemon. Run: uninstall.sh --cleanup-orphans" >&2
+            log_error "Failed to remove orphaned daemon: $PROJECT_NAME"
         fi
     fi
 
@@ -107,6 +129,7 @@ if [ ! -d "$PROJECT_DIR" ]; then
     STATE_PROJECT_DIR="$HOME/.claudecode-backups/state/${PROJECT_NAME}"
     if [ -d "$STATE_PROJECT_DIR" ]; then
         rm -rf "$STATE_PROJECT_DIR"
+        log_info "Cleaned up state files for: $PROJECT_NAME"
         echo "   Cleaned up state files for: $PROJECT_NAME" >&2
     fi
 
@@ -167,7 +190,9 @@ check_drive() {
 }
 
 # Graceful log function (works even if drive disconnected)
-log() {
+# NOTE: This is the legacy CLI output function for the daemon.
+# Structured logging goes to log_info/warn/error via logging.sh.
+daemon_log() {
     local message="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 
     if check_drive && [ -d "$(dirname "$LOG_FILE")" ]; then
@@ -178,6 +203,9 @@ log() {
         echo "$message" >> "$FALLBACK_LOG"
         echo "$message"  # Still print to stdout
     fi
+
+    # Also write to structured log
+    log_info "$1"
 }
 
 # Get database state (size + modification time)
@@ -222,7 +250,8 @@ backup_database() {
         return 0  # No database to backup
     fi
 
-    log "📦 Backing up database: $PROJECT_NAME"
+    daemon_log "Backing up database: $PROJECT_NAME"
+    log_debug "Database path: $DB_PATH, type: $DB_TYPE"
 
     # Human-readable timestamp with PID suffix to prevent collisions
     timestamp=$(date '+%m.%d.%y - %H:%M')
@@ -233,7 +262,8 @@ backup_database() {
         # Use mktemp for secure temp file (not world-readable /tmp)
         local temp_db
         temp_db=$(mktemp -t "${PROJECT_NAME}_backup.XXXXXX.db") || {
-            log "❌ Failed to create temp file"
+            daemon_log "Failed to create temp file"
+            log_error "Failed to create temp file for database backup"
             return 1
         }
 
@@ -241,38 +271,43 @@ backup_database() {
         trap "rm -f '$temp_db' 2>/dev/null" RETURN
 
         # Perform backup
-        if sqlite3 "$DB_PATH" ".backup '$temp_db'" 2>/dev/null; then
-            if gzip -c "$temp_db" > "$backup_file" 2>/dev/null; then
+        if sqlite3 "$DB_PATH" ".backup '$temp_db'" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+            if gzip -c "$temp_db" > "$backup_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                 # Verify the backup is valid
-                if gunzip -t "$backup_file" 2>/dev/null; then
+                if gunzip -t "$backup_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                     size=$(du -h "$backup_file" | cut -f1)
-                    log "✅ Database backup created: ${backup_file##*/} ($size)"
+                    daemon_log "Database backup created: ${backup_file##*/} ($size)"
                     rm -f "$temp_db" 2>/dev/null
                     return 0
                 else
-                    log "❌ Database backup verification failed"
-                    rm -f "$backup_file" 2>/dev/null
+                    daemon_log "Database backup verification failed"
+                    log_error "Database backup verification failed: $backup_file"
+                    rm -f "$backup_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"
                     rm -f "$temp_db" 2>/dev/null
                     return 1
                 fi
             else
-                log "❌ Database compression failed"
+                daemon_log "Database compression failed"
+                log_error "Database compression failed: $DB_PATH"
                 rm -f "$temp_db" 2>/dev/null
                 return 1
             fi
         else
-            log "❌ SQLite backup command failed"
+            daemon_log "SQLite backup command failed"
+            log_error "SQLite backup command failed: $DB_PATH"
             rm -f "$temp_db" 2>/dev/null
             return 1
         fi
     else
-        log "⚠️  Unsupported database type: $DB_TYPE"
+        daemon_log "Unsupported database type: $DB_TYPE"
+        log_warn "Unsupported database type: $DB_TYPE"
         return 1
     fi
 }
 
 backup_changed_files() {
-    log "📁 Checking for changed files..."
+    daemon_log "Checking for changed files..."
+    log_debug "Scanning for file changes in $PROJECT_DIR"
 
     cd "$PROJECT_DIR" || return 1
 
@@ -284,9 +319,9 @@ backup_changed_files() {
         get_changed_files_fast "$changed_files"
     else
         # Fallback: sequential git commands
-        git diff --name-only >> "$changed_files" 2>/dev/null || true
-        git diff --cached --name-only >> "$changed_files" 2>/dev/null || true
-        git ls-files --others --exclude-standard >> "$changed_files" 2>/dev/null || true
+        git diff --name-only >> "$changed_files" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || true
+        git diff --cached --name-only >> "$changed_files" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || true
+        git ls-files --others --exclude-standard >> "$changed_files" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || true
     fi
 
     # Add critical gitignored files (if enabled)
@@ -323,7 +358,7 @@ backup_changed_files() {
     fi
 
     if [ ! -s "$changed_files" ]; then
-        log "ℹ️  No file changes detected"
+        daemon_log "No file changes detected"
         rm "$changed_files"
         return 0
     fi
@@ -357,12 +392,14 @@ backup_changed_files() {
                 # Copy new version
                 cp "$file" "$current_file"
                 ((file_count++))
+                log_trace "Updated: $file"
             fi
             # else: file unchanged, skip
         else
             # New file - just copy it
             cp "$file" "$current_file"
             ((file_count++))
+            log_trace "New file: $file"
         fi
 
     done < "$changed_files"
@@ -370,19 +407,21 @@ backup_changed_files() {
     rm "$changed_files"
 
     if [ $file_count -gt 0 ]; then
-        log "✅ Backed up $file_count files ($archived_count archived)"
+        daemon_log "Backed up $file_count files ($archived_count archived)"
 
         # Auto-commit to git (if enabled)
         if [ "$AUTO_COMMIT_ENABLED" = true ]; then
-            git add -A
-            git commit -m "$GIT_COMMIT_MESSAGE" -q 2>/dev/null && \
-                log "✅ Changes committed to git"
+            if git add -A 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" && \
+               git commit -m "$GIT_COMMIT_MESSAGE" -q 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                daemon_log "Changes committed to git"
+            fi
         fi
     fi
 }
 
 cleanup_old_backups() {
-    log "🧹 Cleaning up old backups..."
+    daemon_log "Cleaning up old backups..."
+    log_debug "Starting cleanup: DB_RETENTION_DAYS=$DB_RETENTION_DAYS, FILE_RETENTION_DAYS=$FILE_RETENTION_DAYS"
 
     local db_removed=0
     local file_removed=0
@@ -391,12 +430,12 @@ cleanup_old_backups() {
     if [ "${BACKUP_USE_LEGACY_CLEANUP:-false}" = "true" ]; then
         # Legacy cleanup: multiple find traversals
         db_removed=$(find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} 2>/dev/null | wc -l)
-        find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>/dev/null
+        find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"
 
         file_removed=$(find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} 2>/dev/null | wc -l)
-        find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>/dev/null
+        find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"
 
-        find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null
+        find "$ARCHIVED_DIR" -type d -empty -delete 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"
     elif type cleanup_single_pass &>/dev/null; then
         # Single-pass cleanup (10x faster for large backup sets)
         cleanup_single_pass "$BACKUP_DIR"
@@ -410,16 +449,16 @@ cleanup_old_backups() {
     else
         # Fallback if backup-lib.sh not loaded
         db_removed=$(find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} 2>/dev/null | wc -l)
-        find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>/dev/null
+        find "$DATABASE_DIR" -name "*.db.gz" -type f -mtime +${DB_RETENTION_DAYS} -delete 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"
 
         file_removed=$(find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} 2>/dev/null | wc -l)
-        find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>/dev/null
+        find "$ARCHIVED_DIR" -type f -mtime +${FILE_RETENTION_DAYS} -delete 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"
 
-        find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null
+        find "$ARCHIVED_DIR" -type d -empty -delete 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"
     fi
 
     if [ "$db_removed" -gt 0 ] || [ "$file_removed" -gt 0 ]; then
-        log "🗑️  Removed $db_removed old database backups, $file_removed old archived files"
+        daemon_log "Removed $db_removed old database backups, $file_removed old archived files"
     fi
 }
 
@@ -432,6 +471,8 @@ run_tiered_cleanup() {
         return 0
     fi
 
+    log_debug "Starting tiered cleanup for $PROJECT_NAME"
+
     {
         echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] Starting tiered cleanup for $PROJECT_NAME"
 
@@ -443,14 +484,14 @@ run_tiered_cleanup() {
             while IFS= read -r file; do
                 [[ -z "$file" ]] && continue
                 local size=$(get_file_size "$file")
-                if rm -f "$file" 2>/dev/null; then
+                if rm -f "$file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                     ((total_pruned++))
                     total_freed=$((total_freed + size))
                 fi
             done < <(find_tiered_pruning_candidates "$ARCHIVED_DIR" "*" 2>/dev/null)
 
             # Clean empty directories
-            find "$ARCHIVED_DIR" -type d -empty -delete 2>/dev/null || true
+            find "$ARCHIVED_DIR" -type d -empty -delete 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || true
         fi
 
         # Prune database backups
@@ -458,7 +499,7 @@ run_tiered_cleanup() {
             while IFS= read -r file; do
                 [[ -z "$file" ]] && continue
                 local size=$(get_file_size "$file")
-                if rm -f "$file" 2>/dev/null; then
+                if rm -f "$file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                     ((total_pruned++))
                     total_freed=$((total_freed + size))
                 fi
@@ -479,24 +520,23 @@ if check_drive; then
     touch "$LOG_FILE" 2>/dev/null
 fi
 
-log "═══════════════════════════════════════════════"
-log "🚀 Checkpoint - Starting"
-log "📂 Project: $PROJECT_NAME"
+daemon_log "Checkpoint - Starting"
+daemon_log "Project: $PROJECT_NAME"
 
 # Write initial heartbeat
 write_heartbeat "syncing"
 
 # Check if external drive is connected (if verification enabled)
 if ! check_drive; then
-    log "⚠️  External drive not connected or wrong drive"
-    log "ℹ️  Skipping backup cycle, will retry later"
-    log "📝 Fallback log: $FALLBACK_LOG"
-    log "═══════════════════════════════════════════════"
+    daemon_log "External drive not connected or wrong drive"
+    daemon_log "Skipping backup cycle, will retry later"
+    log_warn "Drive not connected, skipping backup cycle"
+    daemon_log "Fallback log: $FALLBACK_LOG"
     write_heartbeat "error" "Drive not connected"
     exit 0  # Exit gracefully
 fi
 
-log "✅ Drive verification passed"
+log_debug "Drive verification passed"
 
 # ==============================================================================
 # BACKUP EXECUTION WITH FILE LOCKING
@@ -522,7 +562,7 @@ acquire_lock() {
     # Try to create lock directory (atomic operation)
     if mkdir "$LOCK_DIR" 2>/dev/null; then
         # Move PID file into lock directory (atomic on same filesystem)
-        mv "$temp_pid_file" "$LOCK_PID_FILE" 2>/dev/null || {
+        mv "$temp_pid_file" "$LOCK_PID_FILE" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || {
             rm -f "$temp_pid_file"
             rm -rf "$LOCK_DIR"
             return 1
@@ -537,28 +577,29 @@ acquire_lock() {
 # Try to acquire lock
 if acquire_lock; then
     trap 'rm -rf "$LOCK_DIR"' EXIT
-    log "🔒 Acquired backup lock (PID: $$)"
+    daemon_log "Acquired backup lock (PID: $$)"
 else
     # Lock exists - check if it's stale
     if [ -f "$LOCK_PID_FILE" ]; then
         LOCK_PID=$(cat "$LOCK_PID_FILE" 2>/dev/null)
         if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
             # Process is running - lock is valid
-            log "ℹ️  Another backup is currently running (PID: $LOCK_PID), skipping to avoid duplication"
-            log "═══════════════════════════════════════════════"
+            daemon_log "Another backup is currently running (PID: $LOCK_PID), skipping to avoid duplication"
+            log_debug "Lock held by PID $LOCK_PID, skipping"
             exit 0
         else
             # Process is dead - lock is stale, clean it up
-            log "⚠️  Removing stale lock (PID $LOCK_PID not running)"
+            daemon_log "Removing stale lock (PID $LOCK_PID not running)"
+            log_warn "Removing stale lock, PID $LOCK_PID not running"
             rm -rf "$LOCK_DIR"
             # Try to acquire lock again
             if acquire_lock; then
                 trap 'rm -rf "$LOCK_DIR"' EXIT
-                log "🔒 Acquired backup lock after cleanup (PID: $$)"
+                daemon_log "Acquired backup lock after cleanup (PID: $$)"
             else
                 # Race condition - another process got the lock
-                log "ℹ️  Another backup started simultaneously, skipping"
-                log "═══════════════════════════════════════════════"
+                daemon_log "Another backup started simultaneously, skipping"
+                log_debug "Lock race condition, skipping"
                 exit 0
             fi
         fi
@@ -569,20 +610,21 @@ else
         if [ -f "$LOCK_PID_FILE" ]; then
             LOCK_PID=$(cat "$LOCK_PID_FILE" 2>/dev/null)
             if [ -n "$LOCK_PID" ] && kill -0 "$LOCK_PID" 2>/dev/null; then
-                log "ℹ️  Another backup is currently running (PID: $LOCK_PID), skipping"
-                log "═══════════════════════════════════════════════"
+                daemon_log "Another backup is currently running (PID: $LOCK_PID), skipping"
+                log_debug "Lock held by PID $LOCK_PID after wait, skipping"
                 exit 0
             fi
         fi
         # Still no valid PID, clean up and try again
-        log "⚠️  Removing incomplete lock directory"
+        daemon_log "Removing incomplete lock directory"
+        log_warn "Removing incomplete lock directory"
         rm -rf "$LOCK_DIR"
         if acquire_lock; then
             trap 'rm -rf "$LOCK_DIR"' EXIT
-            log "🔒 Acquired backup lock after cleanup (PID: $$)"
+            daemon_log "Acquired backup lock after cleanup (PID: $$)"
         else
-            log "ℹ️  Another backup started simultaneously, skipping"
-            log "═══════════════════════════════════════════════"
+            daemon_log "Another backup started simultaneously, skipping"
+            log_debug "Lock race condition after cleanup, skipping"
             exit 0
         fi
     fi
@@ -596,8 +638,8 @@ DIFF=$((NOW - LAST_BACKUP))
 
 if [ $DIFF -lt $BACKUP_INTERVAL ]; then
     # Backup ran recently, skip
-    log "ℹ️  Backup ran ${DIFF}s ago, skipping (interval: ${BACKUP_INTERVAL}s)"
-    log "═══════════════════════════════════════════════"
+    daemon_log "Backup ran ${DIFF}s ago, skipping (interval: ${BACKUP_INTERVAL}s)"
+    log_debug "Backup interval not reached: ${DIFF}s < ${BACKUP_INTERVAL}s"
     exit 0
 fi
 
@@ -609,8 +651,8 @@ if type has_changes &>/dev/null && ! has_changes; then
     if db_changed; then
         backup_database
     else
-        log "ℹ️  No changes detected (database or files)"
-        log "═══════════════════════════════════════════════"
+        daemon_log "No changes detected (database or files)"
+        log_debug "No changes detected, skipping"
         # Update timestamp to prevent immediate re-check
         echo "$NOW" > "$BACKUP_TIME_STATE"
         exit 0
@@ -621,7 +663,8 @@ fi
 if db_changed; then
     backup_database
 else
-    log "ℹ️  Database unchanged, skipping backup"
+    daemon_log "Database unchanged, skipping backup"
+    log_debug "Database unchanged"
 fi
 
 backup_changed_files
@@ -639,12 +682,15 @@ echo "$NOW" > "$BACKUP_TIME_STATE"
 
 # Cloud Upload (if enabled)
 if [[ "${CLOUD_ENABLED:-false}" == "true" ]] && [[ "${BACKUP_LOCATION:-local}" != "local" ]]; then
-    log "☁️  Starting cloud upload..."
+    daemon_log "Starting cloud upload..."
+    log_info "Starting cloud upload"
     if type cloud_upload_background &>/dev/null; then
         cloud_upload_background
-        log "☁️  Cloud upload running in background"
+        daemon_log "Cloud upload running in background"
+        log_info "Cloud upload running in background"
     else
-        log "⚠️  Cloud backup library not loaded"
+        daemon_log "Cloud backup library not loaded"
+        log_warn "Cloud backup library not loaded"
     fi
 fi
 
@@ -652,11 +698,11 @@ fi
 db_count=$(find "$DATABASE_DIR" -name "*.db.gz" -type f 2>/dev/null | wc -l | tr -d ' ')
 current_files=$(find "$FILES_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
 archived_files=$(find "$ARCHIVED_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
-log "📊 Databases: $db_count snapshots"
-log "📊 Files: $current_files current, $archived_files archived versions"
-log "✅ Backup cycle complete"
-log "🔓 Released backup lock"
-log "═══════════════════════════════════════════════"
+daemon_log "Databases: $db_count snapshots"
+daemon_log "Files: $current_files current, $archived_files archived versions"
+daemon_log "Backup cycle complete"
+daemon_log "Released backup lock"
+log_info "Backup cycle complete: $db_count DB snapshots, $current_files files, $archived_files archived"
 
 # Write final healthy heartbeat
 write_heartbeat "healthy"

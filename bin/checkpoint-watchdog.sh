@@ -13,28 +13,39 @@ source "$SCRIPT_DIR/../lib/platform/compat.sh"
 # Platform-agnostic daemon lifecycle management
 source "$SCRIPT_DIR/../lib/platform/daemon-manager.sh"
 
+# Core logging module
+source "$SCRIPT_DIR/../lib/core/logging.sh"
+
+# ==============================================================================
+# STRUCTURED LOGGING INITIALIZATION
+# ==============================================================================
+
 # Configuration
 HEARTBEAT_DIR="${HOME}/.checkpoint"
 HEARTBEAT_FILE="${HEARTBEAT_DIR}/daemon.heartbeat"
 STALE_THRESHOLD=300  # 5 minutes - daemon should update heartbeat every backup cycle
 CHECK_INTERVAL=60    # Check every minute
-LOG_DIR="${HOME}/.checkpoint/logs"
-LOG_FILE="${LOG_DIR}/watchdog.log"
-MAX_LOG_SIZE=$((1024 * 1024))  # 1MB
+STATE_DIR="${HOME}/.checkpoint"
+LOG_FILE="${STATE_DIR}/logs/watchdog.log"
 
 # Ensure directories exist
-mkdir -p "$HEARTBEAT_DIR" "$LOG_DIR"
+mkdir -p "$HEARTBEAT_DIR" "${STATE_DIR}/logs"
 
-# Logging function
-log() {
-    local message="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
-    echo "$message" >> "$LOG_FILE"
+# Initialize structured logging (replaces manual log rotation)
+init_logging "$LOG_FILE" 10485760  # 10MB max, rotation handled by logging.sh
+log_set_context "watchdog"
 
-    # Rotate log if too large
-    if [ -f "$LOG_FILE" ] && [ "$(get_file_size "$LOG_FILE")" -gt "$MAX_LOG_SIZE" ]; then
-        mv "$LOG_FILE" "${LOG_FILE}.old"
-    fi
-}
+# Parse CLI flags for log level (--debug, --trace, --quiet)
+parse_log_flags "$@"
+
+# SIGUSR1 debug toggle: send `kill -USR1 <watchdog_pid>` to toggle debug logging
+trap '_toggle_debug_level' USR1
+
+# Write PID to known location so users can send signals
+echo $$ > "${STATE_DIR}/watchdog.pid"
+
+log_info "Watchdog starting, PID=$$"
+log_debug "Config: STALE_THRESHOLD=${STALE_THRESHOLD}s, CHECK_INTERVAL=${CHECK_INTERVAL}s"
 
 # Find checkpoint CLI
 find_checkpoint_cli() {
@@ -129,12 +140,12 @@ get_running_daemons() {
 # Restart a specific daemon via daemon-manager.sh abstraction
 restart_backup_daemon() {
     local service_name="$1"
-    log "Restarting daemon: $service_name"
+    log_info "Restarting daemon: $service_name"
     if restart_daemon "$service_name"; then
-        log "Daemon restarted successfully: $service_name"
+        log_info "Daemon restarted successfully: $service_name"
         return 0
     else
-        log "Failed to restart daemon: $service_name"
+        log_error "Failed to restart daemon: $service_name"
         return 1
     fi
 }
@@ -143,8 +154,8 @@ restart_backup_daemon() {
 trigger_backup() {
     local cli
     if cli=$(find_checkpoint_cli); then
-        log "Triggering manual backup via CLI"
-        "$cli" backup-now 2>/dev/null || true
+        log_info "Triggering manual backup via CLI"
+        "$cli" backup-now 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || true
     fi
 }
 
@@ -169,7 +180,7 @@ EOF
 
 # Main watchdog loop
 main() {
-    log "Watchdog starting (PID: $$)"
+    log_info "Watchdog entering main loop"
 
     local consecutive_failures=0
     local max_failures=3
@@ -181,7 +192,7 @@ main() {
         daemon_count=$(echo "$daemons" | grep -c . || echo "0")
 
         if [[ $daemon_count -eq 0 ]]; then
-            log "No backup daemons found"
+            log_debug "No backup daemons found"
             write_status "no_daemons" 0
             sleep "$CHECK_INTERVAL"
             continue
@@ -196,14 +207,15 @@ main() {
             healthy|syncing)
                 consecutive_failures=0
                 write_status "healthy" "$daemon_count"
+                log_trace "Heartbeat OK: $status_type (age: ${status_age}s)"
                 ;;
 
             stale|missing)
                 ((consecutive_failures++)) || true
-                log "Heartbeat issue: $status_type (age: ${status_age}s, failures: $consecutive_failures)"
+                log_warn "Heartbeat issue: $status_type (age: ${status_age}s, failures: $consecutive_failures)"
 
                 if [[ $consecutive_failures -ge $max_failures ]]; then
-                    log "Max failures reached, attempting restart"
+                    log_warn "Max failures reached ($max_failures), attempting restart"
 
                     # Restart all found daemons
                     while IFS= read -r label; do
@@ -219,13 +231,13 @@ main() {
                 ;;
 
             error)
-                log "Daemon reported error state"
+                log_info "Daemon reported error state"
                 write_status "error" "$daemon_count"
                 consecutive_failures=0  # Don't restart on reported errors, daemon handles it
                 ;;
 
             *)
-                log "Unknown heartbeat status: $status_type"
+                log_warn "Unknown heartbeat status: $status_type"
                 write_status "unknown" "$daemon_count"
                 ;;
         esac
@@ -236,8 +248,10 @@ main() {
 
 # Handle signals gracefully
 cleanup() {
-    log "Watchdog stopping (received signal)"
+    log_info "Watchdog stopping (received signal)"
     write_status "stopped" 0
+    # Clean up PID file
+    rm -f "${STATE_DIR}/watchdog.pid" 2>/dev/null
     exit 0
 }
 
