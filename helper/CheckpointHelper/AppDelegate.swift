@@ -23,7 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        setStatusBarIcon(tint: .systemGray)  // Start gray until we know status
+        setStatusBarIcon(tint: .white)  // Start white until we know status
 
         // Build menu
         buildMenu()
@@ -47,28 +47,52 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func setStatusBarIcon(tint: NSColor) {
+    private func setStatusBarIcon(tint: NSColor?) {
         guard let button = statusItem.button else { return }
 
-        // Load custom Checkpoint logo template image from bundle Resources
-        let bundle = Bundle.main
-        if let imagePath = bundle.path(forResource: "StatusBarIconTemplate", ofType: "png"),
-           let image = NSImage(contentsOfFile: imagePath) {
-            image.isTemplate = true
+        // Load custom Checkpoint logo icon (white on transparent, not template)
+        if let image = Self.loadStatusBarIcon() {
+            image.isTemplate = false
             image.size = NSSize(width: 18, height: 18)
             button.image = image
-            button.contentTintColor = tint
         } else {
             // Fallback to SF Symbol if custom icon not found
             if let image = NSImage(systemSymbolName: "checkmark.shield.fill", accessibilityDescription: "Checkpoint") {
                 let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
                 let configuredImage = image.withSymbolConfiguration(config) ?? image
                 button.image = configuredImage
-                button.contentTintColor = tint
             } else {
                 button.title = "CP"
             }
         }
+
+        // Tint not used with non-template image — color is baked into the PNG
+    }
+
+    /// Find the status bar icon from bundle Resources, using multiple search strategies
+    private static func loadStatusBarIcon() -> NSImage? {
+        // Strategy 1: Bundle.main (works when launched as proper .app)
+        if let path = Bundle.main.path(forResource: "StatusBarIconTemplate", ofType: "png"),
+           let image = NSImage(contentsOfFile: path) {
+            return image
+        }
+
+        // Strategy 2: Executable-relative path (works for command-line-built Swift apps)
+        let execURL = URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0])
+        let resourcesDir = execURL.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources")
+        let iconPath = resourcesDir.appendingPathComponent("StatusBarIconTemplate.png").path
+        if let image = NSImage(contentsOfFile: iconPath) {
+            return image
+        }
+
+        // Strategy 3: Check @2x variant
+        let icon2xPath = resourcesDir.appendingPathComponent("StatusBarIconTemplate@2x.png").path
+        if let image = NSImage(contentsOfFile: icon2xPath) {
+            return image
+        }
+
+        return nil
     }
 
     private func buildMenu() {
@@ -234,10 +258,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Icon Updates
 
     func updateStatusIcon(for status: HeartbeatMonitor.DaemonStatus) {
-        let color: NSColor
+        // nil = system default (white on dark, black on light menu bar)
+        // Only tint for warning/error states
+        let color: NSColor?
         switch status {
         case .healthy:
-            color = .systemGreen
+            color = .white
         case .syncing:
             color = .systemBlue
         case .error:

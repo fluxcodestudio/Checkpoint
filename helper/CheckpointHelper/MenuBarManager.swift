@@ -23,11 +23,9 @@ class MenuBarManager: NSObject {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem?.button {
-            // Try custom icon from bundle Resources
-            let bundle = Bundle.main
-            if let imagePath = bundle.path(forResource: "StatusBarIconTemplate", ofType: "png"),
-               let image = NSImage(contentsOfFile: imagePath) {
-                image.isTemplate = true
+            // Load custom Checkpoint logo icon
+            if let image = Self.loadStatusBarIcon() {
+                image.isTemplate = false
                 image.size = NSSize(width: 18, height: 18)
                 button.image = image
             } else {
@@ -164,6 +162,27 @@ class MenuBarManager: NSObject {
 
     @objc private func quit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    // MARK: - Icon Loading
+
+    private static func loadStatusBarIcon() -> NSImage? {
+        if let path = Bundle.main.path(forResource: "StatusBarIconTemplate", ofType: "png"),
+           let image = NSImage(contentsOfFile: path) {
+            return image
+        }
+        let execURL = URL(fileURLWithPath: ProcessInfo.processInfo.arguments[0])
+        let resourcesDir = execURL.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Resources")
+        let iconPath = resourcesDir.appendingPathComponent("StatusBarIconTemplate.png").path
+        if let image = NSImage(contentsOfFile: iconPath) {
+            return image
+        }
+        let icon2xPath = resourcesDir.appendingPathComponent("StatusBarIconTemplate@2x.png").path
+        if let image = NSImage(contentsOfFile: icon2xPath) {
+            return image
+        }
+        return nil
     }
 
     // MARK: - UI Updates
