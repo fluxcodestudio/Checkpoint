@@ -25,33 +25,40 @@ done
 # Bootstrap: resolve symlinks, set SCRIPT_DIR/LIB_DIR/PROJECT_ROOT
 source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 
+# Source logging module directly (this script doesn't use backup-lib.sh)
+source "$LIB_DIR/core/logging.sh"
+init_logging "$HOME/.config/checkpoint/checkpoint.log"
+log_set_context "all-projects"
+parse_log_flags "$@"
+
 # Source libraries
 source "$LIB_DIR/projects-registry.sh"
 source "$LIB_DIR/database-detector.sh"
 
-# Logging
+# Legacy logging (user-facing output + log file)
 LOG_FILE="$HOME/.config/checkpoint/daemon.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 
-log() {
+daemon_log() {
     local message="[$(date '+%Y-%m-%d %H:%M:%S')] $1"
     echo "$message" | tee -a "$LOG_FILE"
+    log_info "$1"
 }
 
 # ==============================================================================
 # MAIN
 # ==============================================================================
 
-log "═══════════════════════════════════════════════"
-log "Checkpoint Global Daemon - Starting"
-log "═══════════════════════════════════════════════"
+daemon_log "═══════════════════════════════════════════════"
+daemon_log "Checkpoint Global Daemon - Starting"
+daemon_log "═══════════════════════════════════════════════"
 
 # Get list of registered projects
 project_count=$(count_projects)
-log "Registered projects: $project_count"
+daemon_log "Registered projects: $project_count"
 
 if [[ "$project_count" -eq 0 ]]; then
-    log "No projects registered. Run 'backup-now' in a project to register it."
+    daemon_log "No projects registered. Run 'backup-now' in a project to register it."
     exit 0
 fi
 
@@ -67,26 +74,27 @@ while IFS= read -r project_path; do
     fi
 
     project_name="$(basename "$project_path")"
-    log "─────────────────────────────────────────────"
-    log "Project: $project_name"
-    log "Path: $project_path"
+    log_set_context "all-projects:$project_name"
+    daemon_log "─────────────────────────────────────────────"
+    daemon_log "Project: $project_name"
+    daemon_log "Path: $project_path"
 
     # Check if project directory exists
     if [[ ! -d "$project_path" ]]; then
-        log "  ⚠️  Directory not found - skipping"
+        daemon_log "  ⚠️  Directory not found - skipping"
         ((skipped++))
         continue
     fi
 
     # Check if config exists
     if [[ ! -f "$project_path/.backup-config.sh" ]]; then
-        log "  ⚠️  No config found - skipping"
+        daemon_log "  ⚠️  No config found - skipping"
         ((skipped++))
         continue
     fi
 
     # Run backup for this project
-    log "  🚀 Running backup..."
+    daemon_log "  🚀 Running backup..."
 
     # Use backup-now --force or backup-daemon depending on force flag
     if [[ "$FORCE_BACKUP" == "true" ]]; then
@@ -96,7 +104,7 @@ while IFS= read -r project_path; do
     fi
 
     if (cd "$project_path" && $backup_cmd 2>&1); then
-        log "  ✅ Backup complete"
+        daemon_log "  ✅ Backup complete"
         ((backed_up++)) || true
 
         # Update last backup in registry
@@ -104,10 +112,10 @@ while IFS= read -r project_path; do
     else
         exit_code=$?
         if [[ $exit_code -eq 0 ]]; then
-            log "  ✅ Backup complete (with warnings)"
+            daemon_log "  ✅ Backup complete (with warnings)"
             ((backed_up++)) || true
         else
-            log "  ❌ Backup failed (exit code: $exit_code)"
+            daemon_log "  ❌ Backup failed (exit code: $exit_code)"
             ((failed++)) || true
         fi
     fi
@@ -116,18 +124,18 @@ done < <(list_projects)
 
 # Cleanup: Stop Docker if we started it (only after ALL backups complete)
 if did_we_start_docker; then
-    log "🐳 Cleaning up Docker..."
+    daemon_log "🐳 Cleaning up Docker..."
     stop_docker
 fi
 
 # Summary
-log "═══════════════════════════════════════════════"
-log "Checkpoint Global Daemon - Complete"
-log "═══════════════════════════════════════════════"
-log "  Backed up: $backed_up"
-log "  Skipped:   $skipped"
-log "  Failed:    $failed"
-log "═══════════════════════════════════════════════"
+daemon_log "═══════════════════════════════════════════════"
+daemon_log "Checkpoint Global Daemon - Complete"
+daemon_log "═══════════════════════════════════════════════"
+daemon_log "  Backed up: $backed_up"
+daemon_log "  Skipped:   $skipped"
+daemon_log "  Failed:    $failed"
+daemon_log "═══════════════════════════════════════════════"
 
 # Write global heartbeat for helper app
 HEARTBEAT_DIR="$HOME/.checkpoint"
@@ -170,7 +178,7 @@ if [[ -f "$CLEANUP_STATE" ]]; then
     last_cleanup=$(cat "$CLEANUP_STATE" 2>/dev/null || echo "0")
     now=$(date +%s)
     if (( now - last_cleanup > 86400 )); then
-        log "Running orphan cleanup..."
+        daemon_log "Running orphan cleanup..."
         cleanup_orphaned
         echo "$now" > "$CLEANUP_STATE"
     fi

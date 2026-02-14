@@ -15,6 +15,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 # Source foundation library
 source "$LIB_DIR/backup-lib.sh"
 
+# Structured logging context
+log_set_context "verify"
+parse_log_flags "$@"
+
 # ==============================================================================
 # COMMAND LINE OPTIONS
 # ==============================================================================

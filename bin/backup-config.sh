@@ -26,6 +26,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 # Source foundation library
 source "$LIB_DIR/backup-lib.sh"
 
+# Structured logging context
+log_set_context "config"
+parse_log_flags "$@"
+
 # Load cloud folder detector (optional - for wizard)
 if [[ -f "$LIB_DIR/cloud-folder-detector.sh" ]]; then
     source "$LIB_DIR/cloud-folder-detector.sh"
@@ -253,7 +257,7 @@ mode_validate() {
 
     # Source config to get raw variable values (for options not in schema)
     if [[ -f "$config_file" ]]; then
-        source "$config_file" 2>/dev/null
+        source "$config_file" 2>/dev/null || log_debug "Failed to source config file: $config_file"
     fi
 
     # Validate alert thresholds (use raw var names from config)

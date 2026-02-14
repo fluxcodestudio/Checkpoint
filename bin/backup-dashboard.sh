@@ -18,6 +18,9 @@ source "$LIB_DIR/dashboard-ui.sh"
 source "$LIB_DIR/retention-policy.sh"
 source "$LIB_DIR/backup-lib.sh"
 
+# Structured logging context
+log_set_context "dashboard"
+
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================

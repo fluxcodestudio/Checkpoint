@@ -14,6 +14,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 # Source foundation library
 source "$LIB_DIR/backup-lib.sh"
 
+# Structured logging context
+log_set_context "cleanup"
+parse_log_flags "$@"
+
 # Load retention policy library (for tiered retention)
 if [ -f "$LIB_DIR/retention-policy.sh" ]; then
     source "$LIB_DIR/retention-policy.sh"

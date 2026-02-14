@@ -12,6 +12,9 @@ source "$LIB_DIR/backup-lib.sh"
 source "$LIB_DIR/cloud-backup.sh"
 source "$LIB_DIR/dependency-manager.sh"
 
+# Structured logging context
+log_set_context "cloud-config"
+
 # ==============================================================================
 # CLOUD CONFIGURATION WIZARD
 # ==============================================================================

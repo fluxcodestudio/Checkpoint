@@ -14,6 +14,10 @@ source "$(dirname "${BASH_SOURCE[0]}")/bootstrap.sh"
 # Source foundation library
 source "$LIB_DIR/backup-lib.sh"
 
+# Structured logging context
+log_set_context "restore"
+parse_log_flags "$@"
+
 # Load restore library for point-in-time functions
 if [ -f "$LIB_DIR/restore-lib.sh" ]; then
     source "$LIB_DIR/restore-lib.sh"
