@@ -16,6 +16,10 @@ source "$SCRIPT_DIR/../lib/platform/daemon-manager.sh"
 # Core logging module
 source "$SCRIPT_DIR/../lib/core/logging.sh"
 
+# Projects registry and health scoring for staleness detection
+source "$SCRIPT_DIR/../lib/projects-registry.sh"
+source "$SCRIPT_DIR/../lib/global-status.sh"
+
 # ==============================================================================
 # STRUCTURED LOGGING INITIALIZATION
 # ==============================================================================
@@ -25,6 +29,7 @@ HEARTBEAT_DIR="${HOME}/.checkpoint"
 HEARTBEAT_FILE="${HEARTBEAT_DIR}/daemon.heartbeat"
 STALE_THRESHOLD=300  # 5 minutes - daemon should update heartbeat every backup cycle
 CHECK_INTERVAL=60    # Check every minute
+STALENESS_CHECK_INTERVAL=300  # Check staleness every 5 minutes (not every 60s loop)
 STATE_DIR="${HOME}/.checkpoint"
 LOG_FILE="${STATE_DIR}/logs/watchdog.log"
 
@@ -198,6 +203,43 @@ EOF
     mv "$tmp_file" "${HEARTBEAT_DIR}/watchdog.heartbeat"
 }
 
+# Check all registered projects for backup staleness
+# Sets globals: _STALE_WARNING_COUNT, _STALE_ERROR_COUNT,
+#               _STALE_PROJECTS_WARNING, _STALE_PROJECTS_ERROR
+check_all_projects_staleness() {
+    local stale_warning=0
+    local stale_error=0
+    local stale_projects_warning=""
+    local stale_projects_error=""
+
+    while IFS= read -r project_path; do
+        [[ -z "$project_path" ]] && continue
+        [[ ! -d "$project_path" ]] && continue
+
+        local project_name
+        project_name=$(basename "$project_path")
+        local health
+        health=$(get_project_health "$project_path")
+
+        case "$health" in
+            error)
+                stale_error=$((stale_error + 1))
+                stale_projects_error="${stale_projects_error:+$stale_projects_error, }$project_name"
+                ;;
+            warning)
+                stale_warning=$((stale_warning + 1))
+                stale_projects_warning="${stale_projects_warning:+$stale_projects_warning, }$project_name"
+                ;;
+        esac
+    done < <(list_projects)
+
+    # Return results via globals (bash can't return multiple values)
+    _STALE_WARNING_COUNT=$stale_warning
+    _STALE_ERROR_COUNT=$stale_error
+    _STALE_PROJECTS_WARNING="$stale_projects_warning"
+    _STALE_PROJECTS_ERROR="$stale_projects_error"
+}
+
 # Check if enough time has passed since last notification for this severity
 # Args: $1=context (e.g. "global"), $2=severity (warning|critical), $3=cooldown_seconds
 # Returns: 0 if should notify, 1 if in cooldown
@@ -230,6 +272,16 @@ main() {
 
     local consecutive_failures=0
     local max_failures=3
+
+    # Staleness detection globals
+    _STALE_WARNING_COUNT=0
+    _STALE_ERROR_COUNT=0
+    _STALE_PROJECTS_WARNING=""
+    _STALE_PROJECTS_ERROR=""
+
+    # Staleness check runs every STALENESS_CHECK_INTERVAL via loop counter
+    local staleness_counter=0
+    local staleness_check_every=$((STALENESS_CHECK_INTERVAL / CHECK_INTERVAL))
 
     while true; do
         local daemons
@@ -288,6 +340,31 @@ main() {
                 write_status "unknown" "$daemon_count"
                 ;;
         esac
+
+        # Per-project backup staleness check (every 5 minutes)
+        staleness_counter=$((staleness_counter + 1))
+        if [[ $staleness_counter -ge $staleness_check_every ]]; then
+            staleness_counter=0
+            check_all_projects_staleness
+
+            if [[ $_STALE_ERROR_COUNT -gt 0 ]]; then
+                log_warn "Backup staleness CRITICAL: $_STALE_ERROR_COUNT projects: $_STALE_PROJECTS_ERROR"
+                if should_notify "global" "critical" "$NOTIFY_COOLDOWN_CRITICAL"; then
+                    send_notification "Checkpoint Alert" "CRITICAL: $_STALE_ERROR_COUNT project(s) backup overdue (>72h): $_STALE_PROJECTS_ERROR"
+                fi
+            fi
+
+            if [[ $_STALE_WARNING_COUNT -gt 0 ]]; then
+                log_info "Backup staleness WARNING: $_STALE_WARNING_COUNT projects: $_STALE_PROJECTS_WARNING"
+                if should_notify "global" "warning" "$NOTIFY_COOLDOWN_WARNING"; then
+                    send_notification "Checkpoint Warning" "$_STALE_WARNING_COUNT project(s) not backed up recently (>24h): $_STALE_PROJECTS_WARNING"
+                fi
+            fi
+
+            if [[ $_STALE_ERROR_COUNT -eq 0 ]] && [[ $_STALE_WARNING_COUNT -eq 0 ]]; then
+                log_trace "All projects backup status: healthy"
+            fi
+        fi
 
         write_watchdog_heartbeat
         sleep "$CHECK_INTERVAL"
