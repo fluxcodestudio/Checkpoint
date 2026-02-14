@@ -146,7 +146,7 @@ Plans:
 - [x] 17-01: Logging foundation (lib/core/logging.sh module + config/output integration)
 - [x] 17-02: Core script migration (backup-now, backup-daemon, checkpoint-watchdog)
 - [x] 17-03: Library module migration (database-detector, cloud-backup, daemon-manager, features/, ops/)
-- [ ] 17-04: CLI & integration migration + end-to-end verification
+- [x] 17-04: CLI & integration migration + end-to-end verification
 
 #### Phase 18: Daemon Lifecycle & Health Monitoring
 
@@ -179,5 +179,5 @@ Plans:
 | 14. Security Hardening | v2.5 | 3/3 | Complete | 2026-02-13 |
 | 15. Linux Systemd Support | v2.5 | 5/5 | Complete | 2026-02-13 |
 | 16. Backup Verification | v2.5 | 2/2 | Complete | 2026-02-14 |
-| 17. Error Logging Overhaul | v2.5 | 3/4 | In progress | - |
+| 17. Error Logging Overhaul | v2.5 | 4/4 | Complete | 2026-02-14 |
 | 18. Daemon Lifecycle & Health Monitoring | v2.5 | 0/? | Not started | - |
