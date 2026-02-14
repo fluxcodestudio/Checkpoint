@@ -469,10 +469,21 @@ case "${1:-}" in
         echo "  --project           Edit/configure project settings"
         echo "  --update            Check for updates"
         echo "  --dashboard         Launch interactive TUI dashboard"
+        echo "  verify              Verify backup integrity"
         echo "  --help, -h          Show this help"
         echo ""
         echo "No options:           Launch interactive TUI dashboard"
         exit 0
+        ;;
+    verify|--verify)
+        # Run backup verification
+        if [[ -x "$CHECKPOINT_LIB/bin/backup-verify.sh" ]]; then
+            shift
+            exec "$CHECKPOINT_LIB/bin/backup-verify.sh" "$@"
+        else
+            echo "Error: backup-verify.sh not found" >&2
+            exit 1
+        fi
         ;;
     --dashboard)
         # Launch TUI dashboard if available

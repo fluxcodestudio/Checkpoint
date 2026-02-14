@@ -428,7 +428,87 @@ action_cleanup_backups() {
 
 # Action: Verify Backups
 action_verify_backups() {
-    show_msgbox "Verify Backups" "Backup verification coming soon!\n\nThis will:\n- Check file integrity\n- Verify database dumps\n- Test cloud sync status\n- Report any issues"
+    local backup_dir="${BACKUP_DIR:-$PWD/backups}"
+
+    if [[ ! -d "$backup_dir" ]]; then
+        show_error "No backup directory found."
+        return
+    fi
+
+    show_infobox "Verify" "Verifying backup integrity..."
+
+    # Source verification library (defensive — should already be loaded via backup-lib.sh)
+    if [[ -f "$CHECKPOINT_LIB/lib/features/verification.sh" ]]; then
+        source "$CHECKPOINT_LIB/lib/features/verification.sh" 2>/dev/null || true
+    fi
+
+    # Run quick verification (fast feedback for dashboard)
+    local verify_rc=0
+    verify_backup_quick "$backup_dir" || verify_rc=$?
+
+    # Build result display
+    local result_text="Backup Verification Results\n"
+    result_text+="===========================\n\n"
+
+    # Files section
+    result_text+="Files\n"
+    if [[ $VERIFY_FILES_TOTAL -gt 0 ]]; then
+        if [[ $VERIFY_FILES_FAILED -eq 0 ]]; then
+            result_text+="  Existence ......... PASS ($VERIFY_FILES_PASSED/$VERIFY_FILES_TOTAL)\n"
+            result_text+="  Size match ........ PASS ($VERIFY_FILES_PASSED/$VERIFY_FILES_TOTAL)\n"
+        else
+            result_text+="  Existence ......... FAIL ($VERIFY_FILES_PASSED/$VERIFY_FILES_TOTAL passed)\n"
+        fi
+    else
+        result_text+="  No files to verify\n"
+    fi
+    result_text+="\n"
+
+    # Databases section
+    result_text+="Databases\n"
+    if [[ $VERIFY_DBS_TOTAL -gt 0 ]]; then
+        local db_result
+        for db_result in "${VERIFY_DB_RESULTS[@]}"; do
+            local d_path d_status d_msg
+            d_path=$(echo "$db_result" | cut -d'|' -f1)
+            d_status=$(echo "$db_result" | cut -d'|' -f2)
+            d_msg=$(echo "$db_result" | cut -d'|' -f3-)
+            local status_label
+            case "$d_status" in
+                pass)    status_label="PASS" ;;
+                fail)    status_label="FAIL" ;;
+                warning) status_label="WARN" ;;
+                *)       status_label="UNKNOWN" ;;
+            esac
+            result_text+="  $(basename "$d_path") ......... $status_label ($d_msg)\n"
+        done
+    else
+        result_text+="  No databases to verify\n"
+    fi
+    result_text+="\n"
+
+    # Overall result
+    if [[ "$VERIFY_OVERALL" == "pass" ]]; then
+        result_text+="Result: ALL CHECKS PASSED"
+    elif [[ "$VERIFY_OVERALL" == "warning" ]]; then
+        result_text+="Result: PASSED WITH WARNINGS"
+    elif [[ "$VERIFY_OVERALL" == "fail" ]]; then
+        local total_failed=$((VERIFY_FILES_FAILED + VERIFY_DBS_FAILED))
+        result_text+="Result: $total_failed CHECK(S) FAILED\n\n"
+        # Show failure details
+        local fail_entry
+        for fail_entry in "${VERIFY_FAILURES[@]}"; do
+            local fp fc fm
+            fp=$(echo "$fail_entry" | cut -d'|' -f1)
+            fc=$(echo "$fail_entry" | cut -d'|' -f2)
+            fm=$(echo "$fail_entry" | cut -d'|' -f3-)
+            result_text+="  $fc: $fp\n       $fm\n"
+        done
+    else
+        result_text+="Result: VERIFICATION ERROR"
+    fi
+
+    show_msgbox "Verify Backups" "$result_text"
 }
 
 # ==============================================================================
