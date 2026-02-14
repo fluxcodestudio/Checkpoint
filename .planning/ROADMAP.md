@@ -179,5 +179,5 @@ Plans:
 | 14. Security Hardening | v2.5 | 3/3 | Complete | 2026-02-13 |
 | 15. Linux Systemd Support | v2.5 | 5/5 | Complete | 2026-02-13 |
 | 16. Backup Verification | v2.5 | 2/2 | Complete | 2026-02-14 |
-| 17. Error Logging Overhaul | v2.5 | 1/4 | In progress | - |
+| 17. Error Logging Overhaul | v2.5 | 2/4 | In progress | - |
 | 18. Daemon Lifecycle & Health Monitoring | v2.5 | 0/? | Not started | - |
