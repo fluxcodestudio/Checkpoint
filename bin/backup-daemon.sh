@@ -390,17 +390,17 @@ backup_changed_files() {
                 # File changed - archive old version
                 mkdir -p "$archived_dir"
                 mv "$current_file" "$archived_file"
-                ((archived_count++))
+                ((archived_count++)) || true
                 # Copy new version
                 cp "$file" "$current_file"
-                ((file_count++))
+                ((file_count++)) || true
                 log_trace "Updated: $file"
             fi
             # else: file unchanged, skip
         else
             # New file - just copy it
             cp "$file" "$current_file"
-            ((file_count++))
+            ((file_count++)) || true
             log_trace "New file: $file"
         fi
 
@@ -487,7 +487,7 @@ run_tiered_cleanup() {
                 [[ -z "$file" ]] && continue
                 local size=$(get_file_size "$file")
                 if rm -f "$file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                    ((total_pruned++))
+                    ((total_pruned++)) || true
                     total_freed=$((total_freed + size))
                 fi
             done < <(find_tiered_pruning_candidates "$ARCHIVED_DIR" "*" 2>/dev/null)
@@ -502,7 +502,7 @@ run_tiered_cleanup() {
                 [[ -z "$file" ]] && continue
                 local size=$(get_file_size "$file")
                 if rm -f "$file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                    ((total_pruned++))
+                    ((total_pruned++)) || true
                     total_freed=$((total_freed + size))
                 fi
             done < <(find_tiered_pruning_candidates "$DATABASE_DIR" "*.db.gz" 2>/dev/null)
