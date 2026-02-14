@@ -132,7 +132,8 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 16-01: TBD (run /gsd:plan-phase 16 to break down)
+- [x] 16-01: Core verification library + error codes + persistent manifest
+- [ ] 16-02: CLI command + dashboard integration
 
 #### Phase 17: Error Logging Overhaul
 
@@ -174,6 +175,6 @@ Plans:
 | 13. Native File Watcher Daemon | v2.5 | 4/4 | Complete | 2026-02-13 |
 | 14. Security Hardening | v2.5 | 3/3 | Complete | 2026-02-13 |
 | 15. Linux Systemd Support | v2.5 | 5/5 | Complete | 2026-02-13 |
-| 16. Backup Verification | v2.5 | 0/? | Not started | - |
+| 16. Backup Verification | v2.5 | 1/2 | In progress | - |
 | 17. Error Logging Overhaul | v2.5 | 0/? | Not started | - |
 | 18. Daemon Lifecycle & Health Monitoring | v2.5 | 0/? | Not started | - |
