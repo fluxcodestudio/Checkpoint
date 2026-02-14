@@ -14,6 +14,9 @@
 #   backup_detected_databases
 # ==============================================================================
 
+# Set logging context for this module
+log_set_context "db-detect"
+
 # ==============================================================================
 # CREDENTIAL STORE INTEGRATION (opt-in)
 # ==============================================================================
@@ -433,7 +436,10 @@ start_docker() {
     fi
 
     echo "  🐳 Starting Docker Desktop..."
-    open -a Docker 2>/dev/null || return 1
+    if ! _err=$(open -a Docker 2>&1); then
+        log_debug "Failed to start Docker Desktop: $_err"
+        return 1
+    fi
 
     # Wait for Docker to be ready (up to 60 seconds)
     local wait_count=0
@@ -567,23 +573,28 @@ backup_single_database() {
                 return 1
             }
 
-            if sqlite3 "$db_path" ".backup '$temp_db'" 2>/dev/null; then
-                if gzip -c "$temp_db" > "$backup_file" 2>/dev/null; then
+            local _db_err
+            if _db_err=$(sqlite3 "$db_path" ".backup '$temp_db'" 2>&1); then
+                if _db_err=$(gzip -c "$temp_db" > "$backup_file" 2>&1); then
                     # Verify backup integrity
-                    if gunzip -t "$backup_file" 2>/dev/null; then
+                    if _db_err=$(gunzip -t "$backup_file" 2>&1); then
+                        log_info "SQLite backup succeeded: $db_name"
                         echo "✅ SQLite: $db_name"
                         rm -f "$temp_db"
                     else
+                        log_debug "gunzip verification failed for $db_name: $_db_err"
                         echo "❌ SQLite: $db_name (verification failed)"
                         rm -f "$temp_db" "$backup_file"
                         return 1
                     fi
                 else
+                    log_debug "gzip compression failed for $db_name: $_db_err"
                     echo "❌ SQLite: $db_name (compression failed)"
                     rm -f "$temp_db"
                     return 1
                 fi
             else
+                log_debug "sqlite3 backup failed for $db_name: $_db_err"
                 echo "❌ SQLite: $db_name (backup command failed)"
                 rm -f "$temp_db"
                 return 1
@@ -624,7 +635,7 @@ backup_single_database() {
                 local we_started_postgres=false
 
                 # First attempt - try direct dump
-                pg_dump -h "$host" -p "$port" -U "$user" "$database" 2>/dev/null | gzip > "$backup_file"
+                pg_dump -h "$host" -p "$port" -U "$user" "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                 pg_exit_code=${PIPESTATUS[0]}
 
                 # If failed, try to start PostgreSQL temporarily
@@ -637,7 +648,9 @@ backup_single_database() {
                         local pg_service=$(brew services list 2>/dev/null | grep -E "^postgresql" | head -1 | awk '{print $1}')
                         if [[ -n "$pg_service" ]]; then
                             echo "  🔄 Starting PostgreSQL via Homebrew..."
-                            brew services start "$pg_service" &>/dev/null
+                            if ! _svc_err=$(brew services start "$pg_service" 2>&1); then
+                                log_debug "brew services start $pg_service: $_svc_err"
+                            fi
                             sleep 3  # Give it time to start
                             we_started_postgres=true
                         fi
@@ -652,7 +665,9 @@ backup_single_database() {
                         local pgdata="${PGDATA:-/usr/local/var/postgres}"
                         if [[ -d "$pgdata" ]]; then
                             echo "  🔄 Starting PostgreSQL via pg_ctl..."
-                            pg_ctl -D "$pgdata" start &>/dev/null
+                            if ! _svc_err=$(pg_ctl -D "$pgdata" start 2>&1); then
+                                log_debug "pg_ctl start: $_svc_err"
+                            fi
                             sleep 3
                             we_started_postgres=true
                         fi
@@ -669,7 +684,7 @@ backup_single_database() {
 
                         if pg_isready -h "$host" -p "$port" &>/dev/null; then
                             echo "  ✓ PostgreSQL started, dumping..."
-                            pg_dump -h "$host" -p "$port" -U "$user" "$database" 2>/dev/null | gzip > "$backup_file"
+                            pg_dump -h "$host" -p "$port" -U "$user" "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                             pg_exit_code=${PIPESTATUS[0]}
                         else
                             echo "  ⚠ PostgreSQL failed to start in time"
@@ -680,12 +695,16 @@ backup_single_database() {
                             echo "  🔄 Stopping PostgreSQL (restoring original state)..."
                             if command -v brew &>/dev/null && brew services list 2>/dev/null | grep -q "postgresql"; then
                                 local pg_service=$(brew services list 2>/dev/null | grep -E "^postgresql" | head -1 | awk '{print $1}')
-                                brew services stop "$pg_service" &>/dev/null
+                                if ! _svc_err=$(brew services stop "$pg_service" 2>&1); then
+                                    log_debug "brew services stop $pg_service: $_svc_err"
+                                fi
                             elif [[ -d "/Applications/Postgres.app" ]]; then
                                 osascript -e 'quit app "Postgres"' &>/dev/null
                             elif command -v pg_ctl &>/dev/null; then
                                 local pgdata="${PGDATA:-/usr/local/var/postgres}"
-                                pg_ctl -D "$pgdata" stop &>/dev/null
+                                if ! _svc_err=$(pg_ctl -D "$pgdata" stop 2>&1); then
+                                    log_debug "pg_ctl stop: $_svc_err"
+                                fi
                             fi
                         fi
                     fi
@@ -707,27 +726,30 @@ backup_single_database() {
                 # Use timeout for remote connections (30 seconds)
                 echo "  ☁️  Connecting to remote: $host..."
                 if command -v timeout &>/dev/null; then
-                    timeout 120 pg_dump "$conn_url" 2>/dev/null | gzip > "$backup_file"
+                    timeout 120 pg_dump "$conn_url" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                     pg_exit_code=${PIPESTATUS[0]}
                 elif command -v gtimeout &>/dev/null; then
-                    gtimeout 120 pg_dump "$conn_url" 2>/dev/null | gzip > "$backup_file"
+                    gtimeout 120 pg_dump "$conn_url" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                     pg_exit_code=${PIPESTATUS[0]}
                 else
                     # No timeout available, run directly
-                    pg_dump "$conn_url" 2>/dev/null | gzip > "$backup_file"
+                    pg_dump "$conn_url" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                     pg_exit_code=${PIPESTATUS[0]}
                 fi
             fi
 
             if [[ $pg_exit_code -eq 0 ]]; then
                 # Verify backup
-                if gunzip -t "$backup_file" 2>/dev/null && [[ -s "$backup_file" ]]; then
+                if _db_err=$(gunzip -t "$backup_file" 2>&1) && [[ -s "$backup_file" ]]; then
                     if [[ "$is_local" == "true" ]]; then
+                        log_info "PostgreSQL backup succeeded: $database"
                         echo "✅ PostgreSQL: $database"
                     else
+                        log_info "PostgreSQL backup succeeded: $database (remote)"
                         echo "✅ PostgreSQL: $database (remote)"
                     fi
                 else
+                    log_debug "PostgreSQL backup verification failed for $database: $_db_err"
                     echo "❌ PostgreSQL: $database (verification failed)"
                     rm -f "$backup_file"
                     return 1
@@ -735,6 +757,7 @@ backup_single_database() {
             else
                 rm -f "$backup_file"
                 if [[ $pg_exit_code -eq 124 ]]; then
+                    log_warn "PostgreSQL dump timed out: $database"
                     echo "❌ PostgreSQL: $database (timeout - remote server too slow)"
                     return 1
                 elif [[ "$is_local" == "true" ]]; then
@@ -794,7 +817,7 @@ backup_single_database() {
                 local we_started_mysql=false
 
                 # First attempt - try direct dump
-                mysqldump -h "$host" -P "$port" -u "$user" "$database" 2>/dev/null | gzip > "$backup_file"
+                mysqldump -h "$host" -P "$port" -u "$user" "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                 mysql_exit_code=${PIPESTATUS[0]}
 
                 # If failed, try to start MySQL temporarily
@@ -807,14 +830,18 @@ backup_single_database() {
                         local mysql_service=$(brew services list 2>/dev/null | grep -E "^mysql" | head -1 | awk '{print $1}')
                         if [[ -n "$mysql_service" ]]; then
                             echo "  🔄 Starting MySQL via Homebrew..."
-                            brew services start "$mysql_service" &>/dev/null
+                            if ! _svc_err=$(brew services start "$mysql_service" 2>&1); then
+                                log_debug "brew services start $mysql_service: $_svc_err"
+                            fi
                             sleep 3
                             we_started_mysql=true
                         fi
                     elif [[ -f "/usr/local/mysql/support-files/mysql.server" ]]; then
                         # Official MySQL package
                         echo "  🔄 Starting MySQL via mysql.server..."
-                        sudo /usr/local/mysql/support-files/mysql.server start &>/dev/null
+                        if ! _svc_err=$(sudo /usr/local/mysql/support-files/mysql.server start 2>&1); then
+                            log_debug "mysql.server start: $_svc_err"
+                        fi
                         sleep 3
                         we_started_mysql=true
                     fi
@@ -830,7 +857,7 @@ backup_single_database() {
 
                         if mysqladmin ping -h "$host" -P "$port" &>/dev/null; then
                             echo "  ✓ MySQL started, dumping..."
-                            mysqldump -h "$host" -P "$port" -u "$user" "$database" 2>/dev/null | gzip > "$backup_file"
+                            mysqldump -h "$host" -P "$port" -u "$user" "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                             mysql_exit_code=${PIPESTATUS[0]}
                         else
                             echo "  ⚠ MySQL failed to start in time"
@@ -841,9 +868,13 @@ backup_single_database() {
                             echo "  🔄 Stopping MySQL (restoring original state)..."
                             if command -v brew &>/dev/null && brew services list 2>/dev/null | grep -q "mysql"; then
                                 local mysql_service=$(brew services list 2>/dev/null | grep -E "^mysql" | head -1 | awk '{print $1}')
-                                brew services stop "$mysql_service" &>/dev/null
+                                if ! _svc_err=$(brew services stop "$mysql_service" 2>&1); then
+                                    log_debug "brew services stop $mysql_service: $_svc_err"
+                                fi
                             elif [[ -f "/usr/local/mysql/support-files/mysql.server" ]]; then
-                                sudo /usr/local/mysql/support-files/mysql.server stop &>/dev/null
+                                if ! _svc_err=$(sudo /usr/local/mysql/support-files/mysql.server stop 2>&1); then
+                                    log_debug "mysql.server stop: $_svc_err"
+                                fi
                             fi
                         fi
                     fi
@@ -856,26 +887,29 @@ backup_single_database() {
                 echo "  ☁️  Connecting to remote: $host..."
                 # Security: Use MYSQL_PWD env var instead of command-line password (not visible in ps)
                 if command -v timeout &>/dev/null; then
-                    MYSQL_PWD="$safe_password" timeout 120 mysqldump -h "$host" -P "$port" -u "$user" --ssl-mode=REQUIRED "$database" 2>/dev/null | gzip > "$backup_file"
+                    MYSQL_PWD="$safe_password" timeout 120 mysqldump -h "$host" -P "$port" -u "$user" --ssl-mode=REQUIRED "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                     mysql_exit_code=${PIPESTATUS[0]}
                 elif command -v gtimeout &>/dev/null; then
-                    MYSQL_PWD="$safe_password" gtimeout 120 mysqldump -h "$host" -P "$port" -u "$user" --ssl-mode=REQUIRED "$database" 2>/dev/null | gzip > "$backup_file"
+                    MYSQL_PWD="$safe_password" gtimeout 120 mysqldump -h "$host" -P "$port" -u "$user" --ssl-mode=REQUIRED "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                     mysql_exit_code=${PIPESTATUS[0]}
                 else
-                    MYSQL_PWD="$safe_password" mysqldump -h "$host" -P "$port" -u "$user" --ssl-mode=REQUIRED "$database" 2>/dev/null | gzip > "$backup_file"
+                    MYSQL_PWD="$safe_password" mysqldump -h "$host" -P "$port" -u "$user" --ssl-mode=REQUIRED "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                     mysql_exit_code=${PIPESTATUS[0]}
                 fi
             fi
 
             if [[ $mysql_exit_code -eq 0 ]]; then
                 # Verify backup
-                if gunzip -t "$backup_file" 2>/dev/null && [[ -s "$backup_file" ]]; then
+                if _db_err=$(gunzip -t "$backup_file" 2>&1) && [[ -s "$backup_file" ]]; then
                     if [[ "$is_local" == "true" ]]; then
+                        log_info "MySQL backup succeeded: $database"
                         echo "✅ MySQL: $database"
                     else
+                        log_info "MySQL backup succeeded: $database (remote)"
                         echo "✅ MySQL: $database (remote)"
                     fi
                 else
+                    log_debug "MySQL backup verification failed for $database: $_db_err"
                     echo "❌ MySQL: $database (verification failed)"
                     rm -f "$backup_file"
                     return 1
@@ -883,6 +917,7 @@ backup_single_database() {
             else
                 rm -f "$backup_file"
                 if [[ $mysql_exit_code -eq 124 ]]; then
+                    log_warn "MySQL dump timed out: $database"
                     echo "❌ MySQL: $database (timeout - remote server too slow)"
                     return 1
                 elif [[ "$is_local" == "true" ]]; then
@@ -940,8 +975,11 @@ backup_single_database() {
 
             if [[ "$is_local" == "true" ]]; then
                 # Local: simple connection
-                mongodump --host "$host" --port "$port" --db "$database" --out "$temp_dir" &>/dev/null
+                _db_err=$(mongodump --host "$host" --port "$port" --db "$database" --out "$temp_dir" 2>&1)
                 mongo_exit_code=$?
+                if [[ $mongo_exit_code -ne 0 ]]; then
+                    log_debug "mongodump local failed for $database: $_db_err"
+                fi
             else
                 # Remote: use full connection URI with SSL
                 # Decode any URL-encoded pipes back
@@ -949,33 +987,40 @@ backup_single_database() {
 
                 echo "  ☁️  Connecting to remote: $host..."
                 if command -v timeout &>/dev/null; then
-                    timeout 120 mongodump --uri="$conn_url" --out "$temp_dir" &>/dev/null
+                    _db_err=$(timeout 120 mongodump --uri="$conn_url" --out "$temp_dir" 2>&1)
                     mongo_exit_code=$?
                 elif command -v gtimeout &>/dev/null; then
-                    gtimeout 120 mongodump --uri="$conn_url" --out "$temp_dir" &>/dev/null
+                    _db_err=$(gtimeout 120 mongodump --uri="$conn_url" --out "$temp_dir" 2>&1)
                     mongo_exit_code=$?
                 else
-                    mongodump --uri="$conn_url" --out "$temp_dir" &>/dev/null
+                    _db_err=$(mongodump --uri="$conn_url" --out "$temp_dir" 2>&1)
                     mongo_exit_code=$?
+                fi
+                if [[ $mongo_exit_code -ne 0 ]]; then
+                    log_debug "mongodump remote failed for $database: $_db_err"
                 fi
             fi
 
             if [[ $mongo_exit_code -eq 0 ]]; then
-                if tar -czf "$backup_file" -C "$temp_dir" . 2>/dev/null; then
+                if _db_err=$(tar -czf "$backup_file" -C "$temp_dir" . 2>&1); then
                     # Verify backup
-                    if tar -tzf "$backup_file" &>/dev/null && [[ -s "$backup_file" ]]; then
+                    if _db_err=$(tar -tzf "$backup_file" 2>&1) && [[ -s "$backup_file" ]]; then
                         if [[ "$is_local" == "true" ]]; then
+                            log_info "MongoDB backup succeeded: $database"
                             echo "✅ MongoDB: $database"
                         else
+                            log_info "MongoDB backup succeeded: $database (remote)"
                             echo "✅ MongoDB: $database (remote)"
                         fi
                         rm -rf "$temp_dir"
                     else
+                        log_debug "MongoDB backup verification failed for $database: $_db_err"
                         echo "❌ MongoDB: $database (verification failed)"
                         rm -rf "$temp_dir" "$backup_file"
                         return 1
                     fi
                 else
+                    log_debug "MongoDB tar compression failed for $database: $_db_err"
                     echo "❌ MongoDB: $database (compression failed)"
                     rm -rf "$temp_dir"
                     return 1
@@ -983,8 +1028,10 @@ backup_single_database() {
             else
                 rm -rf "$temp_dir"
                 if [[ $mongo_exit_code -eq 124 ]]; then
+                    log_warn "MongoDB dump timed out: $database"
                     echo "❌ MongoDB: $database (timeout - remote server too slow)"
                 else
+                    log_warn "mongodump failed for $database with code $mongo_exit_code"
                     echo "❌ MongoDB: $database (mongodump failed with code $mongo_exit_code)"
                 fi
                 return 1
@@ -1024,7 +1071,9 @@ backup_single_database() {
             if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${container_name}$"; then
                 # Try to start the container
                 echo "  🐳 Starting container: $container_name..."
-                docker start "$container_name" &>/dev/null
+                if ! _docker_err=$(docker start "$container_name" 2>&1); then
+                    log_debug "docker start $container_name: $_docker_err"
+                fi
                 sleep 3
 
                 if ! docker ps --format '{{.Names}}' 2>/dev/null | grep -q "^${container_name}$"; then
@@ -1042,7 +1091,7 @@ backup_single_database() {
                     mkdir -p "$backup_dir/databases"
 
                     echo "  🐳 Dumping from container: $container_name..."
-                    docker exec "$container_name" pg_dump -U "$user" "$database" 2>/dev/null | gzip > "$backup_file"
+                    docker exec "$container_name" pg_dump -U "$user" "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                     docker_exit_code=${PIPESTATUS[0]}
                     ;;
 
@@ -1053,9 +1102,9 @@ backup_single_database() {
                     echo "  🐳 Dumping from container: $container_name..."
                     # Security: Use environment variable for password instead of command line
                     if [[ -n "$password" ]]; then
-                        docker exec -e MYSQL_PWD="$password" "$container_name" mysqldump -u "$user" "$database" 2>/dev/null | gzip > "$backup_file"
+                        docker exec -e MYSQL_PWD="$password" "$container_name" mysqldump -u "$user" "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                     else
-                        docker exec "$container_name" mysqldump -u "$user" "$database" 2>/dev/null | gzip > "$backup_file"
+                        docker exec "$container_name" mysqldump -u "$user" "$database" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | gzip > "$backup_file"
                     fi
                     docker_exit_code=${PIPESTATUS[0]}
                     ;;
@@ -1067,11 +1116,11 @@ backup_single_database() {
                     temp_dir=$(mktemp -d)
 
                     echo "  🐳 Dumping from container: $container_name..."
-                    docker exec "$container_name" mongodump --db "$database" --archive 2>/dev/null > "$temp_dir/dump.archive"
+                    docker exec "$container_name" mongodump --db "$database" --archive 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" > "$temp_dir/dump.archive"
                     docker_exit_code=$?
 
                     if [[ $docker_exit_code -eq 0 ]]; then
-                        tar -czf "$backup_file" -C "$temp_dir" . 2>/dev/null
+                        tar -czf "$backup_file" -C "$temp_dir" . 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"
                         docker_exit_code=$?
                     fi
                     rm -rf "$temp_dir"
@@ -1085,20 +1134,24 @@ backup_single_database() {
 
             if [[ $docker_exit_code -eq 0 ]]; then
                 # Verify backup
-                if gunzip -t "$backup_file" 2>/dev/null || tar -tzf "$backup_file" &>/dev/null; then
+                if _db_err=$(gunzip -t "$backup_file" 2>&1) || _db_err=$(tar -tzf "$backup_file" 2>&1); then
                     if [[ -s "$backup_file" ]]; then
+                        log_info "Docker/$db_type backup succeeded: $database (from $container_name)"
                         echo "✅ Docker/$db_type: $database (from $container_name)"
                     else
+                        log_debug "Docker/$db_type backup empty for $database"
                         echo "❌ Docker/$db_type: $database (empty backup)"
                         rm -f "$backup_file"
                         return 1
                     fi
                 else
+                    log_debug "Docker/$db_type verification failed for $database: $_db_err"
                     echo "❌ Docker/$db_type: $database (verification failed)"
                     rm -f "$backup_file"
                     return 1
                 fi
             else
+                log_warn "Docker/$db_type dump failed for $database from $container_name"
                 echo "❌ Docker/$db_type: $database (dump failed)"
                 rm -f "$backup_file"
                 return 1

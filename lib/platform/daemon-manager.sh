@@ -20,6 +20,9 @@
 # Include guard (set -u safe)
 [ -n "${_DAEMON_MANAGER_LOADED:-}" ] && return || readonly _DAEMON_MANAGER_LOADED=1
 
+# Set logging context for this module
+log_set_context "daemon-mgr"
+
 # Cache init system detection result
 _DAEMON_INIT_SYSTEM=""
 
@@ -383,7 +386,10 @@ _install_daemon_launchd() {
     local existing_plist
     existing_plist="$(_daemon_plist_path "$service_name")"
     if [ -f "$existing_plist" ]; then
-        launchctl unload "$existing_plist" 2>/dev/null || true
+        local _svc_err
+        if ! _svc_err=$(launchctl unload "$existing_plist" 2>&1); then
+            log_debug "launchctl unload (pre-install): $_svc_err"
+        fi
     fi
 
     # Find and apply template
@@ -429,18 +435,26 @@ PLIST_EOF
     fi
 
     # Load the LaunchAgent
-    launchctl load -w "$plist_path" 2>/dev/null || true
+    local _svc_err
+    if ! _svc_err=$(launchctl load -w "$plist_path" 2>&1); then
+        log_debug "launchctl load -w $plist_path: $_svc_err"
+    else
+        log_info "Installed launchd agent: $launchd_label"
+    fi
 }
 
 _uninstall_daemon_launchd() {
     local service_name="$1"
+    local _svc_err
 
     # Check both new and legacy naming
     local plist_path
     plist_path="$(_daemon_plist_path "$service_name")"
 
     if [ -f "$plist_path" ]; then
-        launchctl unload "$plist_path" 2>/dev/null || true
+        if ! _svc_err=$(launchctl unload "$plist_path" 2>&1); then
+            log_debug "launchctl unload $plist_path: $_svc_err"
+        fi
         rm -f "$plist_path"
     fi
 
@@ -449,13 +463,18 @@ _uninstall_daemon_launchd() {
     local legacy_path="$HOME/Library/LaunchAgents/$(_daemon_launchd_legacy_name "$service_name").plist"
 
     if [ -f "$new_path" ]; then
-        launchctl unload "$new_path" 2>/dev/null || true
+        if ! _svc_err=$(launchctl unload "$new_path" 2>&1); then
+            log_debug "launchctl unload $new_path: $_svc_err"
+        fi
         rm -f "$new_path"
     fi
     if [ -f "$legacy_path" ]; then
-        launchctl unload "$legacy_path" 2>/dev/null || true
+        if ! _svc_err=$(launchctl unload "$legacy_path" 2>&1); then
+            log_debug "launchctl unload $legacy_path: $_svc_err"
+        fi
         rm -f "$legacy_path"
     fi
+    log_info "Uninstalled launchd agent: $service_name"
 }
 
 _start_daemon_launchd() {
@@ -464,7 +483,10 @@ _start_daemon_launchd() {
     plist_path="$(_daemon_plist_path "$service_name")"
 
     if [ -f "$plist_path" ]; then
-        launchctl load -w "$plist_path" 2>/dev/null || true
+        local _svc_err
+        if ! _svc_err=$(launchctl load -w "$plist_path" 2>&1); then
+            log_debug "launchctl load -w $plist_path: $_svc_err"
+        fi
     else
         return 1
     fi
@@ -476,7 +498,10 @@ _stop_daemon_launchd() {
     plist_path="$(_daemon_plist_path "$service_name")"
 
     if [ -f "$plist_path" ]; then
-        launchctl unload "$plist_path" 2>/dev/null || true
+        local _svc_err
+        if ! _svc_err=$(launchctl unload "$plist_path" 2>&1); then
+            log_debug "launchctl unload $plist_path: $_svc_err"
+        fi
     else
         return 1
     fi
@@ -488,9 +513,14 @@ _restart_daemon_launchd() {
     plist_path="$(_daemon_plist_path "$service_name")"
 
     if [ -f "$plist_path" ]; then
-        launchctl unload "$plist_path" 2>/dev/null || true
+        local _svc_err
+        if ! _svc_err=$(launchctl unload "$plist_path" 2>&1); then
+            log_debug "launchctl unload (restart) $plist_path: $_svc_err"
+        fi
         sleep 1
-        launchctl load -w "$plist_path" 2>/dev/null || true
+        if ! _svc_err=$(launchctl load -w "$plist_path" 2>&1); then
+            log_debug "launchctl load -w (restart) $plist_path: $_svc_err"
+        fi
     else
         return 1
     fi
@@ -538,7 +568,10 @@ _install_daemon_systemd() {
     mkdir -p "$HOME/.config/systemd/user" 2>/dev/null || true
 
     # Stop existing service if running
-    systemctl --user stop "$systemd_name" 2>/dev/null || true
+    local _svc_err
+    if ! _svc_err=$(systemctl --user stop "$systemd_name" 2>&1); then
+        log_debug "systemctl stop (pre-install) $systemd_name: $_svc_err"
+    fi
 
     # Find and apply template
     local template
@@ -561,21 +594,36 @@ _install_daemon_systemd() {
     fi
 
     # Reload systemd, enable, and start
-    systemctl --user daemon-reload 2>/dev/null || true
+    if ! _svc_err=$(systemctl --user daemon-reload 2>&1); then
+        log_debug "systemctl daemon-reload: $_svc_err"
+    fi
 
     if [ "$service_type" = "daemon" ]; then
         # Timer-activated: enable and start the timer, not the service
-        systemctl --user enable "${systemd_name}.timer" 2>/dev/null || true
-        systemctl --user start "${systemd_name}.timer" 2>/dev/null || true
+        if ! _svc_err=$(systemctl --user enable "${systemd_name}.timer" 2>&1); then
+            log_debug "systemctl enable ${systemd_name}.timer: $_svc_err"
+        fi
+        if ! _svc_err=$(systemctl --user start "${systemd_name}.timer" 2>&1); then
+            log_debug "systemctl start ${systemd_name}.timer: $_svc_err"
+        else
+            log_info "Installed and started systemd timer: ${systemd_name}.timer"
+        fi
     else
         # Long-running: enable and start the service directly
-        systemctl --user enable "$systemd_name" 2>/dev/null || true
-        systemctl --user start "$systemd_name" 2>/dev/null || true
+        if ! _svc_err=$(systemctl --user enable "$systemd_name" 2>&1); then
+            log_debug "systemctl enable $systemd_name: $_svc_err"
+        fi
+        if ! _svc_err=$(systemctl --user start "$systemd_name" 2>&1); then
+            log_debug "systemctl start $systemd_name: $_svc_err"
+        else
+            log_info "Installed and started systemd service: $systemd_name"
+        fi
     fi
 }
 
 _uninstall_daemon_systemd() {
     local service_name="$1"
+    local _svc_err
 
     local systemd_name
     systemd_name="$(_daemon_systemd_name "$service_name")"
@@ -585,13 +633,21 @@ _uninstall_daemon_systemd() {
     timer_path="$(_daemon_timer_path "$service_name")"
 
     # Stop and disable service
-    systemctl --user stop "$systemd_name" 2>/dev/null || true
-    systemctl --user disable "$systemd_name" 2>/dev/null || true
+    if ! _svc_err=$(systemctl --user stop "$systemd_name" 2>&1); then
+        log_debug "systemctl stop $systemd_name: $_svc_err"
+    fi
+    if ! _svc_err=$(systemctl --user disable "$systemd_name" 2>&1); then
+        log_debug "systemctl disable $systemd_name: $_svc_err"
+    fi
 
     # Stop and disable timer if it exists
     if [ -f "$timer_path" ]; then
-        systemctl --user stop "${systemd_name}.timer" 2>/dev/null || true
-        systemctl --user disable "${systemd_name}.timer" 2>/dev/null || true
+        if ! _svc_err=$(systemctl --user stop "${systemd_name}.timer" 2>&1); then
+            log_debug "systemctl stop ${systemd_name}.timer: $_svc_err"
+        fi
+        if ! _svc_err=$(systemctl --user disable "${systemd_name}.timer" 2>&1); then
+            log_debug "systemctl disable ${systemd_name}.timer: $_svc_err"
+        fi
         rm -f "$timer_path"
     fi
 
@@ -599,11 +655,15 @@ _uninstall_daemon_systemd() {
     rm -f "$service_path"
 
     # Reload daemon
-    systemctl --user daemon-reload 2>/dev/null || true
+    if ! _svc_err=$(systemctl --user daemon-reload 2>&1); then
+        log_debug "systemctl daemon-reload: $_svc_err"
+    fi
+    log_info "Uninstalled systemd service: $systemd_name"
 }
 
 _start_daemon_systemd() {
     local service_name="$1"
+    local _svc_err
 
     local systemd_name
     systemd_name="$(_daemon_systemd_name "$service_name")"
@@ -612,14 +672,19 @@ _start_daemon_systemd() {
 
     # If timer exists, start the timer; otherwise start the service
     if [ -f "$timer_path" ]; then
-        systemctl --user start "${systemd_name}.timer" 2>/dev/null || true
+        if ! _svc_err=$(systemctl --user start "${systemd_name}.timer" 2>&1); then
+            log_debug "systemctl start ${systemd_name}.timer: $_svc_err"
+        fi
     else
-        systemctl --user start "$systemd_name" 2>/dev/null || true
+        if ! _svc_err=$(systemctl --user start "$systemd_name" 2>&1); then
+            log_debug "systemctl start $systemd_name: $_svc_err"
+        fi
     fi
 }
 
 _stop_daemon_systemd() {
     local service_name="$1"
+    local _svc_err
 
     local systemd_name
     systemd_name="$(_daemon_systemd_name "$service_name")"
@@ -628,15 +693,20 @@ _stop_daemon_systemd() {
 
     # Stop timer if exists
     if [ -f "$timer_path" ]; then
-        systemctl --user stop "${systemd_name}.timer" 2>/dev/null || true
+        if ! _svc_err=$(systemctl --user stop "${systemd_name}.timer" 2>&1); then
+            log_debug "systemctl stop ${systemd_name}.timer: $_svc_err"
+        fi
     fi
 
     # Stop service
-    systemctl --user stop "$systemd_name" 2>/dev/null || true
+    if ! _svc_err=$(systemctl --user stop "$systemd_name" 2>&1); then
+        log_debug "systemctl stop $systemd_name: $_svc_err"
+    fi
 }
 
 _restart_daemon_systemd() {
     local service_name="$1"
+    local _svc_err
 
     local systemd_name
     systemd_name="$(_daemon_systemd_name "$service_name")"
@@ -644,9 +714,13 @@ _restart_daemon_systemd() {
     timer_path="$(_daemon_timer_path "$service_name")"
 
     if [ -f "$timer_path" ]; then
-        systemctl --user restart "${systemd_name}.timer" 2>/dev/null || true
+        if ! _svc_err=$(systemctl --user restart "${systemd_name}.timer" 2>&1); then
+            log_debug "systemctl restart ${systemd_name}.timer: $_svc_err"
+        fi
     else
-        systemctl --user restart "$systemd_name" 2>/dev/null || true
+        if ! _svc_err=$(systemctl --user restart "$systemd_name" 2>&1); then
+            log_debug "systemctl restart $systemd_name: $_svc_err"
+        fi
     fi
 }
 

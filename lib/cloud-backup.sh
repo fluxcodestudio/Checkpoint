@@ -19,6 +19,9 @@
 #   - Free tier optimization
 # ==============================================================================
 
+# Set logging context for this module
+log_set_context "cloud"
+
 # ==============================================================================
 # RCLONE DETECTION & INSTALLATION
 # ==============================================================================
@@ -65,7 +68,7 @@ install_rclone() {
 # List all configured rclone remotes (without trailing colons)
 # Returns: List of remote names, one per line
 list_rclone_remotes() {
-    rclone listremotes 2>/dev/null | sed 's/:$//'
+    rclone listremotes 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | sed 's/:$//'
 }
 
 # Launch interactive rclone configuration wizard
@@ -97,10 +100,13 @@ test_rclone_connection() {
     fi
 
     # Test by listing root directory (lsd = list directories)
-    if rclone lsd "$remote_name:" &>/dev/null; then
+    local _rc_err
+    if _rc_err=$(rclone lsd "$remote_name:" 2>&1 >/dev/null); then
+        log_info "Cloud connection test succeeded: $remote_name"
         echo "✓ Connection to $remote_name successful"
         return 0
     else
+        log_debug "rclone lsd failed for $remote_name: $_rc_err"
         echo "✗ Failed to connect to $remote_name"
         return 1
     fi
@@ -113,7 +119,7 @@ test_rclone_connection() {
 get_remote_type() {
     local remote_name="$1"
     # rclone listremotes --long shows: "remotename: type"
-    rclone listremotes --long 2>/dev/null | grep "^$remote_name:" | awk '{print $2}'
+    rclone listremotes --long 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | grep "^$remote_name:" | awk '{print $2}'
 }
 
 # ==============================================================================
@@ -258,11 +264,13 @@ cloud_upload() {
 
     # Report results and update status file
     if [[ $upload_failed -eq 0 ]]; then
+        log_info "Cloud upload complete to $cloud_remote:$cloud_path"
         echo "✓ Cloud upload complete"
         # Record successful upload time (Unix timestamp)
         echo "$(date +%s)" > "${STATE_DIR:-$HOME/.claudecode-backups/state}/.last-cloud-upload"
         return 0
     else
+        log_warn "Cloud upload completed with errors for $cloud_remote:$cloud_path"
         echo "⚠ Cloud upload completed with errors"
         return 1
     fi
@@ -400,7 +408,8 @@ cloud_rotate_backups() {
 
     # Get list of all backup files with modification times
     local backup_list
-    backup_list=$(rclone lsl "$full_path" 2>/dev/null | sort -k2,3 -r) || {
+    backup_list=$(rclone lsl "$full_path" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" | sort -k2,3 -r) || {
+        log_debug "rclone lsl failed for $full_path"
         echo "Failed to list cloud backups"
         return 1
     }
@@ -474,9 +483,11 @@ cloud_rotate_backups() {
             echo "  [DRY RUN] Would delete: $filename"
         else
             echo "  Deleting: $filename"
-            if rclone deletefile "${full_path}/${filename}" 2>/dev/null; then
+            local _del_err
+            if _del_err=$(rclone deletefile "${full_path}/${filename}" 2>&1); then
                 deleted_count=$((deleted_count + 1))
             else
+                log_debug "rclone deletefile failed for $filename: $_del_err"
                 echo "    Failed to delete: $filename"
             fi
         fi
@@ -506,7 +517,8 @@ cloud_get_stats() {
 
     # Get size and count
     local size_output
-    size_output=$(rclone size "$full_path" 2>/dev/null) || {
+    size_output=$(rclone size "$full_path" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}") || {
+        log_debug "rclone size failed for $full_path"
         echo '{"enabled": true, "error": "Failed to get stats"}'
         return 1
     }
