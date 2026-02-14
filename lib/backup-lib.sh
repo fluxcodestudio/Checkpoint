@@ -50,6 +50,7 @@ source "$_CHECKPOINT_LIB_DIR/features/health-stats.sh"
 source "$_CHECKPOINT_LIB_DIR/features/change-detection.sh"
 source "$_CHECKPOINT_LIB_DIR/features/cloud-destinations.sh"
 source "$_CHECKPOINT_LIB_DIR/features/github-auth.sh"
+source "$_CHECKPOINT_LIB_DIR/features/verification.sh"
 
 # Backward compatibility marker
 export BACKUP_LIB_LOADED=1

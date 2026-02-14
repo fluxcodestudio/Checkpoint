@@ -53,6 +53,14 @@ ERROR_CATALOG=(
     "EFILE002|Size mismatch after copy|File was modified during backup | Retry backup to capture current version"
     "EFILE003|File too large for destination|Check available space | Consider excluding large files"
 
+    # Verification errors
+    "EVER001|File missing from backup|Run backup-now to re-backup missing files"
+    "EVER002|File size mismatch|Re-run backup; if persistent, check disk health"
+    "EVER003|File hash mismatch (possible corruption)|Re-run backup with --force; check disk for errors"
+    "EVER004|Database integrity check failed|Re-backup database; check source database health"
+    "EVER005|Manifest missing or corrupt|Run backup-now to generate fresh manifest"
+    "EVER006|Cloud sync verification failed|Check network connectivity and rclone configuration"
+
     # Unknown/generic
     "EUNK000|Unknown error occurred|Check backup logs for details | Run: backup-failures"
 )
@@ -127,6 +135,12 @@ map_error_to_code() {
         file_missing|EFILE001)       echo "EFILE001" ;;
         size_mismatch|EFILE002)      echo "EFILE002" ;;
         file_too_large|EFILE003)     echo "EFILE003" ;;
+        verify_missing|EVER001)      echo "EVER001" ;;
+        verify_size|EVER002)         echo "EVER002" ;;
+        verify_hash|EVER003)         echo "EVER003" ;;
+        verify_db|EVER004)           echo "EVER004" ;;
+        verify_manifest|EVER005)     echo "EVER005" ;;
+        verify_cloud|EVER006)        echo "EVER006" ;;
         *)                           echo "EUNK000" ;;
     esac
 }
