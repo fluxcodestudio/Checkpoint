@@ -19,6 +19,9 @@
 # Lib directory (set by loader, fallback for standalone sourcing)
 _CHECKPOINT_LIB_DIR="${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
+# Set logging context for this module
+log_set_context "verify"
+
 # ==============================================================================
 # GLOBAL STATE (verification results)
 # ==============================================================================
@@ -298,7 +301,9 @@ verify_backup_quick() {
 
             # gunzip -t for compressed databases
             if echo "$db_rel_path" | grep -q '\.gz$'; then
-                if ! gunzip -t "$db_full_path" 2>/dev/null; then
+                local _v_err
+                if ! _v_err=$(gunzip -t "$db_full_path" 2>&1); then
+                    log_debug "Verification gunzip -t failed for $db_rel_path: $_v_err"
                     _verify_record_db "$db_rel_path" "fail" "Gzip decompression test failed"
                     continue
                 fi
@@ -309,7 +314,7 @@ verify_backup_quick() {
                     _verify_record_db "$db_rel_path" "warning" "Could not create temp file for integrity check"
                     continue
                 }
-                if gunzip -c "$db_full_path" > "$temp_db" 2>/dev/null; then
+                if gunzip -c "$db_full_path" > "$temp_db" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                     local qc_result
                     qc_result=$(sqlite3 "$temp_db" "PRAGMA quick_check;" 2>&1) || true
                     if [ "$qc_result" = "ok" ]; then
@@ -331,9 +336,11 @@ verify_backup_quick() {
                 [ -z "$db_file" ] && continue
                 local db_rel="${db_file#$backup_dir/}"
                 if echo "$db_file" | grep -q '\.gz$'; then
-                    if gunzip -t "$db_file" 2>/dev/null; then
+                    local _v_err
+                    if _v_err=$(gunzip -t "$db_file" 2>&1); then
                         _verify_record_db "$db_rel" "pass" "Gzip OK (no manifest)"
                     else
+                        log_debug "Verification gunzip -t failed for $db_rel: $_v_err"
                         _verify_record_db "$db_rel" "fail" "Gzip decompression test failed"
                     fi
                 fi
@@ -494,7 +501,9 @@ verify_backup_full() {
 
             # Full verification for compressed databases
             if echo "$db_rel_path" | grep -q '\.gz$'; then
-                if ! gunzip -t "$db_full_path" 2>/dev/null; then
+                local _v_err
+                if ! _v_err=$(gunzip -t "$db_full_path" 2>&1); then
+                    log_debug "Full verification gunzip -t failed for $db_rel_path: $_v_err"
                     _verify_record_db "$db_rel_path" "fail" "Gzip decompression test failed"
                     continue
                 fi
@@ -506,7 +515,7 @@ verify_backup_full() {
                     continue
                 }
 
-                if gunzip -c "$db_full_path" > "$temp_db" 2>/dev/null; then
+                if gunzip -c "$db_full_path" > "$temp_db" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                     # Full PRAGMA integrity_check
                     local ic_result
                     ic_result=$(sqlite3 "$temp_db" "PRAGMA integrity_check;" 2>&1) || true
@@ -553,7 +562,9 @@ verify_backup_full() {
                 fi
 
                 if echo "$db_file" | grep -q '\.gz$'; then
-                    if ! gunzip -t "$db_file" 2>/dev/null; then
+                    local _v_err
+                    if ! _v_err=$(gunzip -t "$db_file" 2>&1); then
+                        log_debug "Full verification gunzip -t failed for $db_rel: $_v_err"
                         _verify_record_db "$db_rel" "fail" "Gzip decompression test failed"
                         continue
                     fi
@@ -563,7 +574,7 @@ verify_backup_full() {
                         _verify_record_db "$db_rel" "warning" "Could not create temp file"
                         continue
                     }
-                    if gunzip -c "$db_file" > "$temp_db" 2>/dev/null; then
+                    if gunzip -c "$db_file" > "$temp_db" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                         local ic_result
                         ic_result=$(sqlite3 "$temp_db" "PRAGMA integrity_check;" 2>&1) || true
                         if [ "$ic_result" = "ok" ]; then
@@ -894,7 +905,7 @@ persist_manifest_json() {
                 if echo "$db_path" | grep -q '\.gz$'; then
                     local tmp_db
                     tmp_db=$(mktemp 2>/dev/null) || true
-                    if [ -n "$tmp_db" ] && gunzip -c "$db_path" > "$tmp_db" 2>/dev/null; then
+                    if [ -n "$tmp_db" ] && gunzip -c "$db_path" > "$tmp_db" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                         d_tables=$(sqlite3 "$tmp_db" "SELECT count(*) FROM sqlite_master WHERE type='table';" 2>/dev/null) || d_tables=0
                     fi
                     rm -f "$tmp_db" 2>/dev/null || true
@@ -922,9 +933,11 @@ persist_manifest_json() {
     } > "$tmp_manifest"
 
     # Atomic move
-    if mv "$tmp_manifest" "$manifest_file" 2>/dev/null; then
+    local _mv_err
+    if _mv_err=$(mv "$tmp_manifest" "$manifest_file" 2>&1); then
         return 0
     else
+        log_debug "Manifest mv failed: $_mv_err"
         rm -f "$tmp_manifest" 2>/dev/null || true
         return 1
     fi

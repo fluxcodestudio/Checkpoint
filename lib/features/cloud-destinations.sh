@@ -16,6 +16,9 @@
 # Lib directory (set by loader, fallback for standalone sourcing)
 _CHECKPOINT_LIB_DIR="${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
+# Set logging context for this module
+log_set_context "cloud-dest"
+
 # ==============================================================================
 # CLOUD FOLDER DESTINATION RESOLUTION
 # ==============================================================================

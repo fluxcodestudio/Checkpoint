@@ -236,7 +236,8 @@ get_file_hash() {
     echo "${file}|${file_mtime}|${file_hash}" >> "$tmp_cache"
 
     # Atomic replace
-    mv "$tmp_cache" "$hash_cache" 2>/dev/null || {
+    mv "$tmp_cache" "$hash_cache" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || {
+        log_debug "Hash cache mv failed, continuing without cache update"
         rm -f "$tmp_cache"
         # Still return hash even if cache update fails
         echo "$file_hash"

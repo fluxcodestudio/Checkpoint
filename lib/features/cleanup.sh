@@ -18,6 +18,9 @@
 # Lib directory (set by loader, fallback for standalone sourcing)
 _CHECKPOINT_LIB_DIR="${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
+# Set logging context for this module
+log_set_context "cleanup"
+
 # ==============================================================================
 # CLEANUP OPERATIONS
 # ==============================================================================
@@ -118,9 +121,12 @@ delete_files_batch() {
     fi
 
     local deleted=0
+    local _rm_err
     for file in "${files[@]}"; do
-        if rm -f "$file" 2>/dev/null; then
+        if _rm_err=$(rm -f "$file" 2>&1); then
             ((deleted++))
+        else
+            log_debug "cleanup rm failed: $file: $_rm_err"
         fi
     done
 
@@ -174,8 +180,8 @@ cleanup_single_pass() {
             mtime="${line##*|}"
             [ -n "$mtime" ] && [ "$mtime" -lt "$db_cutoff" ] 2>/dev/null && CLEANUP_EXPIRED_DBS+=("$file")
         done < <(case "${_COMPAT_OS:-$(uname -s)}" in
-            Darwin) find "$database_dir" -name "*.db.gz" -type f -exec stat -f "%N|%m" {} \; 2>/dev/null ;;
-            *) find "$database_dir" -name "*.db.gz" -type f -exec stat -c "%n|%Y" {} \; 2>/dev/null ;;
+            Darwin) find "$database_dir" -name "*.db.gz" -type f -exec stat -f "%N|%m" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
+            *) find "$database_dir" -name "*.db.gz" -type f -exec stat -c "%n|%Y" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
         esac)
     fi
 
@@ -199,8 +205,8 @@ cleanup_single_pass() {
                 fi
             fi
         done < <(case "${_COMPAT_OS:-$(uname -s)}" in
-            Darwin) find "$archived_dir" \( -type f -o -type d \) -exec stat -f "%N|%HT|%m" {} \; 2>/dev/null ;;
-            *) find "$archived_dir" \( -type f -o -type d \) -exec stat -c "%n|%F|%Y" {} \; 2>/dev/null ;;
+            Darwin) find "$archived_dir" \( -type f -o -type d \) -exec stat -f "%N|%HT|%m" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
+            *) find "$archived_dir" \( -type f -o -type d \) -exec stat -c "%n|%F|%Y" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
         esac)
     fi
 
@@ -246,7 +252,9 @@ cleanup_execute() {
                 echo "Would remove dir: $d"
                 continue
             fi
-            rmdir "$d" 2>/dev/null && deleted=$((deleted + 1))
+            if rmdir "$d" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                deleted=$((deleted + 1))
+            fi
         done <<< "$sorted_dirs"
     fi
 

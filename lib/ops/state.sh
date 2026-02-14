@@ -75,7 +75,7 @@ notify_backup_failure() {
         return 0
     fi
 
-    mkdir -p "$project_state_dir" 2>/dev/null || true
+    mkdir -p "$project_state_dir" 2>/dev/null || { log_debug "Failed to create project state dir: $project_state_dir"; true; }
 
     # Generate LLM-ready prompt from failure log
     local llm_prompt=""
@@ -332,7 +332,7 @@ write_backup_state() {
     local project_name="${PROJECT_NAME:-unknown}"
     local state_file="$state_dir/${project_name}/last-backup.json"
 
-    mkdir -p "$state_dir/$project_name" 2>/dev/null || true
+    mkdir -p "$state_dir/$project_name" 2>/dev/null || { log_debug "Failed to create state dir: $state_dir/$project_name"; true; }
 
     # Determine status from exit code
     local status="unknown"

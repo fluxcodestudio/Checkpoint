@@ -16,6 +16,9 @@
 # Lib directory (set by loader, fallback for standalone sourcing)
 _CHECKPOINT_LIB_DIR="${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
+# Set logging context for this module
+log_set_context "restore"
+
 # ==============================================================================
 # RESTORE OPERATIONS
 # ==============================================================================
@@ -30,10 +33,12 @@ create_safety_backup() {
     local timestamp=$(date +%Y%m%d-%H%M%S)
     local safety_backup="${file_path}.${suffix}-${timestamp}"
 
-    if cp "$file_path" "$safety_backup" 2>/dev/null; then
+    local _cp_err
+    if _cp_err=$(cp "$file_path" "$safety_backup" 2>&1); then
         echo "$safety_backup"
         return 0
     else
+        log_error "Safety backup cp failed for $file_path: $_cp_err"
         return 1
     fi
 }
@@ -61,13 +66,15 @@ verify_compressed_backup() {
     [ ! -f "$compressed_path" ] && return 1
 
     # Test decompression
-    if ! gunzip -t "$compressed_path" 2>/dev/null; then
+    local _gz_err
+    if ! _gz_err=$(gunzip -t "$compressed_path" 2>&1); then
+        log_debug "Restore gunzip -t failed for $compressed_path: $_gz_err"
         return 1
     fi
 
     # Decompress to temp and verify SQLite integrity
     local temp_db=$(mktemp)
-    gunzip -c "$compressed_path" > "$temp_db" 2>/dev/null
+    gunzip -c "$compressed_path" > "$temp_db" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"
 
     local result=0
     if ! verify_sqlite_integrity "$temp_db"; then
@@ -116,7 +123,8 @@ restore_database_from_backup() {
 
     # Perform restore
     color_cyan "📦 Restoring database..."
-    if gunzip -c "$backup_file" > "$target_db" 2>/dev/null; then
+    local _restore_err
+    if _restore_err=$(gunzip -c "$backup_file" > "$target_db" 2>&1); then
         # Verify restored database
         color_cyan "🧪 Verifying restored database..."
         if verify_sqlite_integrity "$target_db"; then
@@ -132,6 +140,7 @@ restore_database_from_backup() {
             return 1
         fi
     else
+        log_error "Database restore failed for $target_db: $_restore_err"
         color_red "❌ Restore failed"
         return 1
     fi
@@ -165,10 +174,13 @@ restore_file_from_backup() {
 
     # Perform restore
     color_cyan "📦 Restoring file..."
-    if cp "$backup_file" "$target_file" 2>/dev/null; then
+    local _cp_err
+    if _cp_err=$(cp "$backup_file" "$target_file" 2>&1); then
+        log_info "File restored: $target_file"
         color_green "✅ Restore complete"
         return 0
     else
+        log_error "File restore cp failed for $target_file: $_cp_err"
         color_red "❌ Restore failed"
         return 1
     fi
