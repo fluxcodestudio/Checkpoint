@@ -64,6 +64,18 @@ mv "$BUILD_DIR/$APP_NAME" "$OUTPUT_APP/Contents/MacOS/"
 # Copy Info.plist
 cp "$SOURCE_DIR/Info.plist" "$OUTPUT_APP/Contents/"
 
+# Copy icon assets
+echo "Copying icon assets..."
+if [[ -f "$SOURCE_DIR/StatusBarIconTemplate.png" ]]; then
+    cp "$SOURCE_DIR/StatusBarIconTemplate.png" "$OUTPUT_APP/Contents/Resources/"
+fi
+if [[ -f "$SOURCE_DIR/StatusBarIconTemplate@2x.png" ]]; then
+    cp "$SOURCE_DIR/StatusBarIconTemplate@2x.png" "$OUTPUT_APP/Contents/Resources/"
+fi
+if [[ -f "$SOURCE_DIR/AppIcon.icns" ]]; then
+    cp "$SOURCE_DIR/AppIcon.icns" "$OUTPUT_APP/Contents/Resources/"
+fi
+
 # Sign the app (ad-hoc for local use)
 echo "Signing app..."
 codesign --force --deep --sign - "$OUTPUT_APP"

@@ -11,6 +11,7 @@ class MenuBarManager: NSObject {
     private var statusMenuItem: NSMenuItem?
     private var lastBackupMenuItem: NSMenuItem?
     private var projectMenuItem: NSMenuItem?
+    private var stalenessMenuItem: NSMenuItem?
 
     private let heartbeatMonitor = HeartbeatMonitor()
     private let notificationManager = NotificationManager()
@@ -18,32 +19,32 @@ class MenuBarManager: NSObject {
     // MARK: - Setup
 
     func setup() {
-        print("MenuBarManager.setup() called")
-
         // Create status item with fixed length
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        print("Status item created: \(statusItem != nil)")
 
         if let button = statusItem?.button {
-            print("Button found, setting title")
-            // Use simple text - most reliable
-            button.title = "CP"
-            button.font = NSFont.systemFont(ofSize: 10, weight: .bold)
-            print("Title set to: \(button.title)")
-        } else {
-            print("ERROR: No button on status item!")
+            // Try custom icon from bundle Resources
+            let bundle = Bundle.main
+            if let imagePath = bundle.path(forResource: "StatusBarIconTemplate", ofType: "png"),
+               let image = NSImage(contentsOfFile: imagePath) {
+                image.isTemplate = true
+                image.size = NSSize(width: 18, height: 18)
+                button.image = image
+            } else {
+                // Fallback
+                button.title = "CP"
+                button.font = NSFont.systemFont(ofSize: 10, weight: .bold)
+            }
         }
 
         // Create menu
         menu = NSMenu()
         setupMenu()
         statusItem?.menu = menu
-        print("Menu attached: \(statusItem?.menu != nil)")
 
         // Start monitoring
         heartbeatMonitor.delegate = self
         heartbeatMonitor.startMonitoring()
-        print("Setup complete")
     }
 
     // MARK: - Menu Setup
@@ -65,6 +66,11 @@ class MenuBarManager: NSObject {
         projectMenuItem = NSMenuItem(title: "Project: --", action: nil, keyEquivalent: "")
         projectMenuItem?.isEnabled = false
         menu.addItem(projectMenuItem!)
+
+        stalenessMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        stalenessMenuItem?.isEnabled = false
+        stalenessMenuItem?.isHidden = true
+        menu.addItem(stalenessMenuItem!)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -169,33 +175,51 @@ class MenuBarManager: NSObject {
     private func updateIcon(for status: HeartbeatMonitor.DaemonStatus) {
         guard let button = statusItem?.button else { return }
 
-        let symbolName: String
-        let tintColor: NSColor?
-
+        let tintColor: NSColor
         switch status {
         case .healthy:
-            symbolName = "checkmark.shield.fill"
             tintColor = .systemGreen
         case .syncing:
-            symbolName = "arrow.triangle.2.circlepath"
             tintColor = .systemBlue
         case .error:
-            symbolName = "exclamationmark.shield.fill"
             tintColor = .systemRed
         case .stopped:
-            symbolName = "stop.fill"
             tintColor = .systemGray
         case .stale:
-            symbolName = "exclamationmark.triangle.fill"
             tintColor = .systemOrange
+        case .backupsStale:
+            tintColor = .systemYellow
         case .missing:
-            symbolName = "questionmark.circle"
             tintColor = .systemGray
         }
 
-        if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: status.rawValue) {
-            button.image = image
-            button.contentTintColor = tintColor
+        button.contentTintColor = tintColor
+    }
+
+    private func updateStaleness(lastBackup: Date?) {
+        guard let lastBackup = lastBackup else {
+            stalenessMenuItem?.isHidden = true
+            return
+        }
+
+        let hoursSince = Date().timeIntervalSince(lastBackup) / 3600
+
+        if hoursSince > 72 {
+            stalenessMenuItem?.title = "CRITICAL: No backup in \(Int(hoursSince))h"
+            stalenessMenuItem?.attributedTitle = NSAttributedString(
+                string: "CRITICAL: No backup in \(Int(hoursSince))h",
+                attributes: [.foregroundColor: NSColor.systemRed]
+            )
+            stalenessMenuItem?.isHidden = false
+        } else if hoursSince > 24 {
+            stalenessMenuItem?.title = "Warning: No backup in \(Int(hoursSince))h"
+            stalenessMenuItem?.attributedTitle = NSAttributedString(
+                string: "Warning: No backup in \(Int(hoursSince))h",
+                attributes: [.foregroundColor: NSColor.systemOrange]
+            )
+            stalenessMenuItem?.isHidden = false
+        } else {
+            stalenessMenuItem?.isHidden = true
         }
     }
 }
@@ -226,6 +250,9 @@ extension MenuBarManager: HeartbeatMonitorDelegate {
                 self?.projectMenuItem?.title = "Project: --"
             }
 
+            // Update staleness
+            self?.updateStaleness(lastBackup: data.lastBackup)
+
             // Update icon
             self?.updateIcon(for: data.status)
         }
@@ -247,13 +274,19 @@ extension MenuBarManager: HeartbeatMonitorDelegate {
                 title: "Checkpoint Warning",
                 body: "Backup daemon may have stopped responding"
             )
+        case .backupsStale:
+            let hours = data.lastBackup.map { Int(Date().timeIntervalSince($0) / 3600) } ?? 0
+            notificationManager.showNotification(
+                title: "Checkpoint Warning",
+                body: "No successful backup in \(hours) hours"
+            )
         case .stopped:
             notificationManager.showNotification(
                 title: "Checkpoint Stopped",
                 body: "Backup daemon has stopped"
             )
         case .healthy:
-            if oldStatus == .error || oldStatus == .stale {
+            if oldStatus == .error || oldStatus == .stale || oldStatus == .backupsStale {
                 notificationManager.showNotification(
                     title: "Checkpoint Recovered",
                     body: "Backup daemon is healthy again"

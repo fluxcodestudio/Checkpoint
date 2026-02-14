@@ -47,36 +47,52 @@ class DaemonController {
 
     static func start() -> Bool {
         guard FileManager.default.fileExists(atPath: globalPlistPath.path) else {
-            print("LaunchAgent plist not found at \(globalPlistPath.path)")
             return false
         }
 
+        // Try modern launchctl bootstrap first, fall back to legacy load
+        let uid = getuid()
         let task = Process()
         task.launchPath = "/bin/launchctl"
-        task.arguments = ["load", globalPlistPath.path]
+        task.arguments = ["bootstrap", "gui/\(uid)", globalPlistPath.path]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
 
         do {
             try task.run()
             task.waitUntilExit()
-            return task.terminationStatus == 0
+            if task.terminationStatus == 0 {
+                return true
+            }
+            // Fall back to legacy load
+            return legacyLoad()
         } catch {
-            print("Failed to start daemon: \(error)")
-            return false
+            return legacyLoad()
         }
     }
 
     static func stop() -> Bool {
+        // Try modern launchctl bootout first, fall back to legacy unload
+        let uid = getuid()
         let task = Process()
         task.launchPath = "/bin/launchctl"
-        task.arguments = ["unload", globalPlistPath.path]
+        task.arguments = ["bootout", "gui/\(uid)/\(globalPlistLabel)"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
 
         do {
             try task.run()
             task.waitUntilExit()
-            return task.terminationStatus == 0
+            if task.terminationStatus == 0 {
+                return true
+            }
+            return legacyUnload()
         } catch {
-            print("Failed to stop daemon: \(error)")
-            return false
+            return legacyUnload()
         }
     }
 
@@ -85,6 +101,40 @@ class DaemonController {
         // Small delay to ensure clean stop
         Thread.sleep(forTimeInterval: 0.5)
         return start()
+    }
+
+    // MARK: - Legacy launchctl (macOS < 13)
+
+    private static func legacyLoad() -> Bool {
+        let task = Process()
+        task.launchPath = "/bin/launchctl"
+        task.arguments = ["load", globalPlistPath.path]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    private static func legacyUnload() -> Bool {
+        let task = Process()
+        task.launchPath = "/bin/launchctl"
+        task.arguments = ["unload", globalPlistPath.path]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = pipe
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            return false
+        }
     }
 
     // MARK: - Manual Backup

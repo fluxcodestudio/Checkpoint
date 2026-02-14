@@ -13,6 +13,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusMenuItem: NSMenuItem!
     var lastBackupMenuItem: NSMenuItem!
     var daemonStatusMenuItem: NSMenuItem!
+    var watchdogStatusMenuItem: NSMenuItem!
+    var stalenessMenuItem: NSMenuItem!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Request notification permissions
@@ -21,7 +23,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        setShieldIcon(color: .systemGray)  // Start gray until we know status
+        setStatusBarIcon(tint: .systemGray)  // Start gray until we know status
 
         // Build menu
         buildMenu()
@@ -45,17 +47,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func setShieldIcon(color: NSColor) {
+    private func setStatusBarIcon(tint: NSColor) {
         guard let button = statusItem.button else { return }
 
-        // Always use shield icon
-        if let image = NSImage(systemSymbolName: "checkmark.shield.fill", accessibilityDescription: "Checkpoint") {
-            let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
-            let configuredImage = image.withSymbolConfiguration(config) ?? image
-            button.image = configuredImage
-            button.contentTintColor = color
+        // Load custom Checkpoint logo template image from bundle Resources
+        let bundle = Bundle.main
+        if let imagePath = bundle.path(forResource: "StatusBarIconTemplate", ofType: "png"),
+           let image = NSImage(contentsOfFile: imagePath) {
+            image.isTemplate = true
+            image.size = NSSize(width: 18, height: 18)
+            button.image = image
+            button.contentTintColor = tint
         } else {
-            button.title = "CP"
+            // Fallback to SF Symbol if custom icon not found
+            if let image = NSImage(systemSymbolName: "checkmark.shield.fill", accessibilityDescription: "Checkpoint") {
+                let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+                let configuredImage = image.withSymbolConfiguration(config) ?? image
+                button.image = configuredImage
+                button.contentTintColor = tint
+            } else {
+                button.title = "CP"
+            }
         }
     }
 
@@ -63,9 +75,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu = NSMenu()
 
         // Daemon status (at top)
-        daemonStatusMenuItem = NSMenuItem(title: "● Daemon: Checking...", action: nil, keyEquivalent: "")
+        daemonStatusMenuItem = NSMenuItem(title: "Daemon: Checking...", action: nil, keyEquivalent: "")
         daemonStatusMenuItem.isEnabled = false
         menu.addItem(daemonStatusMenuItem)
+
+        // Watchdog status
+        watchdogStatusMenuItem = NSMenuItem(title: "Watchdog: Checking...", action: nil, keyEquivalent: "")
+        watchdogStatusMenuItem.isEnabled = false
+        menu.addItem(watchdogStatusMenuItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -77,6 +94,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         lastBackupMenuItem = NSMenuItem(title: "Last backup: --", action: nil, keyEquivalent: "")
         lastBackupMenuItem.isEnabled = false
         menu.addItem(lastBackupMenuItem)
+
+        stalenessMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        stalenessMenuItem.isEnabled = false
+        stalenessMenuItem.isHidden = true
+        menu.addItem(stalenessMenuItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -125,18 +147,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let isRunning = DaemonController.isRunning()
         DispatchQueue.main.async {
             if isRunning {
-                self.daemonStatusMenuItem.title = "● Daemon: Running"
-                self.daemonStatusMenuItem.attributedTitle = self.coloredText("● Daemon: Running", bulletColor: .systemGreen)
+                self.daemonStatusMenuItem.title = "Daemon: Running"
+                self.daemonStatusMenuItem.attributedTitle = self.coloredText("Daemon: Running", bulletColor: .systemGreen)
             } else {
-                self.daemonStatusMenuItem.title = "● Daemon: Stopped"
-                self.daemonStatusMenuItem.attributedTitle = self.coloredText("● Daemon: Stopped", bulletColor: .systemRed)
+                self.daemonStatusMenuItem.title = "Daemon: Stopped"
+                self.daemonStatusMenuItem.attributedTitle = self.coloredText("Daemon: Stopped", bulletColor: .systemRed)
+            }
+        }
+
+        // Also check watchdog
+        let watchdogData = heartbeatMonitor.readWatchdogStatus()
+        DispatchQueue.main.async {
+            switch watchdogData.status {
+            case .healthy:
+                self.watchdogStatusMenuItem.title = "Watchdog: Active"
+                self.watchdogStatusMenuItem.attributedTitle = self.coloredText("Watchdog: Active", bulletColor: .systemGreen)
+            case .stale:
+                self.watchdogStatusMenuItem.title = "Watchdog: Stale"
+                self.watchdogStatusMenuItem.attributedTitle = self.coloredText("Watchdog: Stale", bulletColor: .systemOrange)
+            default:
+                self.watchdogStatusMenuItem.title = "Watchdog: Inactive"
+                self.watchdogStatusMenuItem.attributedTitle = self.coloredText("Watchdog: Inactive", bulletColor: .systemGray)
             }
         }
     }
 
     private func coloredText(_ text: String, bulletColor: NSColor) -> NSAttributedString {
-        let attributed = NSMutableAttributedString(string: text)
-        // Color just the bullet
+        let fullText = "\u{25CF} \(text)"
+        let attributed = NSMutableAttributedString(string: fullText)
         attributed.addAttribute(.foregroundColor, value: bulletColor, range: NSRange(location: 0, length: 1))
         return attributed
     }
@@ -150,11 +188,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 if success {
                     self?.notificationManager.showNotification(title: "Backup Complete", body: "Backup finished successfully")
                     self?.statusMenuItem.title = "Status: Healthy"
-                    self?.setShieldIcon(color: .systemGreen)
+                    self?.setStatusBarIcon(tint: .systemGreen)
                 } else {
                     self?.notificationManager.showNotification(title: "Backup Failed", body: String(output.prefix(100)))
                     self?.statusMenuItem.title = "Status: Error"
-                    self?.setShieldIcon(color: .systemRed)
+                    self?.setStatusBarIcon(tint: .systemRed)
                 }
             }
         }
@@ -206,10 +244,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             color = .systemRed
         case .stale:
             color = .systemOrange
+        case .backupsStale:
+            color = .systemYellow
         case .stopped, .missing:
             color = .systemGray
         }
-        setShieldIcon(color: color)
+        setStatusBarIcon(tint: color)
+    }
+
+    // MARK: - Staleness UI
+
+    func updateStalenessDisplay(data: HeartbeatMonitor.HeartbeatData) {
+        guard let lastBackup = data.lastBackup else {
+            stalenessMenuItem.isHidden = true
+            return
+        }
+
+        let hoursSinceBackup = Date().timeIntervalSince(lastBackup) / 3600
+
+        if hoursSinceBackup > 72 {
+            stalenessMenuItem.title = "CRITICAL: No backup in \(Int(hoursSinceBackup))h"
+            stalenessMenuItem.attributedTitle = NSAttributedString(
+                string: "CRITICAL: No backup in \(Int(hoursSinceBackup))h",
+                attributes: [.foregroundColor: NSColor.systemRed]
+            )
+            stalenessMenuItem.isHidden = false
+        } else if hoursSinceBackup > 24 {
+            stalenessMenuItem.title = "Warning: No backup in \(Int(hoursSinceBackup))h"
+            stalenessMenuItem.attributedTitle = NSAttributedString(
+                string: "Warning: No backup in \(Int(hoursSinceBackup))h",
+                attributes: [.foregroundColor: NSColor.systemOrange]
+            )
+            stalenessMenuItem.isHidden = false
+        } else {
+            stalenessMenuItem.isHidden = true
+        }
     }
 }
 
@@ -227,6 +296,7 @@ extension AppDelegate: HeartbeatMonitorDelegate {
                 self.lastBackupMenuItem.title = "Last backup: \(relative)"
             }
 
+            self.updateStalenessDisplay(data: data)
             self.updateStatusIcon(for: data.status)
             self.updateDaemonStatus()
         }
@@ -240,6 +310,12 @@ extension AppDelegate: HeartbeatMonitorDelegate {
             notificationManager.showNotification(title: "Checkpoint Error", body: data.error ?? "Daemon error")
         case .stale:
             notificationManager.showNotification(title: "Checkpoint Warning", body: "Daemon may have stopped")
+        case .backupsStale:
+            let hours = data.lastBackup.map { Int(Date().timeIntervalSince($0) / 3600) } ?? 0
+            notificationManager.showNotification(
+                title: "Checkpoint Warning",
+                body: "No successful backup in \(hours) hours"
+            )
         case .stopped:
             notificationManager.showNotification(title: "Checkpoint Stopped", body: "Daemon has stopped")
         default:

@@ -10,8 +10,9 @@ class HeartbeatMonitor {
         case syncing
         case error
         case stopped
-        case stale      // heartbeat older than threshold
-        case missing    // no heartbeat file
+        case stale          // heartbeat older than threshold
+        case backupsStale   // daemon alive but no recent backup
+        case missing        // no heartbeat file
     }
 
     struct HeartbeatData {
@@ -27,7 +28,10 @@ class HeartbeatMonitor {
     // MARK: - Properties
 
     private let heartbeatPath: URL
-    private let staleThreshold: TimeInterval = 120 // 2 minutes
+    private let watchdogHeartbeatPath: URL
+    private let staleThreshold: TimeInterval = 120       // 2 minutes for daemon heartbeat
+    private let backupWarningThreshold: TimeInterval = 24 * 3600   // 24 hours
+    private let backupCriticalThreshold: TimeInterval = 72 * 3600  // 72 hours
     private var timer: Timer?
     private var lastStatus: DaemonStatus = .missing
 
@@ -36,12 +40,16 @@ class HeartbeatMonitor {
     // MARK: - Init
 
     init(heartbeatPath: URL? = nil) {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let checkpointDir = homeDir.appendingPathComponent(".checkpoint")
+
         if let path = heartbeatPath {
             self.heartbeatPath = path
         } else {
-            let homeDir = FileManager.default.homeDirectoryForCurrentUser
-            self.heartbeatPath = homeDir.appendingPathComponent(".checkpoint/daemon.heartbeat")
+            self.heartbeatPath = checkpointDir.appendingPathComponent("daemon.heartbeat")
         }
+
+        self.watchdogHeartbeatPath = checkpointDir.appendingPathComponent("watchdog.heartbeat")
     }
 
     // MARK: - Public Methods
@@ -96,14 +104,22 @@ class HeartbeatMonitor {
             let error = json["error"] as? String
             let pid = json["pid"] as? Int
 
-            // Check if heartbeat is stale
-            let age = Date().timeIntervalSince(timestamp)
+            // Check if heartbeat is stale (daemon not updating)
+            let heartbeatAge = Date().timeIntervalSince(timestamp)
             var status: DaemonStatus
 
-            if age > staleThreshold {
+            if heartbeatAge > staleThreshold {
                 status = .stale
             } else {
                 status = DaemonStatus(rawValue: statusStr) ?? .error
+            }
+
+            // If daemon is healthy but backups are stale, flag it
+            if status == .healthy, let lastBackup = lastBackup {
+                let backupAge = Date().timeIntervalSince(lastBackup)
+                if backupAge > backupWarningThreshold {
+                    status = .backupsStale
+                }
             }
 
             return HeartbeatData(
@@ -113,6 +129,63 @@ class HeartbeatMonitor {
                 lastBackup: lastBackup,
                 lastBackupFiles: lastBackupFiles,
                 error: error,
+                pid: pid
+            )
+        } catch {
+            return HeartbeatData(
+                timestamp: Date(),
+                status: .error,
+                project: nil,
+                lastBackup: nil,
+                lastBackupFiles: 0,
+                error: error.localizedDescription,
+                pid: nil
+            )
+        }
+    }
+
+    /// Read watchdog heartbeat status
+    func readWatchdogStatus() -> HeartbeatData {
+        guard FileManager.default.fileExists(atPath: watchdogHeartbeatPath.path) else {
+            return HeartbeatData(
+                timestamp: Date(),
+                status: .missing,
+                project: nil,
+                lastBackup: nil,
+                lastBackupFiles: 0,
+                error: "Watchdog heartbeat not found",
+                pid: nil
+            )
+        }
+
+        do {
+            let data = try Data(contentsOf: watchdogHeartbeatPath)
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return HeartbeatData(
+                    timestamp: Date(),
+                    status: .error,
+                    project: nil,
+                    lastBackup: nil,
+                    lastBackupFiles: 0,
+                    error: "Invalid watchdog heartbeat JSON",
+                    pid: nil
+                )
+            }
+
+            let timestamp = Date(timeIntervalSince1970: (json["timestamp"] as? TimeInterval) ?? 0)
+            let pid = json["pid"] as? Int
+
+            // Watchdog stale if not updated in 2 minutes
+            let age = Date().timeIntervalSince(timestamp)
+            let status: DaemonStatus = age > staleThreshold ? .stale : .healthy
+
+            return HeartbeatData(
+                timestamp: timestamp,
+                status: status,
+                project: nil,
+                lastBackup: nil,
+                lastBackupFiles: 0,
+                error: nil,
                 pid: pid
             )
         } catch {

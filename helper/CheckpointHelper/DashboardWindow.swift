@@ -301,8 +301,10 @@ struct ProjectInfo: Identifiable {
             return "checkmark.circle.fill"
         } else if hoursSince < 24 {
             return "checkmark.circle"
-        } else {
+        } else if hoursSince < 72 {
             return "exclamationmark.circle"
+        } else {
+            return "exclamationmark.circle.fill"
         }
     }
 
@@ -315,8 +317,10 @@ struct ProjectInfo: Identifiable {
             return .green
         } else if hoursSince < 24 {
             return .blue
-        } else {
+        } else if hoursSince < 72 {
             return .orange
+        } else {
+            return .red
         }
     }
 }
