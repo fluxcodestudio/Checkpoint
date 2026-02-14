@@ -159,7 +159,7 @@ Plans:
 Plans:
 - [x] 18-01: Atomic heartbeat writes + watchdog self-monitoring
 - [x] 18-02: Backup staleness notifications with cooldown
-- [ ] 18-03: Service template KeepAlive fix + auto-start on install
+- [x] 18-03: Service template KeepAlive fix + auto-start on install
 
 ## Progress
 
@@ -182,4 +182,4 @@ Plans:
 | 15. Linux Systemd Support | v2.5 | 5/5 | Complete | 2026-02-13 |
 | 16. Backup Verification | v2.5 | 2/2 | Complete | 2026-02-14 |
 | 17. Error Logging Overhaul | v2.5 | 4/4 | Complete | 2026-02-14 |
-| 18. Daemon Lifecycle & Health Monitoring | v2.5 | 2/3 | In progress | - |
+| 18. Daemon Lifecycle & Health Monitoring | v2.5 | 3/3 | Complete | 2026-02-14 |
