@@ -11,7 +11,7 @@
 #   source "$LIB_DIR/backup-lib.sh"
 #
 # Module structure:
-#   core/     - Error codes, output/color, config management (no dependencies)
+#   core/     - Logging, error codes, output/color, config management (no dependencies)
 #   ops/      - File operations, state tracking, initialization (depend on core)
 #   ui/       - Formatting, time/size utilities
 #   features/ - Discovery, restore, cleanup, malware, health, detection, cloud, git
@@ -25,6 +25,7 @@ set -euo pipefail
 _CHECKPOINT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # === Core (no dependencies) ===
+source "$_CHECKPOINT_LIB_DIR/core/logging.sh"
 source "$_CHECKPOINT_LIB_DIR/core/error-codes.sh"
 source "$_CHECKPOINT_LIB_DIR/core/output.sh"
 source "$_CHECKPOINT_LIB_DIR/core/config.sh"
@@ -51,6 +52,19 @@ source "$_CHECKPOINT_LIB_DIR/features/change-detection.sh"
 source "$_CHECKPOINT_LIB_DIR/features/cloud-destinations.sh"
 source "$_CHECKPOINT_LIB_DIR/features/github-auth.sh"
 source "$_CHECKPOINT_LIB_DIR/features/verification.sh"
+
+# ==============================================================================
+# LOGGING INITIALIZATION (call after load_backup_config)
+# ==============================================================================
+
+# Initialize structured logging with config-provided paths
+# Scripts should call this after load_backup_config() to pick up config values.
+# Safe to call multiple times (re-initializes with new paths).
+_init_checkpoint_logging() {
+    local log_file="${LOG_FILE:-/tmp/checkpoint.log}"
+    local max_size="${CHECKPOINT_LOG_MAX_SIZE:-10485760}"
+    init_logging "$log_file" "$max_size"
+}
 
 # Backward compatibility marker
 export BACKUP_LIB_LOADED=1

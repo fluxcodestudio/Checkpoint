@@ -3,6 +3,7 @@
 # Checkpoint - Output (Color, JSON, Logging)
 # ==============================================================================
 # @requires: core/config (for check_drive used by backup_log)
+#            core/logging (optional — backup_log delegates to log_* when available)
 # @provides: COLOR_* constants, color_echo, color_red, color_green,
 #            color_yellow, color_blue, color_cyan, color_gray, color_bold,
 #            json_escape, json_kv, json_kv_num, json_kv_bool, backup_log
@@ -93,16 +94,18 @@ json_kv_bool() {
 
 # Log message to file and stdout
 # Args: $1 = message, $2 = level (optional: INFO, WARN, ERROR)
+# Backward compatible: preserves stdout output and legacy file writes.
+# Also delegates to structured logging (log_info/warn/error) when available.
 backup_log() {
     local message="$1"
     local level="${2:-INFO}"
     local timestamp="[$(date '+%Y-%m-%d %H:%M:%S')]"
     local log_entry="$timestamp [$level] $message"
 
-    # Print to stdout
+    # Print to stdout (backward-compatible behavior)
     echo "$log_entry"
 
-    # Write to log file if available
+    # Write to log file if available (legacy path — kept for compatibility)
     local log_file="${LOG_FILE:-}"
     if [ -n "$log_file" ] && check_drive; then
         if [ -d "$(dirname "$log_file")" ]; then
@@ -110,10 +113,19 @@ backup_log() {
         fi
     fi
 
-    # Write to fallback log
+    # Write to fallback log (legacy path — kept for compatibility)
     local fallback_log="${FALLBACK_LOG:-}"
     if [ -n "$fallback_log" ]; then
         mkdir -p "$(dirname "$fallback_log")" 2>/dev/null || true
         echo "$log_entry" >> "$fallback_log" 2>/dev/null || true
+    fi
+
+    # Delegate to structured logging module (if loaded)
+    if command -v log_info >/dev/null 2>&1; then
+        case "$level" in
+            ERROR) log_error "$message" ;;
+            WARN)  log_warn "$message" ;;
+            *)     log_info "$message" ;;
+        esac
     fi
 }

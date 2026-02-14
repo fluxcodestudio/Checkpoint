@@ -59,6 +59,15 @@ check_drive() {
 }
 
 # ==============================================================================
+# LOGGING DEFAULTS
+# ==============================================================================
+
+# Log level: 0=ERROR, 1=WARN, 2=INFO, 3=DEBUG, 4=TRACE
+# Can be overridden in .backup-config.sh or via --debug/--trace/--quiet flags
+: "${CHECKPOINT_LOG_LEVEL:=2}"             # Default: INFO
+: "${CHECKPOINT_LOG_MAX_SIZE:=10485760}"   # Default: 10MB (10 * 1024 * 1024)
+
+# ==============================================================================
 # ALERT CONFIGURATION
 # ==============================================================================
 
