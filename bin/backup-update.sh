@@ -229,6 +229,7 @@ if [[ "$INSTALL_MODE" == "global" ]]; then
     cp -r lib/* "$PREFIX/lib/checkpoint/lib/"
     cp -r bin/*.sh "$PREFIX/lib/checkpoint/bin/"
     chmod +x "$PREFIX/lib/checkpoint/bin/"*.sh
+    cp -r templates "$PREFIX/lib/checkpoint/"
     cp VERSION "$PREFIX/lib/checkpoint/VERSION"
 
     echo "✅ Update complete!"
@@ -237,9 +238,53 @@ else
     cp -r lib/* "$PROJECT_DIR/.claude/lib/"
     cp -r bin/*.sh "$PROJECT_DIR/bin/"
     chmod +x "$PROJECT_DIR/bin/"*.sh
+    cp -r templates "$PROJECT_DIR/"
     cp VERSION "$PROJECT_DIR/VERSION"
 
     echo "✅ Update complete!"
+fi
+
+# ==============================================================================
+# MIGRATE EXISTING DAEMON SERVICES (pick up updated plist/service configs)
+# ==============================================================================
+
+echo ""
+echo "Migrating daemon services..."
+
+_refresh_count=0
+
+# macOS: patch existing plists with KeepAlive/SuccessfulExit=false
+for plist in "$HOME/Library/LaunchAgents"/com.checkpoint.*.plist; do
+    [ -f "$plist" ] || continue
+
+    # Check if plist has old-style KeepAlive=true (not the dict form)
+    if plutil -extract KeepAlive raw "$plist" 2>/dev/null | grep -q "true"; then
+        label=$(defaults read "$plist" Label 2>/dev/null) || continue
+
+        # Unload before modifying
+        launchctl unload "$plist" 2>/dev/null || true
+
+        # Replace bare KeepAlive=true with SuccessfulExit=false dict
+        plutil -replace KeepAlive -json '{"SuccessfulExit":false}' "$plist" 2>/dev/null || true
+
+        # Reload with updated config
+        launchctl load -w "$plist" 2>/dev/null || true
+        _refresh_count=$((_refresh_count + 1))
+    fi
+done
+
+# Linux: refresh systemd units from updated templates
+for unit in "$HOME/.config/systemd/user"/checkpoint-*.service; do
+    [ -f "$unit" ] || continue
+    systemctl --user daemon-reload 2>/dev/null || true
+    _refresh_count=$((_refresh_count + 1))
+    break  # daemon-reload covers all units at once
+done
+
+if [ $_refresh_count -gt 0 ]; then
+    echo "  ✅ Migrated $_refresh_count service(s) to updated config"
+else
+    echo "  ℹ  No services needed migration"
 fi
 
 echo ""

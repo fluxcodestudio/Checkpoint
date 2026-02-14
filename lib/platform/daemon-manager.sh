@@ -420,6 +420,11 @@ _install_daemon_launchd() {
     <integer>3600</integer>
     <key>RunAtLoad</key>
     <true/>
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
     <key>StandardOutPath</key>
     <string>${log_dir}/${service_name}.out</string>
     <key>StandardErrorPath</key>
