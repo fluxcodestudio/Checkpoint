@@ -1163,11 +1163,21 @@ if [[ "$install_daemon" =~ ^[Yy] ]]; then
     install_daemon "$PROJECT_NAME" "$DAEMON_SCRIPT" "$PROJECT_DIR" "$PROJECT_NAME" "daemon"
     echo "        ✓ Hourly backups enabled"
 
+    # Auto-start daemon immediately
+    start_daemon "$PROJECT_NAME" 2>/dev/null && \
+        echo "        ✓ Daemon started" || \
+        echo "        ⚠ Daemon will start on next login"
+
     # Install watcher daemon if enabled
     if [ "${WATCHER_ENABLED:-false}" = "true" ]; then
         WATCHER_SCRIPT="$PACKAGE_DIR/bin/backup-watcher.sh"
         install_daemon "watcher-$PROJECT_NAME" "$WATCHER_SCRIPT" "$PROJECT_DIR" "$PROJECT_NAME" "watcher"
         echo "        ✓ File watcher installed (debounce: ${DEBOUNCE_SECONDS:-60}s)"
+
+        # Auto-start watcher immediately
+        start_daemon "watcher-$PROJECT_NAME" 2>/dev/null && \
+            echo "        ✓ Watcher started" || \
+            echo "        ⚠ Watcher will start on next login"
     fi
 fi
 

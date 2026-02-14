@@ -251,6 +251,28 @@ else
     echo "  ⚠️  Global daemon installation failed (non-critical)"
 fi
 
+# Install watchdog for health monitoring
+WATCHDOG_PATH="$LIB_DIR/bin/checkpoint-watchdog.sh"
+if install_daemon "watchdog" "$WATCHDOG_PATH" "$HOME" "global" "watcher"; then
+    echo "  ✅ Watchdog installed (health monitoring)"
+else
+    echo "  ⚠️  Watchdog installation failed (non-critical)"
+fi
+
+# Auto-start: start services immediately (no reboot needed)
+echo ""
+echo "Starting services..."
+if start_daemon "global-daemon"; then
+    echo "  ✅ Global daemon started"
+else
+    echo "  ⚠️  Global daemon start failed (will start on next login)"
+fi
+if start_daemon "watchdog"; then
+    echo "  ✅ Watchdog started"
+else
+    echo "  ⚠️  Watchdog start failed (will start on next login)"
+fi
+
 echo ""
 echo "═══════════════════════════════════════════════"
 echo "✅ Global Installation Complete!"
