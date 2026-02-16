@@ -62,7 +62,19 @@ backups/
 └── backup.log
 ```
 
-**Key insight:** Each file in `archived/` has a suffix `.YYYYMMDD_HHMMSS_PID`. The PID suffix prevents collisions but means we need pattern matching, not exact timestamp lookup.
+**Key insight:** Archived files have **two** suffix patterns (verified against real data):
+- **With PID:** `.YYYYMMDD_HHMMSS_XXXXX` (from `backup-now.sh`, 48 files found)
+- **Without PID:** `.YYYYMMDD_HHMMSS` (from `backup-daemon.sh`, 11 files found)
+
+The existing `extract_timestamp()` in `retention-policy.sh` (line 81) **only handles the with-PID pattern**. The diff command must handle both.
+
+**Real examples from this project's archived/ directory:**
+```
+CONTEXT_DIGEST.md.20260216_043343_72545    # with PID (backup-now.sh)
+CONTEXT_DIGEST.md.20260216_041304          # without PID (daemon)
+bin/backup-now.sh.20260216_031101          # without PID (daemon)
+.claude/settings.local.json.20260216_043343_72545  # nested path, with PID
+```
 
 ### Pattern 1: Three Comparison Modes (from restic/borg UX)
 **What:** Support three distinct comparison operations
@@ -150,11 +162,12 @@ checkpoint diff --json                   # JSON output for scripting
 <common_pitfalls>
 ## Common Pitfalls
 
-### Pitfall 1: Timestamp-PID Suffix Parsing
-**What goes wrong:** Archived files have `.YYYYMMDD_HHMMSS_PID` suffixes. The PID part varies, so naive timestamp extraction fails.
-**Why it happens:** PID was added to prevent collisions during concurrent backups.
-**How to avoid:** Strip PID when grouping by snapshot time: `sed 's/\.\([0-9]\{8\}_[0-9]\{6\}\)_[0-9]*$/.\1/'`
-**Warning signs:** Files from the same backup appearing as different snapshots
+### Pitfall 1: Two Different Timestamp Suffix Formats (VERIFIED BUG)
+**What goes wrong:** Archived files have TWO patterns: `.YYYYMMDD_HHMMSS_PID` (from `backup-now.sh`) and `.YYYYMMDD_HHMMSS` (from `backup-daemon.sh`). Code that only handles one pattern misses ~18% of archived files.
+**Why it happens:** `backup-now.sh` appends `_$$` (PID) to prevent collisions; `backup-daemon.sh` does not.
+**How to avoid:** Use regex that handles both: `\.([0-9]{8}_[0-9]{6})(_[0-9]+)?$`
+**Warning signs:** Files from daemon backups missing from snapshot discovery; existing `extract_timestamp()` in `retention-policy.sh:81` has this exact bug (missing pattern for no-PID suffix)
+**Impact:** This should be fixed in `extract_timestamp()` as part of this phase, not just in the diff command
 
 ### Pitfall 2: Archived Directory Mirrors Source Structure
 **What goes wrong:** `archived/` preserves the full relative path (e.g., `archived/src/components/Button.js.TIMESTAMP`). Walking it naively misses nested directories.
@@ -162,11 +175,11 @@ checkpoint diff --json                   # JSON output for scripting
 **How to avoid:** Use `find "$ARCHIVED_DIR" -type f` for full recursive scan; strip `$ARCHIVED_DIR/` prefix and timestamp suffix to reconstruct original paths
 **Warning signs:** Missing files in diff output, especially nested files
 
-### Pitfall 3: rsync --dry-run Counts Metadata Changes Too
-**What goes wrong:** `rsync -i --dry-run` reports permission/timestamp changes even when content is identical. Output looks like files changed when they didn't.
+### Pitfall 3: rsync --dry-run Reports Metadata-Only Changes as Modifications (VERIFIED)
+**What goes wrong:** `rsync -i --dry-run` reports permission/timestamp changes even when content is identical. Verified output shows `.d..t.... ./` for directory timestamp changes and `>f..t....` for time-only file changes.
 **Why it happens:** rsync --archive syncs permissions and timestamps by default
-**How to avoid:** Filter itemize output: only show lines starting with `>f` (file transfer), not `.d` (directory) or permission-only changes; or use `--size-only` flag
-**Warning signs:** Lots of "modified" files that users know haven't changed
+**How to avoid:** Filter to only `>f` lines (file transfers) for the diff output. Further filter: `>f++++++++` = new file, any other `>f` = modified. Ignore `.d` (directory) and `.f` (no-change metadata) lines. For content-only diffs, could add `--checksum` flag to rsync (slower but accurate).
+**Warning signs:** `>f..t....` entries (time-only) — these ARE real changes (file was touched) but may confuse users. Consider `--content-only` flag to suppress time-only changes.
 
 ### Pitfall 4: Large Archived Directories = Slow Scan
 **What goes wrong:** Projects with many files and long retention create thousands of entries in archived/. Scanning all of them for snapshot discovery is slow.
@@ -174,7 +187,13 @@ checkpoint diff --json                   # JSON output for scripting
 **How to avoid:** Cache snapshot list; use `find -maxdepth 1` for top-level scan first; offer `--recent N` flag to limit to last N snapshots
 **Warning signs:** Diff command takes >5 seconds on large projects
 
-### Pitfall 5: Missing Backup Directory
+### Pitfall 5: Deleted File Detection Requires --delete Flag
+**What goes wrong:** Without `--delete` in the rsync dry-run, files that exist in the backup but NOT in the working directory won't show up in the diff.
+**Why it happens:** By default rsync only shows files that would be transferred (source → dest). `--delete` adds `*deleting` lines for dest-only files.
+**How to avoid:** Always use `rsync --delete --dry-run` for current-vs-backup comparison. Parse `*deleting` lines separately from `>f` lines. Verified format: `*deleting   TESTING-REPORT.md` (with spaces before filename).
+**Warning signs:** Diff shows no removed files even when user knows they deleted things
+
+### Pitfall 6: Missing Backup Directory
 **What goes wrong:** User runs `checkpoint diff` in a project without backups configured, or backup directory is on disconnected drive
 **Why it happens:** New project or external drive backup
 **How to avoid:** Check `load_backup_config()` succeeds and backup dirs exist before attempting diff; use existing `check_drive()` for drive verification
@@ -184,41 +203,102 @@ checkpoint diff --json                   # JSON output for scripting
 <code_examples>
 ## Code Examples
 
+### rsync Itemize-Changes Format (Verified)
+```
+# rsync --itemize-changes output format: YXcstpoguax filename
+#
+# Position 1 (Y): Update type
+#   > = transferred to destination (received)
+#   < = transferred to source (sent)
+#   c = local change/creation (directory)
+#   . = not updated (metadata only)
+#   * = message (e.g., "*deleting")
+#
+# Position 2 (X): File type
+#   f = regular file, d = directory, L = symlink
+#
+# Positions 3-11: Attribute changes (letter = changed, . = unchanged, + = new)
+#   c=checksum, s=size, t=time, p=perms, o=owner, g=group, u=reserved, a=ACL, x=xattr
+#
+# VERIFIED against real Checkpoint backup output:
+#   >f++++++++  .shellcheckrc        # NEW file (all +)
+#   >f.st....   README.md            # MODIFIED (size + time changed)
+#   >f..t....   CONTEXT_DIGEST.md    # MODIFIED (time only — treat as modified)
+#   >f.stp...   .gitignore           # MODIFIED (size + time + perms)
+#   .d..t....   ./                   # DIRECTORY metadata change (ignore)
+#   *deleting   TESTING-REPORT.md    # DELETED from backup (only in destination)
+```
+
 ### rsync --dry-run for Current-vs-Backup Comparison
 ```bash
-# Source: rsync man page, verified for Checkpoint's architecture
+# Source: rsync man page + verified against Checkpoint's actual backup
 # Compare working directory against backup files/ mirror
-rsync --archive --no-links --dry-run --itemize-changes \
+# CRITICAL: Use --delete flag to detect files removed from source
+rsync --archive --no-links --dry-run --delete --itemize-changes \
     --out-format="%i %n" \
-    "$PROJECT_DIR/" "$FILES_DIR/" 2>/dev/null | \
-    grep '^>f' | while IFS= read -r line; do
-        # Parse rsync itemize format: >f.st...... filename
-        local change_type="${line:0:11}"
-        local filename="${line:12}"
-
-        if [[ "$change_type" == *'++++++++'* ]]; then
-            echo "+  $filename"    # New file
-        else
-            echo "M  $filename"    # Modified file
+    "$PROJECT_DIR/" "$FILES_DIR/" 2>/dev/null | while IFS= read -r line; do
+        if [[ "$line" == '*deleting'* ]]; then
+            # File exists in backup but not in working dir
+            local filename="${line#\*deleting   }"
+            echo "-  $filename"
+        elif [[ "$line" == '>f'* ]]; then
+            local flags="${line:0:11}"
+            local filename="${line:12}"
+            if [[ "$flags" == *'++++++++'* ]]; then
+                echo "+  $filename"    # New file (not in backup yet)
+            else
+                echo "M  $filename"    # Modified file
+            fi
         fi
+        # Ignore directory entries (.d...) and metadata-only changes
     done
 ```
 
 ### Discover Available Snapshots from Archived Directory
 ```bash
 # Extract unique backup timestamps from archived/ file suffixes
+# MUST handle BOTH patterns: .YYYYMMDD_HHMMSS_PID and .YYYYMMDD_HHMMSS
 discover_snapshots() {
     local archived_dir="$1"
 
     find "$archived_dir" -type f 2>/dev/null | \
-        sed -n 's/.*\.\([0-9]\{8\}_[0-9]\{6\}\)_[0-9]*/\1/p' | \
+        sed -n 's/.*\.\([0-9]\{8\}_[0-9]\{6\}\)\(_[0-9]*\)\{0,1\}$/\1/p' | \
         sort -u -r  # Most recent first
 }
 
-# Example output:
-# 20260216_143022
-# 20260216_120000
-# 20260215_180000
+# VERIFIED output from this project's archived/:
+# 20260216_175923
+# 20260216_155104
+# 20260216_043343
+# 20260216_041304
+# 20260216_031101
+# 20260216_020909
+# 20260215_192308
+# 20260215_183928
+# 20260215_170001
+# 20260215_165031
+```
+
+### Extract Timestamp from Archived Filename (Fixed)
+```bash
+# IMPORTANT: The existing extract_timestamp() in retention-policy.sh (line 81)
+# DOES NOT handle files without PID suffix (e.g., backup-now.sh.20260216_031101).
+# The diff command needs this fixed version:
+extract_timestamp_fixed() {
+    local filename="$1"
+    # Pattern 1: name.ext.YYYYMMDD_HHMMSS_PID (from backup-now.sh)
+    if [[ "$filename" =~ \.([0-9]{8}_[0-9]{6})_[0-9]+$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+    # Pattern 2: name.ext.YYYYMMDD_HHMMSS (from backup-daemon.sh, no PID)
+    elif [[ "$filename" =~ \.([0-9]{8}_[0-9]{6})$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+    # Pattern 3: name_YYYYMMDD_HHMMSS.ext (database backups)
+    elif [[ "$filename" =~ _([0-9]{8}_[0-9]{6})\. ]]; then
+        echo "${BASH_REMATCH[1]}"
+    else
+        echo ""
+    fi
+}
 ```
 
 ### Reconstruct File State at a Snapshot Time
@@ -236,10 +316,11 @@ get_file_at_snapshot() {
     local base_name=$(basename "$file_path")
     local dir_name=$(dirname "$file_path")
 
-    # Find all archived versions, sorted newest first
-    local versions=()
+    # Find all archived versions, extract timestamps, sort newest first
     while IFS= read -r version; do
-        local ts=$(echo "$version" | sed -n 's/.*\.\([0-9]\{8\}_[0-9]\{6\}\)_[0-9]*/\1/p')
+        local ts
+        ts=$(extract_timestamp_fixed "$(basename "$version")")
+        [[ -z "$ts" ]] && continue
         if [[ "$ts" > "$target_timestamp" ]]; then
             # This version was archived AFTER our target time
             # So this IS the version that existed at target time
@@ -303,38 +384,45 @@ print_diff_summary() {
 <open_questions>
 ## Open Questions
 
-1. **Snapshot reconstruction accuracy**
-   - What we know: Archived files have timestamps of when they were replaced, but the "before" state requires working backwards through the archive chain
-   - What's unclear: Whether timestamp ordering is always reliable (clock skew, timezone changes, PID collisions)
-   - Recommendation: For v1, support current-vs-backup comparison only (uses rsync --dry-run, no reconstruction needed). Add backup-vs-backup in a follow-up if users request it.
+1. **Snapshot reconstruction accuracy** — PARTIALLY RESOLVED
+   - What we know: Archived files have timestamps of when they were replaced. Both PID and no-PID patterns are now understood. Timestamps use LOCAL time by default (UTC opt-in via `USE_UTC_TIMESTAMPS`).
+   - What's resolved: Timestamp extraction works with fixed regex. Snapshot discovery verified against real data (10 unique snapshots found in this project).
+   - What's still unclear: Mixed UTC/local timestamps in same archive (if config changed mid-stream). Edge case: what happens if multiple backups run in same second without PID suffix (daemon).
+   - Recommendation: For v1, support current-vs-backup comparison (rsync --dry-run) and snapshot listing. Snapshot-vs-snapshot comparison as stretch goal.
 
-2. **Content-level diffs**
-   - What we know: `checkpoint diff` should show which files changed; users may also want to see *what* changed inside a file
-   - What's unclear: Whether to show inline content diffs or just list changed files
-   - Recommendation: Default to file-list-only (like restic/borg). Add `checkpoint diff --content <file>` to show actual content diff of a specific file against its backup copy.
+2. **Content-level diffs** — RESOLVED
+   - Decision: Default to file-list-only (like restic/borg). For specific file content diff, user can run `diff <(cat working/file) backups/files/file` manually, or we add `checkpoint diff <file>` to show content diff of a specific file against its backup copy.
+   - The backup files/ directory is a plain mirror, so standard `diff` works directly.
 
-3. **Database snapshot diffing**
-   - What we know: Database backups are `.db.gz` compressed SQLite snapshots with timestamps in the filename
-   - What's unclear: How to meaningfully diff two database snapshots (schema changes? row counts?)
-   - Recommendation: For v1, show database snapshots as a timeline only (list available snapshots with sizes/dates). Actual DB diffing is a much larger problem — defer it.
+3. **Database snapshot diffing** — RESOLVED (DEFERRED)
+   - Decision: For v1, show database snapshots as a timeline only (list available snapshots with sizes/dates). Actual DB diffing requires decompressing `.db.gz`, comparing SQLite schemas/data — too complex for this phase.
+
+4. **`extract_timestamp()` bug fix scope** — NEW
+   - What we know: `retention-policy.sh:81` has a bug — doesn't handle `.YYYYMMDD_HHMMSS` (no PID) pattern. 11 files in this project's archived/ are affected.
+   - What's unclear: Whether fixing `extract_timestamp()` could break existing retention logic (tiered pruning). Likely safe since it would just include more files in pruning consideration.
+   - Recommendation: Fix `extract_timestamp()` in this phase as a prerequisite, with test coverage. The diff command needs it, and it fixes a latent bug in retention.
 </open_questions>
 
 <sources>
 ## Sources
 
 ### Primary (HIGH confidence)
-- Checkpoint codebase: `bin/backup-now.sh` — rsync backup execution with `--backup --suffix` pattern
+- Checkpoint codebase: `bin/backup-now.sh` — rsync backup execution with `--backup --suffix` pattern (line 951: timestamp format, line 1051: rsync flags)
 - Checkpoint codebase: `lib/features/backup-discovery.sh` — existing `list_file_versions_sorted()`
 - Checkpoint codebase: `lib/ops/file-ops.sh` — existing `get_file_hash()`, `files_identical_hash()`
-- rsync man page — `--dry-run`, `--itemize-changes`, `--out-format` options
+- Checkpoint codebase: `lib/retention-policy.sh:81` — `extract_timestamp()` with verified bug
+- Checkpoint codebase: `backups/archived/` — 62 real archived files inspected, both suffix patterns confirmed
+- rsync man page — `--dry-run`, `--itemize-changes`, `--out-format`, `--delete` options
+- **Verified rsync output** — ran `rsync --dry-run -i --delete` against actual Checkpoint backup; confirmed `>f++++++++` (new), `>f.st....` (modified), `*deleting` (removed) formats
 
 ### Secondary (MEDIUM confidence)
 - [restic diff man page](https://manpages.ubuntu.com/manpages/jammy/man1/restic-diff.1.html) — output format (`+/-/M/U/T`), `--metadata` flag, `--json` output
 - [borg diff documentation](https://borgbackup.readthedocs.io/en/stable/usage/diff.html) — byte-level diff, `--content-only`, `--json-lines`, `--sort` options
+- [rsync itemize-changes reference](https://gist.github.com/sblask/c551442f28d8f700579832ce5a80eca9) — complete YXcstpoguax format documentation
 - [rsync dry-run patterns](https://www.baeldung.com/linux/rsync-output-changed-files-list) — `--itemize-changes` format for directory comparison
 
 ### Tertiary (LOW confidence - needs validation)
-- None — all findings verified against official sources or codebase
+- None — all findings verified against real backup data or official sources
 </sources>
 
 <metadata>
