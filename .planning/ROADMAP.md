@@ -97,7 +97,8 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 20-01: TBD (run /gsd:plan-phase 20 to break down)
+- [ ] 20-01: Scheduling Library (TDD) — cron parser, matcher, presets, validation, next-match
+- [ ] 20-02: Config & Integration — config wiring, daemon/watcher integration, status display
 
 #### Phase 21: Storage Usage Warnings
 
