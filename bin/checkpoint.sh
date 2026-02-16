@@ -612,6 +612,8 @@ case "${1:-}" in
         echo "  --update            Check for updates"
         echo "  --dashboard         Launch interactive TUI dashboard"
         echo "  verify              Verify backup integrity"
+        echo "  diff                Compare working directory with backup"
+        echo "  history <file>      Show all versions of a file"
         echo "  --help, -h          Show this help"
         echo ""
         echo "No options:           Launch interactive TUI dashboard"
@@ -624,6 +626,26 @@ case "${1:-}" in
             exec "$CHECKPOINT_LIB/bin/backup-verify.sh" "$@"
         else
             echo "Error: backup-verify.sh not found" >&2
+            exit 1
+        fi
+        ;;
+    diff|--diff)
+        # Run diff comparison
+        if [[ -x "$CHECKPOINT_LIB/bin/checkpoint-diff.sh" ]]; then
+            shift
+            exec "$CHECKPOINT_LIB/bin/checkpoint-diff.sh" "$@"
+        else
+            echo "Error: checkpoint-diff.sh not found" >&2
+            exit 1
+        fi
+        ;;
+    history)
+        # Run file history (routes through checkpoint-diff.sh with "history" prefix)
+        if [[ -x "$CHECKPOINT_LIB/bin/checkpoint-diff.sh" ]]; then
+            shift
+            exec "$CHECKPOINT_LIB/bin/checkpoint-diff.sh" "history" "$@"
+        else
+            echo "Error: checkpoint-diff.sh not found" >&2
             exit 1
         fi
         ;;
