@@ -23,6 +23,9 @@ fi
 # Cross-platform helpers (stat, notifications)
 source "$CHECKPOINT_LIB/lib/platform/compat.sh"
 
+# Scheduling library (for schedule display)
+source "$CHECKPOINT_LIB/lib/features/scheduling.sh" 2>/dev/null || true
+
 # Global config location
 GLOBAL_CONFIG_DIR="$HOME/.config/checkpoint"
 GLOBAL_CONFIG_FILE="$GLOBAL_CONFIG_DIR/config.sh"
@@ -134,7 +137,24 @@ show_command_center() {
     echo ""
     echo "  Automation:"
     echo "    Hourly Backups:        ${DEFAULT_INSTALL_HOURLY_BACKUPS:-true} (macOS)"
-    echo "    Backup Interval:       $((${DEFAULT_BACKUP_INTERVAL:-3600} / 60)) minutes"
+    if [[ -n "${DEFAULT_BACKUP_SCHEDULE:-}" ]] && type cron_matches_now &>/dev/null; then
+        local _sched_display="$DEFAULT_BACKUP_SCHEDULE"
+        local _resolved
+        _resolved=$(_resolve_schedule "$DEFAULT_BACKUP_SCHEDULE")
+        if [[ "$_resolved" != "$DEFAULT_BACKUP_SCHEDULE" ]]; then
+            _sched_display="$DEFAULT_BACKUP_SCHEDULE ($_resolved)"
+        fi
+        echo "    Backup Schedule:       $_sched_display"
+        local _next
+        _next=$(next_cron_match "$DEFAULT_BACKUP_SCHEDULE" 2>/dev/null) || true
+        if [[ -n "$_next" && "$_next" != "no match within 24h" ]]; then
+            local _next_mins="${_next%% *}"
+            local _next_time="${_next#* }"
+            echo "    Next Backup:           $_next_time (in ${_next_mins}min)"
+        fi
+    else
+        echo "    Backup Interval:       $((${DEFAULT_BACKUP_INTERVAL:-3600} / 60)) minutes"
+    fi
     echo ""
     echo "  Integrations:"
     echo "    Claude Code:           ${CLAUDE_CODE_INTEGRATION:-true}"
@@ -154,6 +174,26 @@ show_command_center() {
         echo "  Retention (Project Override):"
         echo "    Database Backups:      ${DB_RETENTION_DAYS:-using global (${DEFAULT_DB_RETENTION_DAYS:-30})} days"
         echo "    Archived Files:        ${FILE_RETENTION_DAYS:-using global (${DEFAULT_FILE_RETENTION_DAYS:-60})} days"
+        echo ""
+        echo "  Schedule:"
+        if [[ -n "${BACKUP_SCHEDULE:-}" ]] && type cron_matches_now &>/dev/null; then
+            local _proj_sched="$BACKUP_SCHEDULE"
+            local _proj_resolved
+            _proj_resolved=$(_resolve_schedule "$BACKUP_SCHEDULE")
+            if [[ "$_proj_resolved" != "$BACKUP_SCHEDULE" ]]; then
+                _proj_sched="$BACKUP_SCHEDULE ($_proj_resolved)"
+            fi
+            echo "    Backup Schedule:       $_proj_sched"
+            local _proj_next
+            _proj_next=$(next_cron_match "$BACKUP_SCHEDULE" 2>/dev/null) || true
+            if [[ -n "$_proj_next" && "$_proj_next" != "no match within 24h" ]]; then
+                local _proj_mins="${_proj_next%% *}"
+                local _proj_time="${_proj_next#* }"
+                echo "    Next Backup:           $_proj_time (in ${_proj_mins}min)"
+            fi
+        else
+            echo "    Backup Interval:       $((${BACKUP_INTERVAL:-${DEFAULT_BACKUP_INTERVAL:-3600}} / 60)) minutes"
+        fi
         echo ""
         echo "  Cloud Backup:"
         echo "    Enabled:               ${CLOUD_ENABLED:-${DEFAULT_CLOUD_ENABLED:-false}}"
