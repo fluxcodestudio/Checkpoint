@@ -109,7 +109,7 @@ Plans:
 
 Plans:
 - [x] 21-01: Storage Monitoring Library & Config — storage-monitor.sh, STORAGE_* config wiring
-- [ ] 21-02: Pipeline Integration & Status Display — pre-backup gate check, checkpoint status
+- [x] 21-02: Pipeline Integration & Status Display — pre-backup gate check, checkpoint status
 
 #### Phase 22: Checkpoint Diff Command
 
@@ -177,7 +177,7 @@ Plans:
 | 18. Daemon Lifecycle & Health Monitoring | v2.5 | 3/3 | Complete | 2026-02-14 |
 | 19. AI Tool Artifact Backup | v3.0 | 1/1 | Complete | 2026-02-16 |
 | 20. Cron-Style Scheduling | v3.0 | 2/2 | Complete | 2026-02-16 |
-| 21. Storage Usage Warnings | v3.0 | 1/2 | In progress | - |
+| 21. Storage Usage Warnings | v3.0 | 2/2 | Complete | 2026-02-16 |
 | 22. Checkpoint Diff Command | v3.0 | 0/? | Not started | - |
 | 23. Encryption at Rest | v3.0 | 0/? | Not started | - |
 | 24. Docker Volume Backup | v3.0 | 0/? | Not started | - |
