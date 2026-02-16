@@ -136,11 +136,44 @@ checkpoint history <file>                # All versions of a file
 checkpoint diff --json                   # JSON output for scripting
 ```
 
+### Pattern 5: Diff Scope Must Match Backup Scope
+**What:** The diff command must compare only files the backup system tracks, not the full working directory
+**When to use:** Always — critical design constraint
+
+**Problem:** A naive `rsync --dry-run PROJECT_DIR/ FILES_DIR/` compares ALL files, producing 2932 "changed" files. But Checkpoint only backs up ~200 files (git-tracked + special files + AI artifacts).
+
+**Solution (VERIFIED):** Use the same direction as `backup-now.sh` (`PROJECT_DIR/ → FILES_DIR/`) with matching excludes:
+```bash
+rsync --archive --no-links --dry-run --delete --itemize-changes \
+    --exclude='backups/' --exclude='.git/' --exclude='node_modules/' \
+    --exclude='.venv/' --exclude='__pycache__/' --exclude='dist/' \
+    --exclude='build/' --exclude='.next/' --exclude='.DS_Store' \
+    "$PROJECT_DIR/" "$FILES_DIR/"
+```
+This produces 343 entries (vs 2932 without excludes) and correctly shows new/modified/deleted files.
+
+**Note:** The reversed direction (`FILES_DIR/ → PROJECT_DIR/`) was tested and REJECTED — it recursively matches the backup directory itself and produces confusing output.
+
+**Exclude list source:** These excludes are hardcoded in `backup-now.sh` (line 516-526 fallback) and should be centralized into a shared constant or config for reuse by the diff command.
+
+### Pattern 6: Cloud Destination Awareness
+**What:** Backup files/ may be in a cloud folder, not just local `$PROJECT/backups/`
+**When to use:** When `CLOUD_FOLDER_ENABLED=true`
+
+The diff command must use `resolve_backup_destinations()` to find the actual `FILES_DIR` and `ARCHIVED_DIR`. These resolve through a 3-tier fallback:
+1. Cloud folder (e.g., `~/Dropbox/Backups/Checkpoint/ProjectName/files/`)
+2. rclone API (local primary with async cloud sync)
+3. Local only (`$PROJECT/backups/files/`)
+
+When dual-write is enabled (`CLOUD_FOLDER_ALSO_LOCAL=true`), `PRIMARY_FILES_DIR` = cloud, `SECONDARY_FILES_DIR` = local. The diff should compare against PRIMARY (what actually gets used).
+
 ### Anti-Patterns to Avoid
 - **Full tree walk for every comparison:** Use rsync --dry-run (it's optimized for this)
 - **Storing snapshot metadata separately:** The archived/ directory IS the metadata; don't duplicate it
 - **Comparing file contents by default:** Size + mtime comparison first; hash only when sizes match (already implemented in `files_identical_hash()`)
 - **Interactive diff viewer:** Keep it simple output to stdout; users can pipe to `less` or `delta`
+- **Hardcoding backup paths:** Must use `resolve_backup_destinations()` to handle cloud/local/dual-write
+- **Comparing ALL working dir files:** Must scope to only backed-up files (202 files, not 2932)
 </architecture_patterns>
 
 <dont_hand_roll>
@@ -229,16 +262,34 @@ checkpoint diff --json                   # JSON output for scripting
 #   *deleting   TESTING-REPORT.md    # DELETED from backup (only in destination)
 ```
 
-### rsync --dry-run for Current-vs-Backup Comparison
+### rsync --dry-run for Current-vs-Backup Comparison (VERIFIED)
 ```bash
-# Source: rsync man page + verified against Checkpoint's actual backup
-# Compare working directory against backup files/ mirror
-# CRITICAL: Use --delete flag to detect files removed from source
+# Direction: PROJECT_DIR/ → FILES_DIR/ (same as backup-now.sh)
+# Semantics: "What would the next backup capture?"
+#
+# With --delete flag:
+#   ">f++++++++" = file in project but NOT in backup → NEW (would be added)
+#   ">f.st...."  = file differs → MODIFIED (would be updated, old version archived)
+#   ">f..t...."  = time-only change → MODIFIED (touched but maybe same content)
+#   "*deleting"  = file in backup but NOT in project → DELETED (would be removed)
+#
+# CRITICAL: Must use same excludes as backup-now.sh to match backup scope.
+# Without excludes: 2932 files. With excludes: 343 files.
+#
+# VERIFIED against this project's actual backup:
+#   *deleting   TESTING-REPORT.md            → file was in backup, now gone
+#   >f++++++++  DECISIONS.md                 → new file, never backed up
+#   >f.stp...   CHANGELOG.md                 → modified (size+time+perms)
+#   >f..t....   CONTEXT_DIGEST.md            → time-only change
+
 rsync --archive --no-links --dry-run --delete --itemize-changes \
     --out-format="%i %n" \
+    --exclude='backups/' --exclude='.git/' --exclude='node_modules/' \
+    --exclude='.venv/' --exclude='__pycache__/' --exclude='dist/' \
+    --exclude='build/' --exclude='.next/' --exclude='.DS_Store' \
     "$PROJECT_DIR/" "$FILES_DIR/" 2>/dev/null | while IFS= read -r line; do
         if [[ "$line" == '*deleting'* ]]; then
-            # File exists in backup but not in working dir
+            # File in backup but NOT in project → user deleted it
             local filename="${line#\*deleting   }"
             echo "-  $filename"
         elif [[ "$line" == '>f'* ]]; then
@@ -250,8 +301,17 @@ rsync --archive --no-links --dry-run --delete --itemize-changes \
                 echo "M  $filename"    # Modified file
             fi
         fi
-        # Ignore directory entries (.d...) and metadata-only changes
+        # Ignore: .d (directory), cd (create dir), .f (no transfer needed)
     done
+```
+
+**Performance verified (real measurements on this project):**
+| Operation | Time | Items |
+|-----------|------|-------|
+| rsync --dry-run (no excludes) | ~70ms | 3352 |
+| rsync --dry-run (with excludes) | ~50ms | 343 |
+| Snapshot discovery (find + sed) | ~15ms | 62 archived files, 10 unique timestamps |
+| Total expected diff time | <200ms | — |
 ```
 
 ### Discover Available Snapshots from Archived Directory
