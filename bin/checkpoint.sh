@@ -102,6 +102,21 @@ show_command_center() {
         echo "Project Status:    ⚠️  Not Configured"
     fi
 
+    # Detect AI coding tools in project
+    _detected_tools=""
+    [ -d ".claude" ] && _detected_tools="${_detected_tools}Claude Code, "
+    [ -d ".cursor" ] && _detected_tools="${_detected_tools}Cursor, "
+    { [ -f ".aider.conf.yml" ] || [ -f ".aider.chat.history.md" ]; } && _detected_tools="${_detected_tools}Aider, "
+    [ -d ".windsurf" ] && _detected_tools="${_detected_tools}Windsurf, "
+    { [ -f ".clinerules" ] || [ -d ".clinerules" ]; } && _detected_tools="${_detected_tools}Cline, "
+    { [ -d ".continue" ] || [ -f ".continuerc.json" ]; } && _detected_tools="${_detected_tools}Continue, "
+    [ -d ".codex" ] && _detected_tools="${_detected_tools}Codex CLI, "
+    [ -d ".augment" ] && _detected_tools="${_detected_tools}Augment, "
+    [ -d ".amazonq" ] && _detected_tools="${_detected_tools}Amazon Q, "
+    [ -d ".aiassistant" ] && _detected_tools="${_detected_tools}JetBrains AI, "
+    [ -f ".github/copilot-instructions.md" ] && _detected_tools="${_detected_tools}Copilot, "
+    [ -n "$_detected_tools" ] && echo "AI Tools Detected: ${_detected_tools%, }"
+
     echo ""
 
     # Global Settings Section
