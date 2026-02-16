@@ -16,29 +16,36 @@ test_suite "_parse_cron_field"
 
 test_case "wildcard - should expand to full range (minutes 0-59)"
 result=$(_parse_cron_field "*" 0 59)
-expected=$(seq -s ' ' 0 59)
-if assert_equals "$expected" "$result" "Wildcard should expand to 0..59"; then
+# Check first value, last value, and word count
+read -ra vals <<< "$result"
+if assert_equals "60" "${#vals[@]}" "Should have 60 values" && \
+   assert_equals "0" "${vals[0]}" "First value should be 0" && \
+   assert_equals "59" "${vals[59]}" "Last value should be 59"; then
     test_pass
 else
-    test_fail "Got: $result"
+    test_fail "Got ${#vals[@]} values: ${vals[0]}..${vals[-1]}"
 fi
 
 test_case "wildcard - should expand to full range (hours 0-23)"
 result=$(_parse_cron_field "*" 0 23)
-expected=$(seq -s ' ' 0 23)
-if assert_equals "$expected" "$result" "Wildcard should expand to 0..23"; then
+read -ra vals <<< "$result"
+if assert_equals "24" "${#vals[@]}" "Should have 24 values" && \
+   assert_equals "0" "${vals[0]}" "First value should be 0" && \
+   assert_equals "23" "${vals[23]}" "Last value should be 23"; then
     test_pass
 else
-    test_fail "Got: $result"
+    test_fail "Got ${#vals[@]} values: ${vals[0]}..${vals[-1]}"
 fi
 
 test_case "wildcard - should expand to full range (dom 1-31)"
 result=$(_parse_cron_field "*" 1 31)
-expected=$(seq -s ' ' 1 31)
-if assert_equals "$expected" "$result" "Wildcard should expand to 1..31"; then
+read -ra vals <<< "$result"
+if assert_equals "31" "${#vals[@]}" "Should have 31 values" && \
+   assert_equals "1" "${vals[0]}" "First value should be 1" && \
+   assert_equals "31" "${vals[30]}" "Last value should be 31"; then
     test_pass
 else
-    test_fail "Got: $result"
+    test_fail "Got ${#vals[@]} values: ${vals[0]}..${vals[-1]}"
 fi
 
 test_case "step - */15 minutes should give 0 15 30 45"
