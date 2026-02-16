@@ -112,6 +112,9 @@ patterns:
     # Backup local databases (*.db, *.sqlite, excluding main DB)
     local_databases: true
 
+    # Backup AI coding tool artifacts (.claude/, .cursor/, .aider, .windsurf/, etc.)
+    ai_artifacts: true
+
   # Files to exclude (glob patterns)
   # Example: ["*.log", "tmp/*", "cache/*"]
   exclude: []

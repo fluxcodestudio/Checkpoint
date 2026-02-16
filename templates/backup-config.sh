@@ -149,6 +149,13 @@ BACKUP_LOCAL_NOTES=true
 # Backup local databases (*.db, *.sqlite, etc.)
 BACKUP_LOCAL_DATABASES=true
 
+# AI Tool Artifacts — include .claude/, .cursor/, .aider, .windsurf/ etc.
+BACKUP_AI_ARTIFACTS=true
+# Extra directories to include (comma-separated, relative to project root)
+AI_ARTIFACT_EXTRA_DIRS=""
+# Extra files to include (comma-separated, relative to project root)
+AI_ARTIFACT_EXTRA_FILES=""
+
 # ==============================================================================
 # CLOUD FOLDER DESTINATION (auto-sync via desktop app)
 # ==============================================================================

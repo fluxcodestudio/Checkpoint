@@ -65,6 +65,7 @@ apply_global_defaults() {
                 DEFAULT_BACKUP_ENV_FILES)     : "${BACKUP_ENV_FILES:=$value}" ;;
                 DEFAULT_BACKUP_CREDENTIALS)   : "${BACKUP_CREDENTIALS:=$value}" ;;
                 DEFAULT_BACKUP_IDE_SETTINGS)  : "${BACKUP_IDE_SETTINGS:=$value}" ;;
+                DEFAULT_BACKUP_AI_ARTIFACTS) : "${BACKUP_AI_ARTIFACTS:=$value}" ;;
                 DESKTOP_NOTIFICATIONS)
                     if [ "$value" = "true" ]; then
                         : "${NOTIFICATIONS_ENABLED:=true}"
@@ -97,6 +98,9 @@ apply_global_defaults() {
     : "${BACKUP_ENV_FILES:=true}"
     : "${BACKUP_CREDENTIALS:=true}"
     : "${BACKUP_IDE_SETTINGS:=true}"
+    : "${BACKUP_AI_ARTIFACTS:=true}"
+    : "${AI_ARTIFACT_EXTRA_DIRS:=}"
+    : "${AI_ARTIFACT_EXTRA_FILES:=}"
     : "${COMPRESSION_LEVEL:=6}"
     : "${NOTIFICATIONS_ENABLED:=true}"
 }
@@ -310,6 +314,7 @@ config_key_to_var() {
         "backup_targets.ide_settings") echo "BACKUP_IDE_SETTINGS" ;;
         "backup_targets.local_notes") echo "BACKUP_LOCAL_NOTES" ;;
         "backup_targets.local_databases") echo "BACKUP_LOCAL_DATABASES" ;;
+        "backup_targets.ai_artifacts") echo "BACKUP_AI_ARTIFACTS" ;;
         "logging.log_file") echo "LOG_FILE" ;;
         "logging.fallback_log") echo "FALLBACK_LOG" ;;
         "state.state_dir") echo "STATE_DIR" ;;
@@ -348,6 +353,7 @@ config_var_to_key() {
         "BACKUP_IDE_SETTINGS") echo "backup_targets.ide_settings" ;;
         "BACKUP_LOCAL_NOTES") echo "backup_targets.local_notes" ;;
         "BACKUP_LOCAL_DATABASES") echo "backup_targets.local_databases" ;;
+        "BACKUP_AI_ARTIFACTS") echo "backup_targets.ai_artifacts" ;;
         "LOG_FILE") echo "logging.log_file" ;;
         "FALLBACK_LOG") echo "logging.fallback_log" ;;
         "STATE_DIR") echo "state.state_dir" ;;

@@ -52,6 +52,9 @@ DEFAULT_BACKUP_CREDENTIALS=true
 # Backup IDE settings (.vscode, .idea, etc.) by default
 DEFAULT_BACKUP_IDE_SETTINGS=true
 
+# Backup AI coding tool artifacts (.claude/, .cursor/, .aider, etc.) by default
+DEFAULT_BACKUP_AI_ARTIFACTS=true
+
 # ==============================================================================
 # AUTOMATION (Global Defaults)
 # ==============================================================================
