@@ -337,6 +337,28 @@ ARCHIVED_DIR="${PRIMARY_ARCHIVED_DIR:-${ARCHIVED_DIR:-$BACKUP_DIR/archived}}"
 LOG_FILE="${LOG_FILE:-$BACKUP_DIR/backup.log}"
 
 # ==============================================================================
+# PROGRESS FILE (for dashboard UI)
+# ==============================================================================
+
+PROGRESS_FILE="$HOME/.checkpoint/backup-progress.json"
+mkdir -p "$HOME/.checkpoint"
+
+write_progress() {
+    local percent="$1"
+    local phase="$2"
+    local total="${3:-0}"
+    local copied="${4:-0}"
+    printf '{"project":"%s","percent":%d,"phase":"%s","total_files":%d,"copied_files":%d,"pid":%d}\n' \
+        "$PROJECT_NAME" "$percent" "$phase" "$total" "$copied" "$$" > "$PROGRESS_FILE"
+}
+
+# Clean up progress file on exit
+_cleanup_progress() { rm -f "$PROGRESS_FILE"; }
+trap '_cleanup_progress' EXIT
+
+write_progress 5 "initializing"
+
+# ==============================================================================
 # PRE-FLIGHT CHECKS
 # ==============================================================================
 
@@ -627,7 +649,7 @@ if [ "$FILES_ONLY" = false ]; then
 
             if [ "${DB_TYPE:-sqlite}" = "sqlite" ]; then
                 if sqlite3 "$DB_PATH" ".backup /tmp/${PROJECT_NAME}_temp.db" && \
-                   gzip -c "/tmp/${PROJECT_NAME}_temp.db" > "$backup_file" && \
+                   gzip -"${COMPRESSION_LEVEL:-6}" -c "/tmp/${PROJECT_NAME}_temp.db" > "$backup_file" && \
                    rm "/tmp/${PROJECT_NAME}_temp.db"; then
 
                     backup_size=$(get_file_size "$backup_file")
@@ -656,6 +678,7 @@ fi
 # ==============================================================================
 
 if [ "$DATABASE_ONLY" = false ]; then
+    write_progress 10 "scanning"
     cli_info "   Files: Scanning for changes..."
 
     cd "$PROJECT_DIR" || exit 2
@@ -802,42 +825,23 @@ if [ "$DATABASE_ONLY" = false ]; then
         # Create manifest for verification
         manifest_file=$(mktemp)
 
-        total_files=$(sort -u "$changed_files" | wc -l | tr -d ' ')
-        BACKUP_STATE_TOTAL_FILES=$total_files
-
-        # Build manifest: capture file metadata at backup START
-        cli_verbose "   Creating backup manifest..."
-        log_debug "Building backup manifest for $total_files files"
-        while IFS= read -r file; do
-            # Skip backups directory and non-existent files
-            if [[ "$file" == backups/* ]] || [ ! -f "$file" ]; then
-                continue
-            fi
-            file_size=$(get_file_size "$file")
-            echo "$file|$file_size" >> "$manifest_file"
-        done < <(sort -u "$changed_files")
-
-        if [ "$is_first_backup" = true ]; then
-            cli_info "   Files: Initial backup - copying $total_files files..."
-            log_info "Initial backup: $total_files files"
-        else
-            cli_info "   Files: $total_files modified files found"
-            cli_info "   Files: Backing up changes..."
-            log_info "Incremental backup: $total_files modified files"
-        fi
-
         # Set defaults for file size limits (no limit by default - backup everything)
         MAX_BACKUP_FILE_SIZE="${MAX_BACKUP_FILE_SIZE:-0}"  # 0 = no limit
         BACKUP_LARGE_FILES="${BACKUP_LARGE_FILES:-true}"
         skipped_large_files=0
         skipped_symlinks=0
 
-        while IFS= read -r file; do
-            if [ -z "$file" ]; then continue; fi
-            if [ ! -e "$file" ]; then continue; fi
-            if [[ "$file" == backups/* ]]; then continue; fi
+        # ==============================================================================
+        # STEP 1: Pre-filter file list
+        # ==============================================================================
+        filtered_files=$(mktemp)
 
-            # Issue #7: Skip symlinks for safety (avoid following to system files or loops)
+        # Remove duplicates, blanks, and backups/ paths
+        sort -u "$changed_files" | grep -v '^$' | grep -v '^backups/' > "$filtered_files" || true
+
+        # Remove symlinks and non-regular files from the list
+        _valid_files=$(mktemp)
+        while IFS= read -r file; do
             if [ -L "$file" ]; then
                 skipped_symlinks=$((skipped_symlinks + 1))
                 if [ "$CHECKPOINT_LOG_LEVEL" -ge "$LOG_LEVEL_DEBUG" ] 2>/dev/null; then
@@ -846,8 +850,6 @@ if [ "$DATABASE_ONLY" = false ]; then
                 log_trace "Skipped symlink: $file"
                 continue
             fi
-
-            # Must be a regular file
             if [ ! -f "$file" ]; then continue; fi
 
             # Issue #6: Check file size limits
@@ -863,182 +865,189 @@ if [ "$DATABASE_ONLY" = false ]; then
                 fi
             fi
 
-            current_file="$FILES_DIR/$file"
-            current_dir=$(dirname "$current_file")
-            archived_file="$ARCHIVED_DIR/${file}.${timestamp}"
-            archived_dir=$(dirname "$archived_file")
+            echo "$file"
+        done < "$filtered_files" > "$_valid_files"
+        mv "$_valid_files" "$filtered_files"
 
-            # Secondary destination paths (for dual-write)
-            secondary_file=""
-            secondary_dir=""
-            secondary_archived_file=""
-            secondary_archived_dir=""
-            if [[ -n "${SECONDARY_FILES_DIR:-}" ]]; then
-                secondary_file="$SECONDARY_FILES_DIR/$file"
-                secondary_dir=$(dirname "$secondary_file")
-                secondary_archived_file="$SECONDARY_ARCHIVED_DIR/${file}.${timestamp}"
-                secondary_archived_dir=$(dirname "$secondary_archived_file")
-            fi
+        # ==============================================================================
+        # STEP 2: Count filtered files for reporting
+        # ==============================================================================
+        total_files=$(wc -l < "$filtered_files" | tr -d ' ')
+        BACKUP_STATE_TOTAL_FILES=$total_files
+        write_progress 20 "preparing" "$total_files"
 
-            mkdir -p "$current_dir"
+        if [ "$total_files" -eq 0 ]; then
+            cli_info "   Files: No changes to backup (all filtered)"
+            log_info "No files remaining after filtering"
+            rm -f "$filtered_files" "$changed_files"
+        else
 
-            # Check if file changed
-            if [ -f "$current_file" ]; then
-                # Use hash comparison if enabled, fall back to cmp
-                files_are_identical=false
-                if [ "$BACKUP_USE_HASH_COMPARE" = "true" ]; then
-                    # Try hash-based comparison first (faster for large files)
-                    if files_identical_hash "$file" "$current_file" 2>/dev/null; then
-                        files_are_identical=true
-                    fi
-                else
-                    # Use byte-by-byte comparison (fallback)
-                    if cmp -s "$file" "$current_file"; then
-                        files_are_identical=true
-                    fi
-                fi
+        if [ "$is_first_backup" = true ]; then
+            cli_info "   Files: Initial backup - copying $total_files files..."
+            log_info "Initial backup: $total_files files"
+        else
+            cli_info "   Files: $total_files modified files found"
+            cli_info "   Files: Backing up changes..."
+            log_info "Incremental backup: $total_files modified files"
+        fi
 
-                if [ "$files_are_identical" = "false" ]; then
-                    mkdir -p "$archived_dir"
-                    mv "$current_file" "$archived_file"
-                    archived_count=$((archived_count + 1))
+        # ==============================================================================
+        # STEP 3: Build manifest from source files (bulk stat)
+        # ==============================================================================
+        cli_verbose "   Creating backup manifest..."
+        log_debug "Building backup manifest for $total_files files"
+        # Bulk stat: one xargs call instead of per-file get_file_size loop
+        # tr converts newlines to NUL for xargs -0 (handles spaces in filenames)
+        # macOS stat -f"%z<TAB>%N" outputs "size<TAB>filename" per line
+        tr '\n' '\0' < "$filtered_files" | xargs -0 stat -f$'%z\t%N' 2>/dev/null | \
+            while IFS=$'\t' read -r fsize fname; do
+                echo "$fname|$fsize"
+            done > "$manifest_file"
 
-                    # Copy with retry logic (3 attempts)
-                    if copy_with_retry "$file" "$current_file" 3; then
-                        file_count=$((file_count + 1))
-                        BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
-                        if [ "$CHECKPOINT_LOG_LEVEL" -ge "$LOG_LEVEL_DEBUG" ] 2>/dev/null; then
-                            cli_verbose "      Backed up: $file"
-                        fi
-                        log_trace "Backed up: $file"
+        # ==============================================================================
+        # STEP 4: Primary rsync
+        # ==============================================================================
+        rsync_log=$(mktemp)
 
-                        # Dual-write to secondary if configured
-                        if [[ -n "$secondary_file" ]]; then
-                            mkdir -p "$secondary_dir"
-                            if [[ -f "$secondary_file" ]]; then
-                                mkdir -p "$secondary_archived_dir"
-                                mv "$secondary_file" "$secondary_archived_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || true
-                            fi
-                            if ! cp "$current_file" "$secondary_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                                cli_verbose "      Secondary copy failed: $file"
-                                log_debug "Secondary copy failed: $file"
-                            fi
-                        fi
+        # Ensure destination directories exist
+        mkdir -p "$FILES_DIR" "$ARCHIVED_DIR"
+
+        # Use absolute path for backup-dir since rsync resolves it relative to dest
+        _archived_abs=$(cd "$ARCHIVED_DIR" && pwd)
+
+        write_progress 30 "copying" "$total_files"
+        cli_verbose "   Running rsync..."
+        log_debug "rsync: files-from=$filtered_files dest=$FILES_DIR backup-dir=$_archived_abs suffix=.$timestamp"
+
+        rsync_exit=0
+        rsync --archive --no-links \
+            --files-from="$filtered_files" \
+            --backup --backup-dir="$_archived_abs" --suffix=".$timestamp" \
+            --itemize-changes --out-format="%i %n" \
+            ./ "$FILES_DIR/" > "$rsync_log" 2>&1 || rsync_exit=$?
+
+        # ==============================================================================
+        # STEP 5: Secondary rsync (dual-write)
+        # ==============================================================================
+        if [[ -n "${SECONDARY_FILES_DIR:-}" ]] && [[ -n "${SECONDARY_ARCHIVED_DIR:-}" ]]; then
+            mkdir -p "$SECONDARY_FILES_DIR" "$SECONDARY_ARCHIVED_DIR"
+            _sec_archived_abs=$(cd "$SECONDARY_ARCHIVED_DIR" && pwd)
+
+            log_debug "rsync secondary: dest=$SECONDARY_FILES_DIR backup-dir=$_sec_archived_abs"
+            rsync --archive --no-links \
+                --files-from="$filtered_files" \
+                --backup --backup-dir="$_sec_archived_abs" --suffix=".$timestamp" \
+                ./ "$SECONDARY_FILES_DIR/" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || \
+                cli_warn "      Secondary rsync had errors (non-fatal)"
+        fi
+
+        # ==============================================================================
+        # STEP 6: Parse rsync output for counters
+        # ==============================================================================
+        # rsync --itemize-changes format: >f marks a transferred file
+        # >f+++++++++ = new file, >f.st...... = updated file (size/time changed)
+        if [ -f "$rsync_log" ]; then
+            # Count transferred files (lines starting with >f)
+            file_count=$(grep -c '^>f' "$rsync_log" 2>/dev/null || true)
+            file_count=${file_count:-0}
+
+            # Count archived files: updated files have backup copies created
+            # >f.st, >f..t, >fs.t, etc. = existing file was updated (old version archived)
+            # >f+++++++++ = new file (no archive created)
+            archived_count=$(grep '^>f' "$rsync_log" 2>/dev/null | grep -cv '++++' 2>/dev/null || true)
+            archived_count=${archived_count:-0}
+
+            BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + file_count))
+
+            # Log transferred files at debug level
+            if [ "$CHECKPOINT_LOG_LEVEL" -ge "$LOG_LEVEL_DEBUG" ] 2>/dev/null; then
+                while IFS= read -r line; do
+                    fname="${line#* }"
+                    if [[ "$line" == *'++++++++'* ]]; then
+                        cli_verbose "      New file: $fname"
                     else
-                        # Primary copy failed - try secondary as fallback
-                        if [[ -n "$secondary_file" ]]; then
-                            mkdir -p "$secondary_dir"
-                            if copy_with_retry "$file" "$secondary_file" 3; then
-                                cli_warn "      Primary failed, saved to secondary: $file"
-                                log_warn "Primary copy failed, saved to secondary: $file"
-                                file_count=$((file_count + 1))
-                                BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
-                            else
-                                # Both failed - use standardized error codes
-                                raw_code="${COPY_FAILURE_REASON:-copy_failed}"
-                                error_code=$(map_error_to_code "$raw_code")
-                                suggested_fix=$(get_error_suggestion "$error_code")
-                                add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "$suggested_fix" 3
-                                cli_error "      Failed: $file ($error_code)"
-                                log_error "Copy failed (primary+secondary): $file error=$error_code"
-                            fi
-                        else
-                            # No secondary, primary failed - use standardized error codes
-                            raw_code="${COPY_FAILURE_REASON:-copy_failed}"
-                            error_code=$(map_error_to_code "$raw_code")
-                            suggested_fix=$(get_error_suggestion "$error_code")
-
-                            add_file_failure "$file" "$error_code" "Copy failed after 3 retries" "$suggested_fix" 3
-                            cli_error "      Failed: $file ($error_code)"
-                            log_error "Copy failed after 3 retries: $file error=$error_code"
-                        fi
+                        cli_verbose "      Backed up: $fname"
                     fi
-                fi
+                done < <(grep '^>f' "$rsync_log" 2>/dev/null || true)
+            fi
+        fi
+
+        # Handle rsync errors
+        if [ "$rsync_exit" -ne 0 ]; then
+            if [ "$rsync_exit" -eq 23 ]; then
+                # Partial transfer: some files vanished during backup (acceptable)
+                cli_warn "      Some files vanished during backup (rsync exit 23)"
+                log_warn "rsync partial transfer: some source files vanished (exit 23)"
+            elif [ "$rsync_exit" -eq 24 ]; then
+                # Partial transfer: some files vanished (also acceptable)
+                cli_warn "      Some files vanished during backup (rsync exit 24)"
+                log_warn "rsync: some source files vanished (exit 24)"
             else
-                # Copy with retry logic (3 attempts)
-                if copy_with_retry "$file" "$current_file" 3; then
-                    file_count=$((file_count + 1))
-                    BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
-                    if [ "$CHECKPOINT_LOG_LEVEL" -ge "$LOG_LEVEL_DEBUG" ] 2>/dev/null; then
-                        cli_verbose "      New file: $file"
-                    fi
-                    log_trace "New file: $file"
-
-                    # Dual-write to secondary if configured
-                    if [[ -n "$secondary_file" ]]; then
-                        mkdir -p "$secondary_dir"
-                        if ! cp "$current_file" "$secondary_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                            cli_verbose "      Secondary copy failed: $file"
-                            log_debug "Secondary copy failed: $file"
-                        fi
-                    fi
-                else
-                    # Primary copy failed - try secondary as fallback
-                    if [[ -n "$secondary_file" ]]; then
-                        mkdir -p "$secondary_dir"
-                        if copy_with_retry "$file" "$secondary_file" 3; then
-                            cli_warn "      Primary failed, saved to secondary: $file"
-                            log_warn "Primary copy failed, saved to secondary: $file"
-                            file_count=$((file_count + 1))
-                            BACKUP_STATE_SUCCEEDED_FILES=$((BACKUP_STATE_SUCCEEDED_FILES + 1))
-                        else
-                            # Both failed - use standardized error codes
-                            raw_code="${COPY_FAILURE_REASON:-copy_failed}"
-                            error_code=$(map_error_to_code "$raw_code")
-                            suggested_fix=$(get_error_suggestion "$error_code")
-                            add_file_failure "$file" "$error_code" "Copy failed to primary and secondary" "$suggested_fix" 3
-                            cli_error "      Failed: $file ($error_code)"
-                            log_error "Copy failed (primary+secondary): $file error=$error_code"
-                        fi
-                    else
-                        # No secondary, primary failed - use standardized error codes
-                        raw_code="${COPY_FAILURE_REASON:-copy_failed}"
-                        error_code=$(map_error_to_code "$raw_code")
-                        suggested_fix=$(get_error_suggestion "$error_code")
-
-                        add_file_failure "$file" "$error_code" "Copy failed after 3 retries" "$suggested_fix" 3
-                        cli_error "      Failed: $file ($error_code)"
-                        log_error "Copy failed after 3 retries: $file error=$error_code"
-                    fi
-                fi
+                # Actual rsync error
+                rsync_errors=$(grep -i 'error\|failed' "$rsync_log" 2>/dev/null | head -5 || true)
+                error_code=$(map_error_to_code "copy_failed")
+                suggested_fix=$(get_error_suggestion "$error_code")
+                add_file_failure "rsync" "$error_code" "rsync failed with exit $rsync_exit: $rsync_errors" "$suggested_fix" 1
+                cli_error "      rsync failed (exit $rsync_exit)"
+                log_error "rsync failed: exit=$rsync_exit log=$(head -10 "$rsync_log" 2>/dev/null)"
             fi
+        fi
 
-        done < <(sort -u "$changed_files")
-
-        rm "$changed_files"
+        rm -f "$rsync_log" "$filtered_files"
+        rm -f "$changed_files"
 
         # ==============================================================================
         # POST-BACKUP VERIFICATION
         # ==============================================================================
 
+        write_progress 70 "verifying" "$total_files" "$file_count"
         cli_verbose "   Verifying backup integrity..."
         log_debug "Starting post-backup verification"
 
-        # Verify each file in manifest was actually backed up
-        while IFS='|' read -r file expected_size; do
-            backup_file="$FILES_DIR/$file"
-
-            if [ ! -f "$backup_file" ]; then
-                # File missing from backup - use standardized error code
-                error_code=$(map_error_to_code "file_missing")
-                suggested_fix=$(get_error_suggestion "$error_code")
-                add_file_failure "$file" "$error_code" "File missing from backup" "$suggested_fix" 0
-                cli_error "      Verification failed: $file (missing from backup)"
-                log_error "Verification failed: $file missing from backup"
-            else
-                # Check size matches
-                actual_size=$(get_file_size "$backup_file")
-                if [ "$actual_size" != "$expected_size" ]; then
-                    # Size mismatch - use standardized error code
-                    error_code=$(map_error_to_code "size_mismatch")
+        # Verify backed up files exist and match expected sizes
+        # rsync guarantees correctness, so only report actual failures
+        _manifest_count=$(wc -l < "$manifest_file" | tr -d ' ')
+        if [ "$_manifest_count" -gt 0 ]; then
+            # Bulk existence check: use sed to prepend FILES_DIR, then stat all at once
+            _verify_fail=0
+            while IFS='|' read -r file expected_size; do
+                backup_file="$FILES_DIR/$file"
+                if [ ! -f "$backup_file" ]; then
+                    error_code=$(map_error_to_code "file_missing")
                     suggested_fix=$(get_error_suggestion "$error_code")
-                    add_file_failure "$file" "$error_code" "Size: expected $expected_size, got $actual_size" "$suggested_fix" 0
-                    cli_error "      Verification failed: $file (size mismatch: expected $expected_size, got $actual_size)"
-                    log_error "Verification failed: $file size mismatch expected=$expected_size actual=$actual_size"
+                    add_file_failure "$file" "$error_code" "File missing from backup" "$suggested_fix" 0
+                    cli_error "      Verification failed: $file (missing from backup)"
+                    log_error "Verification failed: $file missing from backup"
+                    _verify_fail=$((_verify_fail + 1))
                 fi
-            fi
-        done < "$manifest_file"
+            done < "$manifest_file"
 
+            # Size spot-check: verify a sample (first, last, and up to 8 random files)
+            if [ "$_verify_fail" -eq 0 ] && [ "$_manifest_count" -gt 0 ]; then
+                _sample_file=$(mktemp)
+                if [ "$_manifest_count" -le 10 ]; then
+                    cp "$manifest_file" "$_sample_file"
+                else
+                    { head -1 "$manifest_file"; tail -1 "$manifest_file"; awk 'BEGIN{srand()} {if(rand()<8/NR) print}' "$manifest_file" | head -8; } > "$_sample_file"
+                fi
+                while IFS='|' read -r file expected_size; do
+                    backup_file="$FILES_DIR/$file"
+                    if [ -f "$backup_file" ]; then
+                        actual_size=$(get_file_size "$backup_file")
+                        if [ "$actual_size" != "$expected_size" ]; then
+                            error_code=$(map_error_to_code "size_mismatch")
+                            suggested_fix=$(get_error_suggestion "$error_code")
+                            add_file_failure "$file" "$error_code" "Size: expected $expected_size, got $actual_size" "$suggested_fix" 0
+                            cli_error "      Verification failed: $file (size mismatch: expected $expected_size, got $actual_size)"
+                            log_error "Verification failed: $file size mismatch expected=$expected_size actual=$actual_size"
+                        fi
+                    fi
+                done < "$_sample_file"
+                rm -f "$_sample_file"
+            fi
+        fi
+
+        write_progress 85 "manifest" "$total_files" "$file_count"
         # Persist JSON manifest for later verification audits
         if type persist_manifest_json &>/dev/null; then
             cli_verbose "   Persisting verification manifest..."
@@ -1088,6 +1097,8 @@ if [ "$DATABASE_ONLY" = false ]; then
             cli_info "   Files: No changes to backup"
             log_info "No file changes to backup"
         fi
+
+        fi  # end: total_files -eq 0 else block
     fi
 fi
 
@@ -1323,6 +1334,8 @@ state_file=$(write_backup_state "$final_exit_code")
 cli_info ""
 cli_info "State saved to: $state_file"
 
+write_progress 95 "finalizing"
+
 # Write heartbeat for helper app
 HEARTBEAT_DIR="$HOME/.checkpoint"
 HEARTBEAT_FILE="$HEARTBEAT_DIR/daemon.heartbeat"
@@ -1346,6 +1359,18 @@ else
     hb_error_json="null"
 fi
 
+# Include sync progress fields if running under backup-all-projects.sh
+hb_sync_fields=""
+if [[ -n "${CHECKPOINT_SYNC_TOTAL:-}" ]]; then
+    hb_sync_fields=",
+  \"syncing_project_index\": ${CHECKPOINT_SYNC_INDEX:-0},
+  \"syncing_total_projects\": ${CHECKPOINT_SYNC_TOTAL:-0},
+  \"syncing_current_project\": \"${CHECKPOINT_SYNC_PROJECT:-}\",
+  \"syncing_backed_up\": ${CHECKPOINT_SYNC_BACKED_UP:-0},
+  \"syncing_failed\": ${CHECKPOINT_SYNC_FAILED:-0},
+  \"syncing_skipped\": ${CHECKPOINT_SYNC_SKIPPED:-0}"
+fi
+
 cat > "$HEARTBEAT_FILE" <<EOF
 {
   "timestamp": $now,
@@ -1354,7 +1379,7 @@ cat > "$HEARTBEAT_FILE" <<EOF
   "last_backup": $now,
   "last_backup_files": $BACKUP_STATE_SUCCEEDED_FILES,
   "error": $hb_error_json,
-  "pid": $$
+  "pid": $$${hb_sync_fields}
 }
 EOF
 

@@ -33,7 +33,72 @@ load_backup_config() {
     fi
 
     source "$config_file"
+
+    # Apply global defaults from ~/.config/checkpoint/config.sh
+    apply_global_defaults
+
     return 0
+}
+
+# Apply global configuration defaults
+# Sources ~/.config/checkpoint/config.sh and uses DEFAULT_* values as
+# fallbacks for any per-project variable not already set.
+apply_global_defaults() {
+    local global_config="$HOME/.config/checkpoint/config.sh"
+    if [ -f "$global_config" ]; then
+        # Source into a subshell-safe temporary namespace
+        # We only want DEFAULT_* and global preference variables
+        local _saved_IFS="$IFS"
+        while IFS='=' read -r key value; do
+            # Skip comments and empty lines
+            [[ "$key" =~ ^[[:space:]]*# ]] && continue
+            [[ -z "$key" ]] && continue
+            key="$(echo "$key" | tr -d '[:space:]')"
+            # Strip surrounding quotes from value
+            value="${value#\"}" ; value="${value%\"}"
+            value="${value#\'}" ; value="${value%\'}"
+            case "$key" in
+                DEFAULT_BACKUP_INTERVAL)      : "${BACKUP_INTERVAL:=$value}" ;;
+                DEFAULT_SESSION_IDLE_THRESHOLD): "${SESSION_IDLE_THRESHOLD:=$value}" ;;
+                DEFAULT_DB_RETENTION_DAYS)    : "${DB_RETENTION_DAYS:=$value}" ;;
+                DEFAULT_FILE_RETENTION_DAYS)  : "${FILE_RETENTION_DAYS:=$value}" ;;
+                DEFAULT_BACKUP_ENV_FILES)     : "${BACKUP_ENV_FILES:=$value}" ;;
+                DEFAULT_BACKUP_CREDENTIALS)   : "${BACKUP_CREDENTIALS:=$value}" ;;
+                DEFAULT_BACKUP_IDE_SETTINGS)  : "${BACKUP_IDE_SETTINGS:=$value}" ;;
+                DESKTOP_NOTIFICATIONS)
+                    if [ "$value" = "true" ]; then
+                        : "${NOTIFICATIONS_ENABLED:=true}"
+                    else
+                        : "${NOTIFICATIONS_ENABLED:=false}"
+                    fi
+                    ;;
+                NOTIFY_ON_FAILURE_ONLY)
+                    if [ "$value" = "true" ]; then
+                        : "${NOTIFY_ON_SUCCESS:=false}"
+                        : "${NOTIFY_ON_ERROR:=true}"
+                    fi
+                    ;;
+                COMPRESSION_LEVEL)            : "${COMPRESSION_LEVEL:=$value}" ;;
+                DEBUG_MODE)
+                    if [ "$value" = "true" ] && [ "${CHECKPOINT_LOG_LEVEL:-2}" -lt 3 ]; then
+                        CHECKPOINT_LOG_LEVEL=3
+                    fi
+                    ;;
+            esac
+        done < "$global_config"
+        IFS="$_saved_IFS"
+    fi
+
+    # Final fallbacks for variables that may still be unset
+    : "${BACKUP_INTERVAL:=3600}"
+    : "${SESSION_IDLE_THRESHOLD:=600}"
+    : "${DB_RETENTION_DAYS:=30}"
+    : "${FILE_RETENTION_DAYS:=60}"
+    : "${BACKUP_ENV_FILES:=true}"
+    : "${BACKUP_CREDENTIALS:=true}"
+    : "${BACKUP_IDE_SETTINGS:=true}"
+    : "${COMPRESSION_LEVEL:=6}"
+    : "${NOTIFICATIONS_ENABLED:=true}"
 }
 
 # ==============================================================================

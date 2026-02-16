@@ -8,7 +8,7 @@
 
 Automated, intelligent backup system for any development environment. Battle-tested with comprehensive test coverage, cloud backup support, and multi-platform integrations.
 
-**Version:** 2.5.0
+**Version:** 2.5.1
 **Test Coverage:** 164/164 (100%)
 **License:** GPL v3
 
@@ -16,9 +16,43 @@ Automated, intelligent backup system for any development environment. Battle-tes
 
 ---
 
-## What's New in v2.5.0
+## What's New in v2.5.1
 
 <details open>
+<summary><strong>v2.5.1 — Dashboard UX Overhaul & Global Settings</strong></summary>
+
+**Menu Bar Dashboard**
+- Right-click context menu on project rows: Backup Now, Reveal in Finder, View Backup Folder, View Backup Log, Enable/Disable
+- Double-click any project row to open it in Finder
+- Hover effect on backup buttons (fade in on hover)
+- Last backup result indicators: green checkmark (success), orange warning (partial), red X (failed)
+- Keyboard shortcuts: `⌘B` Backup All, `⌘R` Refresh, `⌘,` Settings
+- Refresh button shows green "Updated" checkmark for visual feedback
+- User-friendly labels: "Backups Active/Paused" instead of daemon jargon
+
+**Settings Modal (`⌘,`)**
+- In-app settings sheet reads/writes `~/.config/checkpoint/config.sh`
+- Schedule: backup interval, idle threshold
+- Retention: database and file retention periods
+- What to Backup: toggle .env files, credentials, IDE settings
+- Notifications: desktop notifications, failure-only mode
+- Advanced: database compression level, debug logging
+
+**Global Config Wired to Backup Scripts**
+- `~/.config/checkpoint/config.sh` defaults now apply as fallbacks in all backup scripts
+- Per-project `.backup-config.sh` always overrides global defaults
+- `COMPRESSION_LEVEL` controls gzip compression in database backups
+- `DEBUG_MODE` enables debug-level logging globally
+- `DESKTOP_NOTIFICATIONS` toggles the macOS notification system
+
+**Bug Fixes**
+- Progress polling auto-stops after 30 minutes (prevents infinite polling if backup hangs)
+- Individual project backup disabled during global Backup All (prevents conflicts)
+- Daemon start/stop shows error alert on failure
+
+</details>
+
+<details>
 <summary><strong>v2.5.0 — Daemon Lifecycle & Health Monitoring</strong></summary>
 
 **Daemon Reliability**
@@ -405,6 +439,37 @@ BACKUP_LOCAL_DATABASES=true        # *.db, *.sqlite (non-primary)
 
 Edit anytime to change settings.
 
+### Global Configuration
+
+Global defaults apply to all projects (per-project settings override these):
+
+```bash
+# ~/.config/checkpoint/config.sh
+
+# Schedule
+DEFAULT_BACKUP_INTERVAL=3600          # Default backup interval (seconds)
+DEFAULT_SESSION_IDLE_THRESHOLD=600    # Default idle threshold (seconds)
+
+# Retention
+DEFAULT_DB_RETENTION_DAYS=30          # Database backup retention
+DEFAULT_FILE_RETENTION_DAYS=60        # Archived file retention
+
+# What to Backup
+DEFAULT_BACKUP_ENV_FILES=true         # .env files
+DEFAULT_BACKUP_CREDENTIALS=true       # Keys, certs, cloud configs
+DEFAULT_BACKUP_IDE_SETTINGS=true      # .vscode/, .idea/
+
+# Notifications
+DESKTOP_NOTIFICATIONS=false           # macOS desktop notifications
+NOTIFY_ON_FAILURE_ONLY=true           # Only notify on failures
+
+# Advanced
+COMPRESSION_LEVEL=6                   # gzip level (1-9) for database backups
+DEBUG_MODE=false                      # Enable debug logging globally
+```
+
+Edit via the **Settings** button in the menu bar dashboard (`⌘,`), or directly in the file.
+
 ---
 
 ## Failure Notifications
@@ -459,6 +524,27 @@ Checkpoint works anywhere — not just Claude Code!
 | **VS Code** | — | — | `./integrations/vscode/install-vscode.sh` |
 | **Tmux** | 60s refresh | Status bar | `./integrations/tmux/install-tmux.sh` |
 | **Direnv** | On enter | — | `./integrations/direnv/install.sh` |
+
+### Menu Bar App (macOS)
+
+Native macOS menu bar app for managing backups without the terminal.
+
+**Install:**
+```bash
+cd Checkpoint/helper && bash build.sh
+cp -r CheckpointHelper.app /Applications/
+open /Applications/CheckpointHelper.app
+```
+
+**Features:**
+- Status indicator in menu bar (green = active, red = paused)
+- Dashboard shows all projects with backup status and last result
+- Right-click any project: Backup Now, Reveal in Finder, View Log, Enable/Disable
+- Double-click project to open in Finder
+- Settings modal (`⌘,`) for global configuration
+- Keyboard shortcuts: `⌘B` Backup All, `⌘R` Refresh
+- Live progress during backups with phase descriptions
+- Pause/Resume automatic backups
 
 ### Shell Integration
 
@@ -646,6 +732,12 @@ A: Yes! Use `backup-pause` to pause (manual backups still work). Resume with `ba
 **Q: What if a daemon crashes?**
 A: The watchdog detects crashes via heartbeat monitoring and the KeepAlive/Restart policy auto-restarts the daemon. You'll get a notification if backups go stale.
 
+**Q: Is there a GUI?**
+A: Yes! The CheckpointHelper menu bar app (macOS) provides a dashboard with project status, backup controls, and settings. Build it from `helper/` and copy to Applications.
+
+**Q: Can I change global defaults for all projects?**
+A: Yes. Edit `~/.config/checkpoint/config.sh` or use the Settings button (`⌘,`) in the menu bar app. Per-project settings in `.backup-config.sh` always override globals.
+
 **Q: How do I uninstall?**
 A: Global: `./bin/uninstall-global.sh`. Per-project: `./bin/uninstall.sh`. Backup data is preserved by default.
 
@@ -731,7 +823,7 @@ Checkpoint/
 │   ├── systemd-watchdog.service      # Linux watchdog
 │   └── systemd-watcher.service       # Linux file watcher
 ├── helper/                           # macOS menu bar app
-│   ├── CheckpointHelper/             # Swift source
+│   ├── CheckpointHelper/             # Swift source (SwiftUI dashboard)
 │   └── build.sh                      # Build script
 ├── .claude/skills/                   # Claude Code skills
 ├── docs/                             # Documentation

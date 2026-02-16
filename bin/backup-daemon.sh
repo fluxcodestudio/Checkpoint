@@ -25,6 +25,15 @@ fi
 
 source "$CONFIG_FILE"
 
+# Apply global defaults from ~/.config/checkpoint/config.sh
+# (provides fallbacks for any variable not set in per-project config)
+if type apply_global_defaults &>/dev/null; then
+    apply_global_defaults
+elif [ -f "$LIB_DIR/core/config.sh" ]; then
+    source "$LIB_DIR/core/config.sh"
+    apply_global_defaults
+fi
+
 # Apply defaults for optional variables (Bash 3.2 compatible)
 # Backup directories
 DATABASE_DIR="${DATABASE_DIR:-$BACKUP_DIR/databases}"
@@ -161,6 +170,18 @@ write_heartbeat() {
 
     mkdir -p "$HEARTBEAT_DIR"
 
+    # Build sync progress fields if running under backup-all-projects.sh
+    local sync_fields=""
+    if [[ -n "${CHECKPOINT_SYNC_TOTAL:-}" ]]; then
+        sync_fields=",
+  \"syncing_project_index\": ${CHECKPOINT_SYNC_INDEX:-0},
+  \"syncing_total_projects\": ${CHECKPOINT_SYNC_TOTAL:-0},
+  \"syncing_current_project\": \"${CHECKPOINT_SYNC_PROJECT:-}\",
+  \"syncing_backed_up\": ${CHECKPOINT_SYNC_BACKED_UP:-0},
+  \"syncing_failed\": ${CHECKPOINT_SYNC_FAILED:-0},
+  \"syncing_skipped\": ${CHECKPOINT_SYNC_SKIPPED:-0}"
+    fi
+
     # Write JSON heartbeat file atomically (temp+rename prevents partial reads)
     local tmp_file="${HEARTBEAT_DIR}/.heartbeat.tmp.$$"
     cat > "$tmp_file" <<EOF
@@ -171,7 +192,7 @@ write_heartbeat() {
   "last_backup": $last_backup_time,
   "last_backup_files": $last_backup_files,
   "error": ${error_msg:+\"$error_msg\"}${error_msg:-null},
-  "pid": $$
+  "pid": $$${sync_fields}
 }
 EOF
     mv "$tmp_file" "$HEARTBEAT_FILE"
@@ -274,7 +295,7 @@ backup_database() {
 
         # Perform backup
         if sqlite3 "$DB_PATH" ".backup '$temp_db'" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-            if gzip -c "$temp_db" > "$backup_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+            if gzip -"${COMPRESSION_LEVEL:-6}" -c "$temp_db" > "$backup_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                 # Verify the backup is valid
                 if gunzip -t "$backup_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                     size=$(du -h "$backup_file" | cut -f1)
