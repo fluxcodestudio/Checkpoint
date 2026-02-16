@@ -13,7 +13,8 @@ None
 - ✅ [v1.0 Automated Backup System](milestones/v1.0-ROADMAP.md) (Phases 1-6) — SHIPPED 2026-01-11
 - ✅ [v1.1 Polish & Performance](milestones/v1.1-ROADMAP.md) (Phases 7-9) — SHIPPED 2026-01-12
 - ✅ [v1.2 Dashboard UX](milestones/v1.2-ROADMAP.md) (Phase 10) — SHIPPED 2026-01-12
-- 🚧 **v2.5 Architecture & Independence** — Phases 11-18 (in progress)
+- ✅ **v2.5 Architecture & Independence** — Phases 11-18 (shipped 2026-02-14)
+- 🚧 **v3.0 Smart Features & Developer Intelligence** — Phases 19-25 (in progress)
 
 ## Completed Milestones
 
@@ -57,109 +58,98 @@ None
 
 </details>
 
-### 🚧 v2.5 Architecture & Independence (In Progress)
+<details>
+<summary>v2.5 Architecture & Independence (Phases 11-18) — SHIPPED 2026-02-14</summary>
 
-**Milestone Goal:** Decouple backup system from Claude Code, modularize the monolithic codebase, harden security, and expand platform support — making Checkpoint a standalone, editor-agnostic tool.
+**Delivered:** Decoupled from Claude Code, modularized codebase, hardened security, Linux systemd support, backup verification, structured logging, daemon health monitoring.
 
-#### Phase 11: Modularize Foundation Library
+- [x] **Phase 11: Modularize Foundation Library** (3/3 plans) — 2026-02-13
+- [x] **Phase 12: Bootstrap Deduplication** (1/1 plans) — 2026-02-13
+- [x] **Phase 13: Native File Watcher Daemon** (4/4 plans) — 2026-02-13
+- [x] **Phase 14: Security Hardening** (3/3 plans) — 2026-02-13
+- [x] **Phase 15: Linux Systemd Support** (5/5 plans) — 2026-02-13
+- [x] **Phase 16: Backup Verification** (2/2 plans) — 2026-02-14
+- [x] **Phase 17: Error Logging Overhaul** (4/4 plans) — 2026-02-14
+- [x] **Phase 18: Daemon Lifecycle & Health Monitoring** (3/3 plans) — 2026-02-14
 
-**Goal**: Break backup-lib.sh (3,216 lines) into focused modules: config.sh, error-codes.sh, file-ops.sh, state.sh, validation.sh
+</details>
+
+### 🚧 v3.0 Smart Features & Developer Intelligence (In Progress)
+
+**Milestone Goal:** Add intelligent features that differentiate Checkpoint from generic backup tools — AI coding tool awareness, smart scheduling, proactive storage management, backup diffing, encryption, container support, and a powerful search/browse CLI.
+
+#### Phase 19: AI Tool Artifact Backup
+
+**Goal**: Automatically detect and include AI coding tool directories (.claude/, .cursor/, .aider*, .windsurf/) in backups, even when gitignored; preserve session transcripts, project memory, and tool configs across sessions
 **Depends on**: Previous milestone complete
-**Research**: Unlikely (internal refactoring)
+**Research**: Likely (AI tool directory structures, which files are ephemeral vs persistent, gitignore override patterns in rsync)
+**Research topics**: Claude Code .claude/ structure, Cursor .cursor/ contents, Aider file patterns, Windsurf .windsurf/ layout, rsync --include override for gitignored paths
 **Plans**: TBD
 
 Plans:
-- [x] 11-01: Extract core + ops modules (error-codes, output, config, file-ops, state, init)
-- [x] 11-02: Extract ui + features modules (formatting, time-size-utils, 8 feature modules)
-- [x] 11-03: Cutover — thin loader + full verification
+- [ ] 19-01: TBD (run /gsd:plan-phase 19 to break down)
 
-#### Phase 12: Bootstrap Deduplication
+#### Phase 20: Cron-Style Scheduling
 
-**Goal**: Extract the 7-line symlink resolution pattern from 20+ bin/ scripts into a shared bootstrap file; standardize script initialization
-**Depends on**: Phase 11
-**Research**: Unlikely (internal patterns)
+**Goal**: Replace flat BACKUP_INTERVAL seconds with cron-like expressions supporting work-hours-only, weekday/weekend differentiation, and time-of-day awareness
+**Depends on**: Phase 19
+**Research**: Unlikely (cron expression parsing is well-documented; internal daemon scheduling logic)
 **Plans**: TBD
 
 Plans:
-- [x] 12-01: Create shared bootstrap.sh and migrate 17 bin/ scripts
+- [ ] 20-01: TBD (run /gsd:plan-phase 20 to break down)
 
-#### Phase 13: Native File Watcher Daemon
+#### Phase 21: Storage Usage Warnings
 
-**Goal**: Replace Claude Code hooks with native file watching (fswatch on macOS, inotifywait on Linux) with debouncing; remove .claude/hooks/backup-on-*.sh; make backups fully editor-agnostic
-**Depends on**: Phase 12
-**Research**: Likely (fswatch/inotifywait APIs, debounce strategies, event filtering)
-**Research topics**: fswatch macOS integration, inotifywait Linux patterns, debounce timing strategies, ignore patterns for build dirs
-**Plans**: 4
-
-Plans:
-- [x] 13-01: Create platform file watcher abstraction + integrate into backup-watcher.sh
-- [x] 13-02: Migrate session detection + fix 8 watcher bugs
-- [x] 13-03: Update watcher management CLI + config template
-- [x] 13-04: Remove Claude Code hooks + update install scripts
-
-#### Phase 14: Security Hardening
-
-**Goal**: Eliminate curl|bash for rclone installation (download → verify checksum → execute); use system keychain or env vars for database credentials; add integrity verification for downloaded dependencies
-**Depends on**: Phase 13
-**Research**: Likely (macOS keychain API via `security` command, checksum verification workflows)
-**Research topics**: macOS `security` CLI for keychain access, Linux secret-tool/pass, GPG signature verification for rclone binaries
-**Plans**: 3
-
-Plans:
-- [x] 14-01: Secure download library + rclone migration (replace curl|bash with download-verify-execute)
-- [x] 14-02: Credential provider abstraction (macOS Keychain, Linux secret-tool/pass, env var fallback)
-- [x] 14-03: Self-update integrity + install messaging (SHA256 verification for backup-update.sh)
-
-#### Phase 15: Linux Systemd Support
-
-**Goal**: Create systemd unit file template alongside existing macOS plist; platform-aware daemon installer that detects launchd vs systemd vs cron
-**Depends on**: Phase 14
-**Research**: Complete (15-RESEARCH.md — systemd user services, init detection, stat portability, cron fallback)
-**Plans**: 5
-
-Plans:
-- [x] 15-01: Platform compatibility layer (stat portability + notifications for core scripts)
-- [x] 15-02: stat portability across all backup operation scripts
-- [x] 15-03: Daemon manager abstraction + systemd/cron templates
-- [x] 15-04: Core daemon script migration (watchdog, pause, install-global, uninstall-global)
-- [x] 15-05: Complete daemon migration (install, configure, uninstall, helper, auto-configure)
-
-#### Phase 16: Backup Verification
-
-**Goal**: Implement the "Coming soon!" dashboard feature — verify file counts, database integrity, archive completeness; build on existing verify_sqlite_integrity()
-**Depends on**: Phase 15
-**Research**: Unlikely (building on existing internal patterns)
+**Goal**: Pre-backup disk space checks on destination volume; warn via notification when approaching capacity; show per-project storage consumption; suggest cleanup actions
+**Depends on**: Phase 20
+**Research**: Unlikely (df command, existing notification infrastructure)
 **Plans**: TBD
 
 Plans:
-- [x] 16-01: Core verification library + error codes + persistent manifest
-- [x] 16-02: CLI command + dashboard integration
+- [ ] 21-01: TBD (run /gsd:plan-phase 21 to break down)
 
-#### Phase 17: Error Logging Overhaul
+#### Phase 22: Checkpoint Diff Command
 
-**Goal**: Replace 932 occurrences of 2>/dev/null with structured debug logging; add log rotation; debug mode toggle for troubleshooting
-**Depends on**: Phase 16
-**Research**: Complete (17-RESEARCH.md — bash structured logging, log rotation, debug mode patterns)
-**Plans**: 4
-
-Plans:
-- [x] 17-01: Logging foundation (lib/core/logging.sh module + config/output integration)
-- [x] 17-02: Core script migration (backup-now, backup-daemon, checkpoint-watchdog)
-- [x] 17-03: Library module migration (database-detector, cloud-backup, daemon-manager, features/, ops/)
-- [x] 17-04: CLI & integration migration + end-to-end verification
-
-#### Phase 18: Daemon Lifecycle & Health Monitoring
-
-**Goal**: Auto-start daemon on install; implement heartbeat monitoring with periodic health checks; auto-restart if daemon fails or dies (cross-platform: launchd KeepAlive + systemd Restart=on-failure); present warning notification if backups cease (no successful backup within configurable threshold)
-**Depends on**: Phase 13 (daemon), Phase 15 (platform service support)
-**Research**: Likely (launchd KeepAlive patterns, heartbeat file strategies, backup cessation detection)
-**Research topics**: launchd KeepAlive vs watchdog patterns, systemd watchdog integration, heartbeat file vs PID-based health checks, configurable staleness thresholds
+**Goal**: New `checkpoint diff` CLI command to compare backup snapshots — show files added/modified/deleted between any two points in time; support current-vs-backup and backup-vs-backup comparisons
+**Depends on**: Phase 21
+**Research**: Unlikely (diff/rsync dry-run patterns, existing archived file structure)
 **Plans**: TBD
 
 Plans:
-- [x] 18-01: Atomic heartbeat writes + watchdog self-monitoring
-- [x] 18-02: Backup staleness notifications with cooldown
-- [x] 18-03: Service template KeepAlive fix + auto-start on install
+- [ ] 22-01: TBD (run /gsd:plan-phase 22 to break down)
+
+#### Phase 23: Encryption at Rest
+
+**Goal**: Optional encryption of backup files using age (modern, simple alternative to GPG); encrypt after compression, decrypt on restore; single keypair per user stored in ~/.config/checkpoint/; works transparently with cloud sync
+**Depends on**: Phase 22
+**Research**: Likely (age CLI integration, key management patterns, encrypt-then-compress vs compress-then-encrypt)
+**Research topics**: age encryption CLI, key generation and storage, streaming encryption for large files, integration with existing gzip pipeline
+**Plans**: TBD
+
+Plans:
+- [ ] 23-01: TBD (run /gsd:plan-phase 23 to break down)
+
+#### Phase 24: Docker Volume Backup
+
+**Goal**: Detect docker-compose.yml in projects; identify named volumes; export volume data alongside regular file backups; restore volumes on demand
+**Depends on**: Phase 23
+**Research**: Likely (docker volume export methods, compose file parsing in bash, volume mount strategies)
+**Research topics**: docker run --rm volume export patterns, docker-compose.yml parsing for volume names, handling running vs stopped containers
+**Plans**: TBD
+
+Plans:
+- [ ] 24-01: TBD (run /gsd:plan-phase 24 to break down)
+
+#### Phase 25: Backup Search & Browse CLI
+
+**Goal**: New CLI commands: `checkpoint browse` for interactive backup file browser, `checkpoint search` to grep across backup snapshots, `checkpoint history <file>` to show all versions of a specific file with timestamps
+**Depends on**: Phase 24
+**Research**: Unlikely (existing backup directory structure, fzf/select patterns for interactive browsing)
+**Plans**: TBD
+
+Plans:
+- [ ] 25-01: TBD (run /gsd:plan-phase 25 to break down)
 
 ## Progress
 
@@ -183,3 +173,10 @@ Plans:
 | 16. Backup Verification | v2.5 | 2/2 | Complete | 2026-02-14 |
 | 17. Error Logging Overhaul | v2.5 | 4/4 | Complete | 2026-02-14 |
 | 18. Daemon Lifecycle & Health Monitoring | v2.5 | 3/3 | Complete | 2026-02-14 |
+| 19. AI Tool Artifact Backup | v3.0 | 0/? | Not started | - |
+| 20. Cron-Style Scheduling | v3.0 | 0/? | Not started | - |
+| 21. Storage Usage Warnings | v3.0 | 0/? | Not started | - |
+| 22. Checkpoint Diff Command | v3.0 | 0/? | Not started | - |
+| 23. Encryption at Rest | v3.0 | 0/? | Not started | - |
+| 24. Docker Volume Backup | v3.0 | 0/? | Not started | - |
+| 25. Backup Search & Browse CLI | v3.0 | 0/? | Not started | - |
