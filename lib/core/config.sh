@@ -112,6 +112,31 @@ apply_global_defaults() {
 }
 
 # ==============================================================================
+# BACKUP EXCLUDE PATTERNS
+# ==============================================================================
+
+# Get standard backup exclude patterns for rsync
+# Returns: newline-separated list of --exclude arguments
+# Used by: backup-now.sh (fallback mode), backup-diff.sh
+get_backup_excludes() {
+    local excludes=(
+        'backups/'
+        '.git/'
+        'node_modules/'
+        '.venv/'
+        '__pycache__/'
+        'dist/'
+        'build/'
+        '.next/'
+        '.DS_Store'
+    )
+    local e
+    for e in "${excludes[@]}"; do
+        echo "--exclude=$e"
+    done
+}
+
+# ==============================================================================
 # DRIVE VERIFICATION
 # ==============================================================================
 
