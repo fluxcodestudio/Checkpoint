@@ -24,6 +24,11 @@ if [ -f "$LIB_DIR/dependency-manager.sh" ]; then
     source "$LIB_DIR/dependency-manager.sh"
 fi
 
+# Source storage monitor (pre-backup disk space checks)
+if [ -f "$LIB_DIR/features/storage-monitor.sh" ]; then
+    source "$LIB_DIR/features/storage-monitor.sh"
+fi
+
 # ==============================================================================
 # COMMAND LINE OPTIONS
 # ==============================================================================
@@ -417,6 +422,22 @@ if [ "$FORCE_BACKUP" = false ]; then
 else
     cli_verbose "   Force mode enabled"
     log_debug "Force mode enabled"
+fi
+
+# Pre-backup storage check (disk space gate)
+if type pre_backup_storage_check &>/dev/null; then
+    storage_check_rc=0
+    pre_backup_storage_check "$BACKUP_DIR" || storage_check_rc=$?
+    if [ "$storage_check_rc" -eq 2 ]; then
+        cli_error "   Backup skipped: disk critically full"
+        log_error "Backup skipped: disk critically full (storage check returned critical)"
+        exit 1
+    elif [ "$storage_check_rc" -eq 1 ]; then
+        cli_warn "   Storage warning: disk space is low, continuing backup"
+        log_warn "Storage warning: disk space is low, continuing backup"
+    else
+        cli_verbose "   Storage check passed"
+    fi
 fi
 
 if [ $preflight_errors -gt 0 ]; then

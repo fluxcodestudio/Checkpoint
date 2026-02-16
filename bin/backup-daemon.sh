@@ -87,6 +87,9 @@ fi
 # Scheduling library (for cron-style schedules)
 source "$LIB_DIR/features/scheduling.sh" 2>/dev/null || true
 
+# Storage monitor (pre-backup disk space checks)
+source "$LIB_DIR/features/storage-monitor.sh" 2>/dev/null || true
+
 # ==============================================================================
 # STRUCTURED LOGGING INITIALIZATION
 # ==============================================================================
@@ -683,6 +686,22 @@ else
         daemon_log "Backup ran ${DIFF}s ago, skipping (interval: ${BACKUP_INTERVAL}s)"
         log_debug "Backup interval not reached: ${DIFF}s < ${BACKUP_INTERVAL}s"
         exit 0
+    fi
+fi
+
+# Pre-backup storage check (disk space gate)
+if type pre_backup_storage_check &>/dev/null; then
+    _storage_rc=0
+    pre_backup_storage_check "$BACKUP_DIR" || _storage_rc=$?
+    if [ "$_storage_rc" -eq 2 ]; then
+        daemon_log "Backup skipped: disk critically full"
+        log_error "Backup skipped: disk critically full (storage check returned critical)"
+        write_heartbeat "error" "Disk critically full"
+        echo "$NOW" > "$BACKUP_TIME_STATE"
+        exit 0
+    elif [ "$_storage_rc" -eq 1 ]; then
+        daemon_log "Storage warning: disk space is low, continuing backup"
+        log_warn "Storage warning: disk space is low, continuing backup"
     fi
 fi
 

@@ -20,6 +20,9 @@ source "$SCRIPT_DIR/../lib/platform/daemon-manager.sh"
 source "$SCRIPT_DIR/../lib/projects-registry.sh"
 source "$SCRIPT_DIR/../lib/global-status.sh"
 
+# Storage monitor (pre-backup disk space checks)
+source "$SCRIPT_DIR/../lib/features/storage-monitor.sh" 2>/dev/null || true
+
 # ==============================================================================
 # STRUCTURED LOGGING INITIALIZATION
 # ==============================================================================
@@ -162,6 +165,18 @@ restart_backup_daemon() {
 
 # Run a manual backup for a project
 trigger_backup() {
+    # Pre-backup storage check (skip backup if disk critically full)
+    if type pre_backup_storage_check &>/dev/null; then
+        local _storage_rc=0
+        pre_backup_storage_check "${BACKUP_DIR:-}" || _storage_rc=$?
+        if [ "$_storage_rc" -eq 2 ]; then
+            log_error "Backup skipped: disk critically full (storage check returned critical)"
+            return 1
+        elif [ "$_storage_rc" -eq 1 ]; then
+            log_warn "Storage warning: disk space is low, continuing backup"
+        fi
+    fi
+
     local cli
     if cli=$(find_checkpoint_cli); then
         log_info "Triggering manual backup via CLI"
