@@ -73,6 +73,22 @@ DEFAULT_SESSION_IDLE_THRESHOLD=600
 DEFAULT_INSTALL_HOURLY_BACKUPS=true
 
 # ==============================================================================
+# STORAGE MONITORING (Global Defaults)
+# ==============================================================================
+
+# Warn when backup disk usage exceeds this percentage
+DEFAULT_STORAGE_WARNING_PERCENT=80
+
+# Block backup when disk usage exceeds this percentage
+DEFAULT_STORAGE_CRITICAL_PERCENT=90
+
+# Enable pre-backup disk space checks
+DEFAULT_STORAGE_CHECK_ENABLED=true
+
+# Show cleanup suggestions when space is low
+DEFAULT_STORAGE_CLEANUP_SUGGEST=true
+
+# ==============================================================================
 # INTEGRATIONS (Global Preferences)
 # ==============================================================================
 

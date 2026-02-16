@@ -67,6 +67,10 @@ apply_global_defaults() {
                 DEFAULT_BACKUP_CREDENTIALS)   : "${BACKUP_CREDENTIALS:=$value}" ;;
                 DEFAULT_BACKUP_IDE_SETTINGS)  : "${BACKUP_IDE_SETTINGS:=$value}" ;;
                 DEFAULT_BACKUP_AI_ARTIFACTS) : "${BACKUP_AI_ARTIFACTS:=$value}" ;;
+                DEFAULT_STORAGE_WARNING_PERCENT) : "${STORAGE_WARNING_PERCENT:=$value}" ;;
+                DEFAULT_STORAGE_CRITICAL_PERCENT) : "${STORAGE_CRITICAL_PERCENT:=$value}" ;;
+                DEFAULT_STORAGE_CHECK_ENABLED) : "${STORAGE_CHECK_ENABLED:=$value}" ;;
+                DEFAULT_STORAGE_CLEANUP_SUGGEST) : "${STORAGE_CLEANUP_SUGGEST:=$value}" ;;
                 DESKTOP_NOTIFICATIONS)
                     if [ "$value" = "true" ]; then
                         : "${NOTIFICATIONS_ENABLED:=true}"
@@ -154,6 +158,12 @@ check_drive() {
 : "${NOTIFY_ON_ERROR:=true}"            # Notify on failures
 : "${NOTIFY_ESCALATION_HOURS:=3}"       # Hours between repeated alerts
 : "${NOTIFY_SOUND:=default}"            # default, Basso, Glass, Hero, Pop, or none
+
+# Storage monitoring thresholds
+: "${STORAGE_WARNING_PERCENT:=80}"     # Warn when disk usage exceeds this %
+: "${STORAGE_CRITICAL_PERCENT:=90}"    # Block backup when disk usage exceeds this %
+: "${STORAGE_CHECK_ENABLED:=true}"     # Enable/disable pre-backup disk checks
+: "${STORAGE_CLEANUP_SUGGEST:=true}"   # Show cleanup suggestions when space is low
 
 # Per-project notification override
 # Set in project's .backup-config.sh
@@ -318,6 +328,10 @@ config_key_to_var() {
         "backup_targets.local_notes") echo "BACKUP_LOCAL_NOTES" ;;
         "backup_targets.local_databases") echo "BACKUP_LOCAL_DATABASES" ;;
         "backup_targets.ai_artifacts") echo "BACKUP_AI_ARTIFACTS" ;;
+        "storage.warning_percent") echo "STORAGE_WARNING_PERCENT" ;;
+        "storage.critical_percent") echo "STORAGE_CRITICAL_PERCENT" ;;
+        "storage.check_enabled") echo "STORAGE_CHECK_ENABLED" ;;
+        "storage.cleanup_suggest") echo "STORAGE_CLEANUP_SUGGEST" ;;
         "logging.log_file") echo "LOG_FILE" ;;
         "logging.fallback_log") echo "FALLBACK_LOG" ;;
         "state.state_dir") echo "STATE_DIR" ;;
@@ -358,6 +372,10 @@ config_var_to_key() {
         "BACKUP_LOCAL_NOTES") echo "backup_targets.local_notes" ;;
         "BACKUP_LOCAL_DATABASES") echo "backup_targets.local_databases" ;;
         "BACKUP_AI_ARTIFACTS") echo "backup_targets.ai_artifacts" ;;
+        "STORAGE_WARNING_PERCENT") echo "storage.warning_percent" ;;
+        "STORAGE_CRITICAL_PERCENT") echo "storage.critical_percent" ;;
+        "STORAGE_CHECK_ENABLED") echo "storage.check_enabled" ;;
+        "STORAGE_CLEANUP_SUGGEST") echo "storage.cleanup_suggest" ;;
         "LOG_FILE") echo "logging.log_file" ;;
         "FALLBACK_LOG") echo "logging.fallback_log" ;;
         "STATE_DIR") echo "state.state_dir" ;;

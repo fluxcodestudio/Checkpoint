@@ -124,6 +124,23 @@ patterns:
   exclude: []
 
 # ==============================================================================
+# STORAGE MONITORING
+# ==============================================================================
+
+storage:
+  # Warn when backup disk usage exceeds this percentage (1-99)
+  warning_percent: 80
+
+  # Block backup when disk usage exceeds this percentage (1-99, must be > warning)
+  critical_percent: 90
+
+  # Enable/disable pre-backup disk space checks
+  check_enabled: true
+
+  # Show cleanup suggestions when disk space is low
+  cleanup_suggest: true
+
+# ==============================================================================
 # GIT INTEGRATION
 # ==============================================================================
 

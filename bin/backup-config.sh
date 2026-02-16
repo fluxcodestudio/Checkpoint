@@ -314,6 +314,33 @@ mode_validate() {
         esac
     fi
 
+    # Validate STORAGE_WARNING_PERCENT and STORAGE_CRITICAL_PERCENT
+    local storage_warn="${STORAGE_WARNING_PERCENT:-80}"
+    local storage_crit="${STORAGE_CRITICAL_PERCENT:-90}"
+
+    if [[ -n "$storage_warn" ]] && ! [[ "$storage_warn" =~ ^[0-9]+$ ]]; then
+        color_red "✗ STORAGE_WARNING_PERCENT must be a positive integer (got: $storage_warn)"
+        errors=$((errors + 1))
+    elif [[ -n "$storage_warn" ]] && ( [[ "$storage_warn" -lt 1 ]] || [[ "$storage_warn" -gt 99 ]] ); then
+        color_red "✗ STORAGE_WARNING_PERCENT must be between 1-99 (got: $storage_warn)"
+        errors=$((errors + 1))
+    fi
+
+    if [[ -n "$storage_crit" ]] && ! [[ "$storage_crit" =~ ^[0-9]+$ ]]; then
+        color_red "✗ STORAGE_CRITICAL_PERCENT must be a positive integer (got: $storage_crit)"
+        errors=$((errors + 1))
+    elif [[ -n "$storage_crit" ]] && ( [[ "$storage_crit" -lt 1 ]] || [[ "$storage_crit" -gt 99 ]] ); then
+        color_red "✗ STORAGE_CRITICAL_PERCENT must be between 1-99 (got: $storage_crit)"
+        errors=$((errors + 1))
+    fi
+
+    if [[ -n "$storage_warn" ]] && [[ -n "$storage_crit" ]] && \
+       [[ "$storage_warn" =~ ^[0-9]+$ ]] && [[ "$storage_crit" =~ ^[0-9]+$ ]] && \
+       [[ "$storage_warn" -ge "$storage_crit" ]]; then
+        color_red "✗ STORAGE_WARNING_PERCENT ($storage_warn) must be less than STORAGE_CRITICAL_PERCENT ($storage_crit)"
+        errors=$((errors + 1))
+    fi
+
     # Validate BACKUP_SCHEDULE if set
     local backup_schedule="${BACKUP_SCHEDULE:-}"
     if [[ -n "$backup_schedule" ]]; then

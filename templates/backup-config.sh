@@ -162,6 +162,22 @@ AI_ARTIFACT_EXTRA_DIRS=""
 AI_ARTIFACT_EXTRA_FILES=""
 
 # ==============================================================================
+# STORAGE MONITORING
+# ==============================================================================
+
+# Warn when backup disk usage exceeds this percentage (1-99)
+STORAGE_WARNING_PERCENT=80
+
+# Block backup when disk usage exceeds this percentage (1-99, must be > warning)
+STORAGE_CRITICAL_PERCENT=90
+
+# Enable/disable pre-backup disk space checks
+STORAGE_CHECK_ENABLED=true
+
+# Show cleanup suggestions when disk space is low
+STORAGE_CLEANUP_SUGGEST=true
+
+# ==============================================================================
 # CLOUD FOLDER DESTINATION (auto-sync via desktop app)
 # ==============================================================================
 
