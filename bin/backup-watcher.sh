@@ -37,6 +37,9 @@ source "$CONFIG_FILE"
 # Load cross-platform file watcher abstraction
 source "$LIB_DIR/platform/file-watcher.sh"
 
+# Scheduling library (for cron-style schedules)
+source "$LIB_DIR/features/scheduling.sh" 2>/dev/null || true
+
 # ==============================================================================
 # DEFAULTS
 # ==============================================================================
@@ -128,19 +131,28 @@ check_new_session() {
 }
 
 should_backup_now() {
-    # Check backup interval
-    local last_backup
-    last_backup=$(cat "$BACKUP_TIME_STATE" 2>/dev/null || echo "0")
-    local now
-    now=$(date +%s)
-    if [ $((now - last_backup)) -lt "$BACKUP_INTERVAL" ]; then
-        return 1  # Too soon
-    fi
-    # Check drive verification
+    # Check drive verification first
     if [ "$DRIVE_VERIFICATION_ENABLED" = true ] && [ ! -f "${DRIVE_MARKER_FILE:-}" ]; then
         return 1  # Drive not connected
     fi
-    return 0
+
+    if [[ -n "${BACKUP_SCHEDULE:-}" ]] && type cron_matches_now &>/dev/null; then
+        # Schedule mode: check if current time matches cron expression
+        if cron_matches_now "$BACKUP_SCHEDULE"; then
+            return 0
+        fi
+        return 1
+    else
+        # Interval mode: existing BACKUP_INTERVAL logic
+        local last_backup
+        last_backup=$(cat "$BACKUP_TIME_STATE" 2>/dev/null || echo "0")
+        local now
+        now=$(date +%s)
+        if [ $((now - last_backup)) -lt "$BACKUP_INTERVAL" ]; then
+            return 1  # Too soon
+        fi
+        return 0
+    fi
 }
 
 update_session_time() {

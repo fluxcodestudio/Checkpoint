@@ -84,6 +84,9 @@ if [ -f "$LIB_DIR/retention-policy.sh" ]; then
     source "$LIB_DIR/retention-policy.sh"
 fi
 
+# Scheduling library (for cron-style schedules)
+source "$LIB_DIR/features/scheduling.sh" 2>/dev/null || true
+
 # ==============================================================================
 # STRUCTURED LOGGING INITIALIZATION
 # ==============================================================================
@@ -653,17 +656,34 @@ else
     fi
 fi
 
-# Check if backup already ran recently (coordination)
+# Check if backup should run (schedule or interval mode)
 mkdir -p "$(dirname "$BACKUP_TIME_STATE")"
 LAST_BACKUP=$(cat "$BACKUP_TIME_STATE" 2>/dev/null || echo "0")
 NOW=$(date +%s)
 DIFF=$((NOW - LAST_BACKUP))
 
-if [ $DIFF -lt $BACKUP_INTERVAL ]; then
-    # Backup ran recently, skip
-    daemon_log "Backup ran ${DIFF}s ago, skipping (interval: ${BACKUP_INTERVAL}s)"
-    log_debug "Backup interval not reached: ${DIFF}s < ${BACKUP_INTERVAL}s"
-    exit 0
+if [[ -n "${BACKUP_SCHEDULE:-}" ]] && type cron_matches_now &>/dev/null; then
+    # Schedule mode: check if current time matches cron expression
+    if ! cron_matches_now "$BACKUP_SCHEDULE"; then
+        daemon_log "Schedule does not match current time (schedule: $BACKUP_SCHEDULE)"
+        log_debug "Cron schedule '$BACKUP_SCHEDULE' does not match current time"
+        exit 0
+    fi
+    # Dedup: prevent double-run within same minute
+    if [ $DIFF -lt 60 ]; then
+        daemon_log "Backup ran ${DIFF}s ago, skipping dedup (schedule mode)"
+        log_debug "Schedule dedup: ${DIFF}s < 60s"
+        exit 0
+    fi
+    daemon_log "Schedule matches current time (schedule: $BACKUP_SCHEDULE)"
+else
+    # Interval mode: existing BACKUP_INTERVAL logic
+    if [ $DIFF -lt $BACKUP_INTERVAL ]; then
+        # Backup ran recently, skip
+        daemon_log "Backup ran ${DIFF}s ago, skipping (interval: ${BACKUP_INTERVAL}s)"
+        log_debug "Backup interval not reached: ${DIFF}s < ${BACKUP_INTERVAL}s"
+        exit 0
+    fi
 fi
 
 # Fast early-exit: check if any changes exist before full detection
