@@ -26,6 +26,9 @@ source "$CHECKPOINT_LIB/lib/platform/compat.sh"
 # Scheduling library (for schedule display)
 source "$CHECKPOINT_LIB/lib/features/scheduling.sh" 2>/dev/null || true
 
+# Storage monitor (volume stats, per-project breakdown)
+source "$CHECKPOINT_LIB/lib/features/storage-monitor.sh" 2>/dev/null || true
+
 # Global config location
 GLOBAL_CONFIG_DIR="$HOME/.config/checkpoint"
 GLOBAL_CONFIG_FILE="$GLOBAL_CONFIG_DIR/config.sh"
@@ -220,6 +223,90 @@ show_command_center() {
                 echo "  Last Backup:           No backups found"
             fi
         fi
+        # Storage section
+        echo ""
+        if type get_volume_stats &>/dev/null && [[ -d "${BACKUP_DIR:-./backups}" ]]; then
+            echo "  Storage:"
+            local vol_stats
+            vol_stats=$(get_volume_stats "${BACKUP_DIR:-./backups}")
+            if [[ -n "$vol_stats" && "$vol_stats" != "0|0|0|0" ]]; then
+                local _total_kb _used_kb _avail_kb _pct_used
+                IFS='|' read -r _total_kb _used_kb _avail_kb _pct_used <<< "$vol_stats"
+
+                # Convert KB to bytes for format_bytes
+                local _total_bytes=$((_total_kb * 1024))
+                local _avail_bytes=$((_avail_kb * 1024))
+                local _total_fmt _avail_fmt
+                if type format_bytes &>/dev/null; then
+                    _total_fmt=$(format_bytes "$_total_bytes")
+                    _avail_fmt=$(format_bytes "$_avail_bytes")
+                else
+                    _total_fmt="${_total_kb}KB"
+                    _avail_fmt="${_avail_kb}KB"
+                fi
+
+                # Color-code based on thresholds
+                local _warn_pct="${STORAGE_WARNING_PERCENT:-80}"
+                local _crit_pct="${STORAGE_CRITICAL_PERCENT:-90}"
+                local _c_start="" _c_end=""
+                if [[ -t 1 ]]; then
+                    _c_end='\033[0m'
+                    if [[ "$_pct_used" -ge "$_crit_pct" ]] 2>/dev/null; then
+                        _c_start='\033[0;31m'  # red
+                    elif [[ "$_pct_used" -ge "$_warn_pct" ]] 2>/dev/null; then
+                        _c_start='\033[0;33m'  # yellow
+                    else
+                        _c_start='\033[0;32m'  # green
+                    fi
+                fi
+
+                printf "    Backup Volume:       ${_c_start}%s%% used${_c_end} (%s free of %s)\n" \
+                    "$_pct_used" "$_avail_fmt" "$_total_fmt"
+
+                # Show per-project breakdown and cleanup suggestions when above warning or verbose
+                local _show_details=false
+                if [[ "$_pct_used" -ge "$_warn_pct" ]] 2>/dev/null; then
+                    _show_details=true
+                fi
+                # Check for --verbose flag in original args
+                for _arg in "$@"; do
+                    [[ "$_arg" == "--verbose" ]] && _show_details=true
+                done
+
+                if [[ "$_show_details" == "true" ]]; then
+                    # Per-project breakdown (top 5)
+                    if type get_per_project_storage &>/dev/null; then
+                        local _proj_data
+                        _proj_data=$(get_per_project_storage "${BACKUP_DIR:-./backups}" 2>/dev/null) || true
+                        if [[ -n "$_proj_data" ]]; then
+                            echo "    Top backup consumers:"
+                            local _proj_count=0
+                            while IFS='|' read -r _sz _pname; do
+                                [[ -z "$_sz" ]] && continue
+                                local _sz_fmt
+                                if type format_bytes &>/dev/null; then
+                                    _sz_fmt=$(format_bytes "$_sz")
+                                else
+                                    _sz_fmt="${_sz}B"
+                                fi
+                                printf "      %-20s %s\n" "$_pname" "$_sz_fmt"
+                                _proj_count=$((_proj_count + 1))
+                                [[ $_proj_count -ge 5 ]] && break
+                            done <<< "$_proj_data"
+                        fi
+                    fi
+
+                    # Cleanup suggestions when above warning
+                    if [[ "$_pct_used" -ge "$_warn_pct" ]] 2>/dev/null && type suggest_cleanup &>/dev/null; then
+                        echo ""
+                        suggest_cleanup "${BACKUP_DIR:-./backups}" 2>/dev/null | while IFS= read -r _line; do
+                            echo "    $_line"
+                        done
+                    fi
+                fi
+            fi
+        fi
+
     else
         echo "━━━ PROJECT NOT CONFIGURED ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo ""
