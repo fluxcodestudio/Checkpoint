@@ -108,7 +108,8 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 21-01: TBD (run /gsd:plan-phase 21 to break down)
+- [ ] 21-01: Storage Monitoring Library & Config — storage-monitor.sh, STORAGE_* config wiring
+- [ ] 21-02: Pipeline Integration & Status Display — pre-backup gate check, checkpoint status
 
 #### Phase 22: Checkpoint Diff Command
 
