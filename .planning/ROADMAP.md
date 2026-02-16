@@ -97,7 +97,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 20-01: Scheduling Library (TDD) — cron parser, matcher, presets, validation, next-match
+- [x] 20-01: Scheduling Library (TDD) — cron parser, matcher, presets, validation, next-match
 - [ ] 20-02: Config & Integration — config wiring, daemon/watcher integration, status display
 
 #### Phase 21: Storage Usage Warnings
@@ -175,7 +175,7 @@ Plans:
 | 17. Error Logging Overhaul | v2.5 | 4/4 | Complete | 2026-02-14 |
 | 18. Daemon Lifecycle & Health Monitoring | v2.5 | 3/3 | Complete | 2026-02-14 |
 | 19. AI Tool Artifact Backup | v3.0 | 1/1 | Complete | 2026-02-16 |
-| 20. Cron-Style Scheduling | v3.0 | 0/? | Not started | - |
+| 20. Cron-Style Scheduling | v3.0 | 1/2 | In progress | - |
 | 21. Storage Usage Warnings | v3.0 | 0/? | Not started | - |
 | 22. Checkpoint Diff Command | v3.0 | 0/? | Not started | - |
 | 23. Encryption at Rest | v3.0 | 0/? | Not started | - |
