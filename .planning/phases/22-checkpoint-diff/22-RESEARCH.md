@@ -167,6 +167,60 @@ The diff command must use `resolve_backup_destinations()` to find the actual `FI
 
 When dual-write is enabled (`CLOUD_FOLDER_ALSO_LOCAL=true`), `PRIMARY_FILES_DIR` = cloud, `SECONDARY_FILES_DIR` = local. The diff should compare against PRIMARY (what actually gets used).
 
+### Pattern 7: Content-Level Diff for Single Files (Verified)
+**What:** Use standard `diff -u` for content comparison between working copy and backup
+**When to use:** When user runs `checkpoint diff <file>` for a specific file
+
+Since `files/` is a plain mirror, `diff -u` works directly:
+```bash
+diff -u "$FILES_DIR/bin/backup-now.sh" "$PROJECT_DIR/bin/backup-now.sh"
+```
+- `diffstat` is available on macOS for compact summaries (e.g., `3 files changed, 15 insertions(+), 7 deletions(-)`)
+- For archived versions: `diff -u "$ARCHIVED_DIR/path/file.TIMESTAMP" "$PROJECT_DIR/path/file"`
+
+### Pattern 8: Reuse `list_file_versions_sorted()` for History Command
+**What:** The existing function in `backup-discovery.sh` already does exactly what `checkpoint history <file>` needs
+**When to use:** For the `checkpoint history` subcommand
+
+Verified output format (6 versions of `bin/backup-now.sh`):
+```
+1771234248|CURRENT|2026-02-16 04:30|13 hours ago|62.0 KB|backups/files/bin/backup-now.sh
+1771229462|20260216_043343_72545|2026-02-16 03:11|15 hours ago|62.0 KB|backups/archived/bin/backup-now.sh.20260216_043343_72545
+1771192231|20260215_170001_48807|2026-02-15 16:50|yesterday|61.0 KB|backups/archived/bin/backup-now.sh.20260215_170001_48807
+1771191615|20260216_031101|2026-02-15 16:40|yesterday|61.0 KB|backups/archived/bin/backup-now.sh.20260216_031101
+1771187114|20260215_165031|2026-02-15 15:25|yesterday|59.7 KB|backups/archived/bin/backup-now.sh.20260215_165031
+1767375671|20260215_154020_12895|2026-01-02 12:41|6 weeks ago|38.0 KB|backups/archived/bin/backup-now.sh.20260215_154020_12895
+```
+
+This function handles both timestamp suffix patterns and provides formatted sizes/times. The `checkpoint history` command is essentially a thin wrapper around this.
+
+### Pattern 9: Test Framework Integration
+**What:** Tests should follow existing patterns in `tests/unit/` using `tests/test-framework.sh`
+**When to use:** For TDD of diff/history functions
+
+Test framework provides: `test_suite`, `test_case`, `assert_equals`, `assert_contains`, `assert_not_contains`, `assert_file_exists`, `setup_test`/`teardown_test`.
+
+Pattern from `tests/unit/test-scheduling.sh`:
+```bash
+source "$(dirname "$0")/../test-framework.sh"
+test_suite "Diff Command"
+
+test_case "Parse rsync new file"
+result=$(parse_rsync_line ">f+++++++++ src/new.js")
+assert_equals "$result" "+ src/new.js"
+```
+
+### Pattern 10: Exclude List Centralization Need
+**What:** Backup excludes are hardcoded in multiple places and must be centralized
+**When to use:** Design constraint for diff command
+
+Current exclude locations:
+- `backup-now.sh` line 516-526 (non-git fallback, hardcoded)
+- `backup-now.sh` git-based mode uses `.gitignore` via `git ls-files`
+- Diff command will need the same excludes
+
+Recommendation: Extract shared exclude list to a function or config constant in `lib/core/config.sh` that both `backup-now.sh` and the diff command can reference. This prevents drift between what gets backed up and what gets diffed.
+
 ### Anti-Patterns to Avoid
 - **Full tree walk for every comparison:** Use rsync --dry-run (it's optimized for this)
 - **Storing snapshot metadata separately:** The archived/ directory IS the metadata; don't duplicate it
@@ -174,6 +228,7 @@ When dual-write is enabled (`CLOUD_FOLDER_ALSO_LOCAL=true`), `PRIMARY_FILES_DIR`
 - **Interactive diff viewer:** Keep it simple output to stdout; users can pipe to `less` or `delta`
 - **Hardcoding backup paths:** Must use `resolve_backup_destinations()` to handle cloud/local/dual-write
 - **Comparing ALL working dir files:** Must scope to only backed-up files (202 files, not 2932)
+- **Duplicating exclude lists:** Centralize excludes so diff and backup always match
 </architecture_patterns>
 
 <dont_hand_roll>
@@ -450,14 +505,29 @@ print_diff_summary() {
    - What's still unclear: Mixed UTC/local timestamps in same archive (if config changed mid-stream). Edge case: what happens if multiple backups run in same second without PID suffix (daemon).
    - Recommendation: For v1, support current-vs-backup comparison (rsync --dry-run) and snapshot listing. Snapshot-vs-snapshot comparison as stretch goal.
 
-2. **Content-level diffs** — RESOLVED
-   - Decision: Default to file-list-only (like restic/borg). For specific file content diff, user can run `diff <(cat working/file) backups/files/file` manually, or we add `checkpoint diff <file>` to show content diff of a specific file against its backup copy.
-   - The backup files/ directory is a plain mirror, so standard `diff` works directly.
+2. **Content-level diffs** — RESOLVED (VERIFIED)
+   - Decision: Default to file-list-only (like restic/borg). `checkpoint diff <file>` shows content diff of a specific file against its backup copy using `diff -u`.
+   - Verified: `diff -u` works directly against `files/` mirror. `diffstat` available on macOS for compact summaries.
+   - For historical versions: `diff -u archived/path/file.TIMESTAMP project/path/file` also works.
 
 3. **Database snapshot diffing** — RESOLVED (DEFERRED)
    - Decision: For v1, show database snapshots as a timeline only (list available snapshots with sizes/dates). Actual DB diffing requires decompressing `.db.gz`, comparing SQLite schemas/data — too complex for this phase.
 
-4. **`extract_timestamp()` bug fix scope** — NEW
+4. **File history implementation** — RESOLVED
+   - Verified: `list_file_versions_sorted()` already works correctly, returning all versions (current + archived) with formatted timestamps, sizes, and relative times.
+   - The `checkpoint history <file>` command is a thin wrapper — just pass the relative file path and format output.
+
+5. **Test approach** — RESOLVED
+   - Test framework at `tests/test-framework.sh` provides `test_suite`, `test_case`, `assert_equals`, `assert_contains`, etc.
+   - Pattern: create temp dirs with mock archived files, test parsing/discovery functions in isolation.
+   - Existing tests in `tests/unit/test-scheduling.sh` show the pattern clearly.
+
+6. **Exclude list centralization** — NEW (design decision for planning)
+   - Excludes are hardcoded in `backup-now.sh` (lines 516-526) and will need to be duplicated in the diff command.
+   - Recommendation: Extract to a shared function/constant so backup and diff always agree on scope.
+   - Low risk: straightforward refactor, but should be done as part of this phase.
+
+7. **`extract_timestamp()` bug fix scope** — NEW (carried from previous)
    - What we know: `retention-policy.sh:81` has a bug — doesn't handle `.YYYYMMDD_HHMMSS` (no PID) pattern. 11 files in this project's archived/ are affected.
    - What's unclear: Whether fixing `extract_timestamp()` could break existing retention logic (tiered pruning). Likely safe since it would just include more files in pruning consideration.
    - Recommendation: Fix `extract_timestamp()` in this phase as a prerequisite, with test coverage. The diff command needs it, and it fixes a latent bug in retention.
