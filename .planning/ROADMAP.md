@@ -119,7 +119,8 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 22-01: TBD (run /gsd:plan-phase 22 to break down)
+- [x] 22-01: Core Diff Library — extract_timestamp fix, centralized excludes, backup-diff.sh
+- [ ] 22-02: TBD (run /gsd:plan-phase 22 to break down)
 
 #### Phase 23: Encryption at Rest
 
@@ -178,7 +179,7 @@ Plans:
 | 19. AI Tool Artifact Backup | v3.0 | 1/1 | Complete | 2026-02-16 |
 | 20. Cron-Style Scheduling | v3.0 | 2/2 | Complete | 2026-02-16 |
 | 21. Storage Usage Warnings | v3.0 | 2/2 | Complete | 2026-02-16 |
-| 22. Checkpoint Diff Command | v3.0 | 0/? | Not started | - |
+| 22. Checkpoint Diff Command | v3.0 | 1/? | In progress | - |
 | 23. Encryption at Rest | v3.0 | 0/? | Not started | - |
 | 24. Docker Volume Backup | v3.0 | 0/? | Not started | - |
 | 25. Backup Search & Browse CLI | v3.0 | 0/? | Not started | - |
