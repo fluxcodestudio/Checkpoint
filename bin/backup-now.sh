@@ -812,6 +812,113 @@ if [ "$DATABASE_ONLY" = false ]; then
     # Issue #11: Always backup the backup config itself
     [ -f ".backup-config.sh" ] && echo ".backup-config.sh" >> "$changed_files"
 
+    # ==============================================================================
+    # Include AI coding tool artifacts (even if gitignored)
+    # ==============================================================================
+    if [ "${BACKUP_AI_ARTIFACTS:-true}" = true ]; then
+        _ai_count=0
+
+        # AI tool DIRECTORIES — scan via find -type f for rsync --files-from
+        for _ai_dir in \
+            .claude \
+            .cursor/rules \
+            .windsurf/rules \
+            .clinerules \
+            .continue \
+            .codex \
+            .augment \
+            .amazonq \
+            .aiassistant \
+            memory-bank \
+            cline_docs
+        do
+            if [ -d "$_ai_dir" ]; then
+                while IFS= read -r _ai_file; do
+                    # Skip .DS_Store
+                    case "$_ai_file" in
+                        */.DS_Store) continue ;;
+                    esac
+                    echo "$_ai_file" >> "$changed_files"
+                    _ai_count=$((_ai_count + 1))
+                done < <(find "$_ai_dir" -type f 2>/dev/null | sed 's|^\./||')
+            fi
+        done
+
+        # AI tool INDIVIDUAL FILES
+        for _ai_file in \
+            CLAUDE.md \
+            AGENTS.md \
+            QODO.md \
+            CONVENTIONS.md \
+            .aider.chat.history.md \
+            .aider.input.history \
+            .aider.conf.yml \
+            .aider.model.settings.yml \
+            .aiderignore \
+            .cursorrules \
+            .cursorignore \
+            .cursorindexingignore \
+            .windsurfrules \
+            .codeiumignore \
+            .clineignore \
+            .continuerc.json \
+            .continuerc.js \
+            .continuerc.ts \
+            .github/copilot-instructions.md \
+            .aiignore \
+            .pr_agent.toml \
+            .tabnine \
+            .tabnine_commands
+        do
+            if [ -f "$_ai_file" ]; then
+                echo "$_ai_file" >> "$changed_files"
+                _ai_count=$((_ai_count + 1))
+            fi
+        done
+
+        # Copilot path-specific instructions
+        if [ -d ".github/instructions" ]; then
+            while IFS= read -r _ai_file; do
+                echo "$_ai_file" >> "$changed_files"
+                _ai_count=$((_ai_count + 1))
+            done < <(find .github/instructions -type f -name "*.instructions.md" 2>/dev/null | sed 's|^\./||')
+        fi
+
+        # Process extra directories (comma-separated)
+        if [ -n "${AI_ARTIFACT_EXTRA_DIRS:-}" ]; then
+            IFS=',' read -ra _extra_dirs <<< "$AI_ARTIFACT_EXTRA_DIRS"
+            for _ai_dir in "${_extra_dirs[@]}"; do
+                _ai_dir="$(echo "$_ai_dir" | tr -d '[:space:]')"
+                if [ -d "$_ai_dir" ]; then
+                    while IFS= read -r _ai_file; do
+                        case "$_ai_file" in
+                            */.DS_Store) continue ;;
+                        esac
+                        echo "$_ai_file" >> "$changed_files"
+                        _ai_count=$((_ai_count + 1))
+                    done < <(find "$_ai_dir" -type f 2>/dev/null | sed 's|^\./||')
+                fi
+            done
+        fi
+
+        # Process extra files (comma-separated)
+        if [ -n "${AI_ARTIFACT_EXTRA_FILES:-}" ]; then
+            IFS=',' read -ra _extra_files <<< "$AI_ARTIFACT_EXTRA_FILES"
+            for _ai_file in "${_extra_files[@]}"; do
+                _ai_file="$(echo "$_ai_file" | tr -d '[:space:]')"
+                if [ -f "$_ai_file" ]; then
+                    echo "$_ai_file" >> "$changed_files"
+                    _ai_count=$((_ai_count + 1))
+                fi
+            done
+        fi
+
+        if [ "$_ai_count" -gt 0 ]; then
+            log_info "AI artifacts: $_ai_count files added to backup"
+            cli_verbose "   AI artifacts: $_ai_count files detected"
+        fi
+    fi
+
     if [ ! -s "$changed_files" ]; then
         cli_info "   Files: No changes detected"
         log_info "No file changes detected"
