@@ -59,6 +59,7 @@ apply_global_defaults() {
             value="${value#\'}" ; value="${value%\'}"
             case "$key" in
                 DEFAULT_BACKUP_INTERVAL)      : "${BACKUP_INTERVAL:=$value}" ;;
+                DEFAULT_BACKUP_SCHEDULE)      : "${BACKUP_SCHEDULE:=$value}" ;;
                 DEFAULT_SESSION_IDLE_THRESHOLD): "${SESSION_IDLE_THRESHOLD:=$value}" ;;
                 DEFAULT_DB_RETENTION_DAYS)    : "${DB_RETENTION_DAYS:=$value}" ;;
                 DEFAULT_FILE_RETENTION_DAYS)  : "${FILE_RETENTION_DAYS:=$value}" ;;
@@ -92,6 +93,7 @@ apply_global_defaults() {
 
     # Final fallbacks for variables that may still be unset
     : "${BACKUP_INTERVAL:=3600}"
+    : "${BACKUP_SCHEDULE:=}"
     : "${SESSION_IDLE_THRESHOLD:=600}"
     : "${DB_RETENTION_DAYS:=30}"
     : "${FILE_RETENTION_DAYS:=60}"
@@ -303,6 +305,7 @@ config_key_to_var() {
         "retention.files.time_based") echo "FILE_RETENTION_DAYS" ;;
         "retention.files.never_delete") echo "FILE_NEVER_DELETE" ;;
         "schedule.interval") echo "BACKUP_INTERVAL" ;;
+        "schedule.cron") echo "BACKUP_SCHEDULE" ;;
         "schedule.daemon_enabled") echo "DAEMON_ENABLED" ;;
         "schedule.session_idle_threshold") echo "SESSION_IDLE_THRESHOLD" ;;
         "drive.verification_enabled") echo "DRIVE_VERIFICATION_ENABLED" ;;
@@ -342,6 +345,7 @@ config_var_to_key() {
         "FILE_RETENTION_DAYS") echo "retention.files.time_based" ;;
         "FILE_NEVER_DELETE") echo "retention.files.never_delete" ;;
         "BACKUP_INTERVAL") echo "schedule.interval" ;;
+        "BACKUP_SCHEDULE") echo "schedule.cron" ;;
         "DAEMON_ENABLED") echo "schedule.daemon_enabled" ;;
         "SESSION_IDLE_THRESHOLD") echo "schedule.session_idle_threshold" ;;
         "DRIVE_VERIFICATION_ENABLED") echo "drive.verification_enabled" ;;

@@ -82,6 +82,11 @@ TIERED_RETENTION_ENABLED=true
 # Default: 3600 (1 hour)
 BACKUP_INTERVAL=3600
 
+# Cron-style schedule (overrides BACKUP_INTERVAL when set)
+# Examples: "*/30 9-17 * * 1-5"  (every 30min during work hours)
+# Presets: @hourly, @workhours, @every-5min, @every-30min, @daily, @weekdays
+BACKUP_SCHEDULE=""
+
 # Session idle threshold (in seconds)
 # Time of inactivity before considering it a new session
 # Default: 600 (10 minutes)

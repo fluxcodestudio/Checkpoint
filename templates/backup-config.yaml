@@ -34,6 +34,10 @@ schedule:
   # Backup interval in seconds (3600 = 1 hour)
   interval: 3600
 
+  # Cron expression or preset (overrides interval when set)
+  # Examples: "*/30 9-17 * * 1-5", "@workhours", "@hourly"
+  cron: null
+
   # Enable daemon-triggered backups (hourly LaunchAgent)
   daemon_enabled: true
 

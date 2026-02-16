@@ -62,6 +62,10 @@ DEFAULT_BACKUP_AI_ARTIFACTS=true
 # Backup interval for hourly daemon (seconds)
 DEFAULT_BACKUP_INTERVAL=3600
 
+# Cron-style schedule (overrides interval when set)
+# Examples: "*/30 9-17 * * 1-5", "@workhours", "@hourly"
+DEFAULT_BACKUP_SCHEDULE=""
+
 # Session idle threshold - trigger backup after this much idle time (seconds)
 DEFAULT_SESSION_IDLE_THRESHOLD=600
 

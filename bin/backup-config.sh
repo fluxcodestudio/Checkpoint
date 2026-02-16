@@ -314,6 +314,23 @@ mode_validate() {
         esac
     fi
 
+    # Validate BACKUP_SCHEDULE if set
+    local backup_schedule="${BACKUP_SCHEDULE:-}"
+    if [[ -n "$backup_schedule" ]]; then
+        local scheduling_lib="$LIB_DIR/features/scheduling.sh"
+        if [[ -f "$scheduling_lib" ]]; then
+            source "$scheduling_lib"
+            if ! validate_schedule "$backup_schedule" 2>/dev/null; then
+                color_red "✗ BACKUP_SCHEDULE is invalid: '$backup_schedule'"
+                color_red "  Use a cron expression (e.g. '*/30 9-17 * * 1-5') or preset (e.g. '@workhours')"
+                errors=$((errors + 1))
+            fi
+        else
+            color_yellow "⚠ Cannot validate BACKUP_SCHEDULE: scheduling library not found"
+            warnings=$((warnings + 1))
+        fi
+    fi
+
     # Validate cloud folder exists if enabled
     local cloud_enabled="${CLOUD_FOLDER_ENABLED:-false}"
     local cloud_path="${CLOUD_FOLDER_PATH:-}"
