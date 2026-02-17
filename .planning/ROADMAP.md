@@ -14,7 +14,7 @@ None
 - ✅ [v1.1 Polish & Performance](milestones/v1.1-ROADMAP.md) (Phases 7-9) — SHIPPED 2026-01-12
 - ✅ [v1.2 Dashboard UX](milestones/v1.2-ROADMAP.md) (Phase 10) — SHIPPED 2026-01-12
 - ✅ **v2.5 Architecture & Independence** — Phases 11-18 (shipped 2026-02-14)
-- 🚧 **v3.0 Smart Features & Developer Intelligence** — Phases 19-25 (in progress)
+- ✅ **v3.0 Smart Features & Developer Intelligence** — Phases 19-25 (shipped 2026-02-17)
 
 ## Completed Milestones
 
@@ -74,7 +74,7 @@ None
 
 </details>
 
-### 🚧 v3.0 Smart Features & Developer Intelligence (In Progress)
+### ✅ v3.0 Smart Features & Developer Intelligence (Shipped 2026-02-17)
 
 **Milestone Goal:** Add intelligent features that differentiate Checkpoint from generic backup tools — AI coding tool awareness, smart scheduling, proactive storage management, backup diffing, encryption, container support, and a powerful search/browse CLI.
 
@@ -156,7 +156,7 @@ Plans:
 
 Plans:
 - [x] 25-01: Search & Browse CLI — checkpoint-search.sh with search and browse modes
-- [ ] 25-02: History Interactive + Routing — fzf history upgrade, checkpoint.sh wiring
+- [x] 25-02: History Interactive + Routing — fzf history upgrade, checkpoint.sh wiring
 
 ## Progress
 
@@ -186,4 +186,4 @@ Plans:
 | 22. Checkpoint Diff Command | v3.0 | 2/2 | Complete | 2026-02-16 |
 | 23. Encryption at Rest | v3.0 | 3/3 | Complete | 2026-02-16 |
 | 24. Docker Volume Backup | v3.0 | 2/2 | Complete | 2026-02-17 |
-| 25. Backup Search & Browse CLI | v3.0 | 1/2 | In progress | - |
+| 25. Backup Search & Browse CLI | v3.0 | 2/2 | Complete | 2026-02-17 |
