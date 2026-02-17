@@ -54,11 +54,13 @@ USAGE
     checkpoint diff --json                   JSON output for scripting
     checkpoint history <file>                Show all versions of a file
     checkpoint history <file> --diff N       Diff version N against current
+    checkpoint history <file> --interactive  Interactive fzf version picker
 
 OPTIONS
     --json              Output in JSON format
     --snapshot TS       Compare against snapshot at timestamp (YYYYMMDD_HHMMSS)
     --list-snapshots    List available backup snapshots
+    --interactive, -i   Interactive fzf version picker (history mode)
     --help, -h          Show this help
 
 EXAMPLES
@@ -67,6 +69,7 @@ EXAMPLES
     checkpoint diff --json                   JSON output for scripting
     checkpoint diff --list-snapshots         List available snapshots
     checkpoint history src/app.js            Show all versions of a file
+    checkpoint history src/app.js -i         Interactive version browser (fzf)
 
 EXIT CODES
     0   Success (or no changes found)
@@ -80,6 +83,7 @@ EOF
 
 MODE="diff"          # diff, history, list-snapshots
 JSON_OUTPUT=false
+INTERACTIVE=false
 SNAPSHOT_TS=""
 TARGET_FILE=""
 HISTORY_DIFF_VERSION=""
@@ -113,6 +117,10 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             shift 2
+            ;;
+        --interactive|-i)
+            INTERACTIVE=true
+            shift
             ;;
         --help|-h)
             show_help
@@ -251,6 +259,52 @@ if [[ "$MODE" == "history" ]]; then
     if [[ -z "$versions" ]]; then
         echo "File '$TARGET_FILE' not found in backup. It may not have been backed up yet." >&2
         exit 1
+    fi
+
+    # Interactive fzf mode (early return)
+    if [[ "$INTERACTIVE" == "true" ]]; then
+        if ! command -v fzf &>/dev/null; then
+            echo "fzf not installed — showing table output instead. Install fzf for interactive browsing." >&2
+            # Fall through to normal output below
+        elif [[ ! -t 1 ]]; then
+            echo "Interactive mode requires a terminal. Falling back to table output." >&2
+            # Fall through to normal output below
+        else
+            # Build tab-delimited list for fzf
+            fzf_input=""
+            num=1
+            while IFS='|' read -r mtime version created relative size_human path; do
+                [[ -z "$mtime" ]] && continue
+                fzf_input+=$(printf '%d\t%s\t%s\t%s\t%s\t%s\n' "$num" "$version" "$created" "$relative" "$size_human" "$path")
+                fzf_input+=$'\n'
+                num=$((num + 1))
+            done <<< "$versions"
+
+            # Remove trailing newline
+            fzf_input="${fzf_input%$'\n'}"
+
+            selected=$(echo "$fzf_input" | fzf \
+                --prompt "Version > " \
+                --header "ENTER: view diff vs current | CTRL-C: cancel" \
+                --header-first \
+                --delimiter '\t' \
+                --with-nth 1,2,3,4,5 \
+                --ansi \
+                --preview "diff --color=always \"$PROJECT_DIR/$TARGET_FILE\" {6} 2>/dev/null || cat {6}" \
+                --preview-window "right:60%:wrap" \
+            ) || true
+
+            if [[ -n "$selected" ]]; then
+                selected_path=$(echo "$selected" | cut -f6)
+                selected_version=$(echo "$selected" | cut -f2)
+                echo ""
+                echo -e "${C_BOLD}Diff: current vs ${C_CYAN}${selected_version}${C_RESET}"
+                echo ""
+                diff -u --label "current" --label "version ${selected_version}" \
+                    "$PROJECT_DIR/$TARGET_FILE" "$selected_path" || true
+            fi
+            exit 0
+        fi
     fi
 
     if [[ "$JSON_OUTPUT" == "true" ]]; then
