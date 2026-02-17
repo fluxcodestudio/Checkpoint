@@ -131,7 +131,9 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 23-01: TBD (run /gsd:plan-phase 23 to break down)
+- [ ] 23-01: Encryption Library & Config — encryption.sh, config wiring, checkpoint encrypt CLI
+- [ ] 23-02: Backup Pipeline Encryption — cloud folder post-sync encryption in backup-now.sh
+- [ ] 23-03: Restore & Discovery Adaptation — .age handling in restore, discovery, verification, diff
 
 #### Phase 24: Docker Volume Backup
 
