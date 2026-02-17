@@ -16,6 +16,11 @@
 # Lib directory (set by loader, fallback for standalone sourcing)
 _CHECKPOINT_LIB_DIR="${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
+# Source encryption library if available (for decrypting .age backups)
+if [ -f "$_CHECKPOINT_LIB_DIR/features/encryption.sh" ]; then
+    source "$_CHECKPOINT_LIB_DIR/features/encryption.sh"
+fi
+
 # Set logging context for this module
 log_set_context "restore"
 
@@ -86,6 +91,7 @@ verify_compressed_backup() {
 }
 
 # Restore database from compressed backup
+# Handles both unencrypted (.db.gz) and encrypted (.db.gz.age) backups
 restore_database_from_backup() {
     local backup_file="$1"
     local target_db="$2"
@@ -97,13 +103,36 @@ restore_database_from_backup() {
         color_cyan "ℹ️  [DRY RUN] Would restore:"
         color_cyan "   From: $backup_file"
         color_cyan "   To: $target_db"
+        [[ "$backup_file" == *.age ]] && color_cyan "   (encrypted — will decrypt before restore)"
         return 0
+    fi
+
+    # Handle encrypted backups: decrypt to temp file first
+    local actual_backup="$backup_file"
+    local _decrypt_tmp=""
+    if [[ "$backup_file" == *.age ]]; then
+        if ! command -v age >/dev/null 2>&1; then
+            log_error "Cannot restore encrypted backup: age not installed"
+            color_red "❌ Cannot restore encrypted backup: age not installed"
+            return 1
+        fi
+        color_cyan "🔓 Decrypting backup..."
+        _decrypt_tmp="${backup_file%.age}.tmp-decrypt"
+        if ! decrypt_file "$backup_file" "$_decrypt_tmp"; then
+            log_error "Decryption failed for: $backup_file"
+            color_red "❌ Decryption failed"
+            rm -f "$_decrypt_tmp"
+            return 1
+        fi
+        actual_backup="$_decrypt_tmp"
+        color_green "✅ Decrypted"
     fi
 
     # Verify backup
     color_cyan "🧪 Verifying backup integrity..."
-    if ! verify_compressed_backup "$backup_file"; then
+    if ! verify_compressed_backup "$actual_backup"; then
         color_red "❌ Backup verification failed"
+        [ -n "$_decrypt_tmp" ] && rm -f "$_decrypt_tmp"
         return 1
     fi
     color_green "✅ Backup verified"
@@ -117,6 +146,7 @@ restore_database_from_backup() {
             color_green "✅ Safety backup: $(basename "$safety_backup")"
         else
             color_red "❌ Failed to create safety backup"
+            [ -n "$_decrypt_tmp" ] && rm -f "$_decrypt_tmp"
             return 1
         fi
     fi
@@ -124,7 +154,10 @@ restore_database_from_backup() {
     # Perform restore
     color_cyan "📦 Restoring database..."
     local _restore_err
-    if _restore_err=$(gunzip -c "$backup_file" > "$target_db" 2>&1); then
+    if _restore_err=$(gunzip -c "$actual_backup" > "$target_db" 2>&1); then
+        # Clean up decrypted temp file
+        [ -n "$_decrypt_tmp" ] && rm -f "$_decrypt_tmp"
+
         # Verify restored database
         color_cyan "🧪 Verifying restored database..."
         if verify_sqlite_integrity "$target_db"; then
@@ -142,11 +175,13 @@ restore_database_from_backup() {
     else
         log_error "Database restore failed for $target_db: $_restore_err"
         color_red "❌ Restore failed"
+        [ -n "$_decrypt_tmp" ] && rm -f "$_decrypt_tmp"
         return 1
     fi
 }
 
 # Restore file from backup
+# Handles both unencrypted and encrypted (.age) file backups
 restore_file_from_backup() {
     local backup_file="$1"
     local target_file="$2"
@@ -158,7 +193,29 @@ restore_file_from_backup() {
         color_cyan "ℹ️  [DRY RUN] Would restore:"
         color_cyan "   From: $backup_file"
         color_cyan "   To: $target_file"
+        [[ "$backup_file" == *.age ]] && color_cyan "   (encrypted — will decrypt before restore)"
         return 0
+    fi
+
+    # Handle encrypted backups: decrypt to temp file first
+    local actual_backup="$backup_file"
+    local _decrypt_tmp=""
+    if [[ "$backup_file" == *.age ]]; then
+        if ! command -v age >/dev/null 2>&1; then
+            log_error "Cannot restore encrypted backup: age not installed"
+            color_red "❌ Cannot restore encrypted backup: age not installed"
+            return 1
+        fi
+        color_cyan "🔓 Decrypting backup..."
+        _decrypt_tmp="${backup_file%.age}.tmp-decrypt"
+        if ! decrypt_file "$backup_file" "$_decrypt_tmp"; then
+            log_error "Decryption failed for: $backup_file"
+            color_red "❌ Decryption failed"
+            rm -f "$_decrypt_tmp"
+            return 1
+        fi
+        actual_backup="$_decrypt_tmp"
+        color_green "✅ Decrypted"
     fi
 
     # Create safety backup
@@ -175,13 +232,16 @@ restore_file_from_backup() {
     # Perform restore
     color_cyan "📦 Restoring file..."
     local _cp_err
-    if _cp_err=$(cp "$backup_file" "$target_file" 2>&1); then
+    if _cp_err=$(cp "$actual_backup" "$target_file" 2>&1); then
+        # Clean up decrypted temp file
+        [ -n "$_decrypt_tmp" ] && rm -f "$_decrypt_tmp"
         log_info "File restored: $target_file"
         color_green "✅ Restore complete"
         return 0
     else
         log_error "File restore cp failed for $target_file: $_cp_err"
         color_red "❌ Restore failed"
+        [ -n "$_decrypt_tmp" ] && rm -f "$_decrypt_tmp"
         return 1
     fi
 }
