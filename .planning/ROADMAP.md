@@ -144,7 +144,8 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 24-01: TBD (run /gsd:plan-phase 24 to break down)
+- [ ] 24-01: Docker Volumes Library — docker-volumes.sh, config wiring
+- [ ] 24-02: Pipeline Integration & CLI — backup-now.sh integration, checkpoint docker-volumes command
 
 #### Phase 25: Backup Search & Browse CLI
 
