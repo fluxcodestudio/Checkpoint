@@ -615,6 +615,7 @@ case "${1:-}" in
         echo "  diff                Compare working directory with backup"
         echo "  history <file>      Show all versions of a file"
         echo "  encrypt             Manage backup encryption (setup, status, test)"
+        echo "  docker-volumes      Manage Docker volume backups (list, backup, restore)"
         echo "  --help, -h          Show this help"
         echo ""
         echo "No options:           Launch interactive TUI dashboard"
@@ -647,6 +648,16 @@ case "${1:-}" in
             exec "$CHECKPOINT_LIB/bin/checkpoint-encrypt.sh" "$@"
         else
             echo "Error: checkpoint-encrypt.sh not found" >&2
+            exit 1
+        fi
+        ;;
+    docker-volumes|--docker-volumes|volumes)
+        # Manage Docker volume backups
+        if [[ -x "$CHECKPOINT_LIB/bin/checkpoint-docker-volumes.sh" ]]; then
+            shift
+            exec "$CHECKPOINT_LIB/bin/checkpoint-docker-volumes.sh" "$@"
+        else
+            echo "Error: checkpoint-docker-volumes.sh not found" >&2
             exit 1
         fi
         ;;
