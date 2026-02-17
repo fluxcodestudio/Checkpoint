@@ -12,6 +12,8 @@ Researched patterns for building interactive backup search/browse/history CLI co
 The standard approach for interactive browsing is fzf with preview windows, falling back to bash `select` when fzf is unavailable. For searching across snapshots, grep/ripgrep with pre-filtering by date range is the established pattern. Industry-standard backup tools (restic, borg) use a two-level hierarchy: list snapshots first, then drill into files — this maps well to Checkpoint's existing archived/ structure.
 
 **Primary recommendation:** Build three commands (`browse`, `search`, `history`) using fzf for interactive selection with bash `select` fallback. Leverage existing discovery functions heavily — most of the data plumbing already exists.
+
+**Critical finding from deep dive:** `checkpoint history` and `checkpoint diff --list-snapshots` already exist in checkpoint-diff.sh. Phase 25 should EXTEND these with interactive fzf browsing, add `search` as a new command, and upgrade `browse` to a snapshot file explorer — not re-implement what exists.
 </research_summary>
 
 <standard_stack>
@@ -108,11 +110,42 @@ checkpoint history --plain src/main.sh
 **When to use:** All output
 **Example:** After listing snapshots, suggest: `Use 'checkpoint browse <timestamp>' to explore files`
 
+### Pattern 5: fzf Drill-Down with Reload (from deep dive)
+**What:** Two-level navigation within a single fzf session using `reload` + `change-prompt`
+**When to use:** Browse command — select snapshot, then explore files in it
+**Example:**
+```bash
+# Level 1: Show snapshots
+# On ENTER: reload with files for that snapshot, change prompt
+discover_snapshots "$archived_dir" | fzf \
+    --prompt="Snapshots > " \
+    --header "ENTER: browse files | CTRL-R: refresh" \
+    --preview="find '$archived_dir' -name '*{}*' -type f | head -20" \
+    --bind "enter:reload(find '$archived_dir' -name '*{}*' -type f)+change-prompt(Files > )+change-header(ENTER: view file | ESC: back)"
+```
+**Verdict:** Practical for 2 levels. For 3+ levels, chain separate fzf calls instead.
+
+### Pattern 6: fzf Formatted Columns with Delimiter
+**What:** Pipe tab-delimited data into fzf, display formatted columns, search specific fields
+**When to use:** Snapshot/version listings with metadata
+**Example:**
+```bash
+# Generate: timestamp\tsize\trelative_time\tpath
+# Display all columns, search only path (field 4)
+generate_listing | fzf \
+    --delimiter '\t' \
+    --with-nth 1,2,3,4 \
+    --nth 4 \
+    --ansi \
+    --preview 'cat {4}'
+```
+
 ### Anti-Patterns to Avoid
 - **Dumping all files across all snapshots at once:** Always filter first (by date, by file pattern)
 - **Requiring fzf:** Must work without it via bash select fallback
 - **Searching compressed/encrypted files by default:** Too slow; search metadata/paths first, content only when explicitly requested
 - **Building a custom fuzzy matcher:** fzf does this perfectly
+- **Re-implementing history/list-snapshots:** These already work in checkpoint-diff.sh — extend, don't duplicate
 </architecture_patterns>
 
 <dont_hand_roll>
@@ -250,7 +283,109 @@ search_backups() {
     esac
 }
 ```
+
+### fzf Browse with Diff Preview (from deep dive)
+```bash
+# Source: fzf ADVANCED.md + git-fuzzy patterns
+browse_file_versions() {
+    local file_path="$1"
+    local current_file="$FILES_DIR/$file_path"
+
+    # Pipe version listing into fzf with diff preview
+    list_file_versions_sorted "$file_path" "$FILES_DIR" "$ARCHIVED_DIR" | \
+        fzf --delimiter '|' \
+            --with-nth 3,5,4 \
+            --ansi \
+            --header $'ENTER: restore | CTRL-D: diff against current\n' \
+            --header-first \
+            --preview "diff --color=always '$current_file' {6} 2>/dev/null || cat {6}" \
+            --preview-window "right:60%:wrap" \
+            --bind "ctrl-d:change-preview(diff --color=always '$current_file' {6})" \
+            --bind "ctrl-c:change-preview(cat {6})"
+}
+```
+
+### List Files at Snapshot (new function needed)
+```bash
+# Source: Checkpoint archived/ directory structure analysis
+list_files_at_snapshot() {
+    local archived_dir="$1"
+    local timestamp="$2"
+
+    # Find all files matching this timestamp (with or without PID suffix)
+    find "$archived_dir" -type f -name "*.${timestamp}*" 2>/dev/null | \
+        while read -r path; do
+            local relpath="${path#$archived_dir/}"
+            # Strip timestamp suffix to get original filename
+            local original
+            original=$(echo "$relpath" | sed "s/\.${timestamp}\(_[0-9]*\)\?\(\.age\)\?$//")
+            local size
+            size=$(stat -f%z "$path" 2>/dev/null || stat -c%s "$path" 2>/dev/null)
+            local encrypted=""
+            [[ "$path" == *.age ]] && encrypted=" [encrypted]"
+            printf "%s\t%s\t%s%s\n" "$original" "$(format_bytes "$size")" "$relpath" "$encrypted"
+        done | sort
+}
+```
 </code_examples>
+
+<existing_overlap>
+## Existing Functionality (Deep Dive)
+
+### What Already Exists — DO NOT REBUILD
+
+| Feature | Location | Details |
+|---------|----------|---------|
+| **`checkpoint history <file>`** | checkpoint-diff.sh:236-292 | Lists all versions of a file with table output (# / Version / Date / Age / Size) |
+| **`checkpoint diff --list-snapshots`** | checkpoint-diff.sh:155-230 | Lists available snapshots with dates and relative times |
+| **`checkpoint diff`** | checkpoint-diff.sh:297-358 | Compares working dir to backup (added/modified/removed) |
+| **`--json` output** | checkpoint-diff.sh:176,257,348 | JSON output for all three modes above |
+| **`discover_snapshots()`** | backup-diff.sh:39-52 | Extracts unique YYYYMMDD_HHMMSS timestamps from archived/ |
+| **`list_file_versions_sorted()`** | backup-discovery.sh:46-85 | Returns pipe-delimited `mtime\|version\|created\|relative\|size_human\|path` |
+| **`list_database_backups_sorted()`** | backup-discovery.sh:21-43 | Returns pipe-delimited `created\|relative\|size_human\|filename\|path` |
+| **`get_file_at_snapshot()`** | backup-diff.sh:236-312 | Finds the closest archived version at or before a given timestamp |
+| **`compare_current_to_backup()`** | backup-diff.sh:62-127 | rsync dry-run, sets DIFF_ADDED/MODIFIED/REMOVED arrays |
+| **`format_diff_text/json()`** | backup-diff.sh:137-224 | Formats diff output for display |
+
+### What's MISSING — Phase 25 Scope
+
+| Feature | Description | Dependencies |
+|---------|-------------|-------------|
+| **`checkpoint browse`** | Interactive fzf snapshot explorer — pick snapshot, browse its files, preview/restore | `discover_snapshots()`, fzf, new UI layer |
+| **`checkpoint search <pattern>`** | Search across backup file paths and optionally content | `find`, grep/rg, new command |
+| **List files BY snapshot**  | Given a timestamp, list all files that were archived at that point | New function needed — `find "$archived_dir" -name "*.$timestamp*"` |
+| **fzf interactive mode for history** | Upgrade existing `checkpoint history` with fzf version picker + diff preview | Existing `list_file_versions_sorted()` + fzf |
+| **Content search across snapshots** | grep/rg across archived file contents with .age handling | New function, encryption awareness |
+| **Cross-project search** | Search across all 42 registered projects' backups | `projects.json` registry + scoped search |
+
+### CLI Routing (checkpoint.sh Lines 582-695)
+
+Existing routing pattern — new commands insert before `--dashboard`:
+```bash
+# Existing routes:
+diff|--diff)     → exec checkpoint-diff.sh "$@"
+history)         → exec checkpoint-diff.sh "history" "$@"
+verify|--verify) → exec backup-verify.sh "$@"
+
+# New routes needed:
+search|--search)   → exec checkpoint-search.sh "$@"
+browse|--browse)   → exec checkpoint-search.sh "browse" "$@"
+```
+
+### Real Backup Data Profile (This Project)
+
+| Metric | Value |
+|--------|-------|
+| Current files in mirror | 202 |
+| Archived versions | 62 |
+| Total backup size | ~8.8 MB |
+| Encrypted (.age) files | 0 |
+| Compressed (.db.gz) databases | 0 |
+| Timestamp format | `YYYYMMDD_HHMMSS` with optional `_PID` |
+| Directory structure | Nested (mirrors project: archived/bin/, archived/lib/, etc.) |
+| Registered projects | 42 total |
+| Largest project backup | ~650 MB (9 STAR - BE MUSIC: 700+ DB snapshots) |
+</existing_overlap>
 
 <sota_updates>
 ## State of the Art (2025-2026)
@@ -274,30 +409,39 @@ search_backups() {
 <open_questions>
 ## Open Questions
 
-1. **Should `checkpoint browse` be a single multi-mode fzf session or separate drill-down commands?**
-   - What we know: fzf supports switching views via --bind, but it adds complexity. Separate commands are simpler and more composable.
-   - What's unclear: User preference for single interactive session vs pipeline-style commands
-   - Recommendation: Start with separate commands (`browse` for snapshot selection, `search` for content, `history` for file versions). Add combined interactive mode later if needed.
+1. **Should `checkpoint browse` use fzf reload for two-level drill-down or chain separate fzf calls?**
+   - What we know: fzf `reload` + `change-prompt` works well for 2 levels. Chaining is simpler to maintain but less fluid.
+   - Deep dive finding: Single-session is practical for snapshot→files (2 levels). State management gets unwieldy at 3+ levels.
+   - Recommendation: Use single-session fzf with `reload` for the snapshot→files drill-down. Fall back to chained calls if `select` is used.
 
 2. **Should content search decrypt .age files by default?**
-   - What we know: Decryption adds significant latency. Users may not realize their backups are encrypted.
-   - What's unclear: How common is encryption usage among Checkpoint users?
-   - Recommendation: Skip encrypted files by default with a notice. Offer `--decrypt` flag to include them. Show count of skipped encrypted files.
+   - What we know: Decryption adds significant latency. This project has 0 encrypted files, but encryption is a supported feature.
+   - Recommendation: Skip encrypted files by default with a notice. Offer `--decrypt` flag to include them.
+
+3. **Should `checkpoint search` support cross-project search?**
+   - What we know: 42 projects in registry. Searching all would be very slow (650+ MB for largest project alone).
+   - Recommendation: Default to current project. Offer `--all-projects` flag that warns about performance. Optionally `--project NAME` to search specific other projects.
+
+4. **Should this be one script (checkpoint-search.sh) or separate scripts per command?**
+   - What we know: Existing pattern uses dedicated scripts (checkpoint-diff.sh, checkpoint-encrypt.sh). But history already routes through checkpoint-diff.sh.
+   - Recommendation: Single `checkpoint-search.sh` with modes (search, browse) since they share the fzf infrastructure. History stays in checkpoint-diff.sh but gets an `--interactive` fzf upgrade.
 </open_questions>
 
 <sources>
 ## Sources
 
 ### Primary (HIGH confidence)
-- Checkpoint codebase analysis — backup-discovery.sh, backup-diff.sh, encryption.sh, checkpoint.sh CLI patterns, retention-policy.sh timestamp handling
-- fzf GitHub repository and official documentation — preview, multi-select, key bindings, shell integration
-- restic official documentation — snapshots, ls, find, diff command patterns
-- borg official documentation — list, diff, format strings, JSON output patterns
+- Checkpoint codebase deep dive — checkpoint-diff.sh (359 lines, 3 modes), backup-discovery.sh (86 lines, 2 functions), backup-diff.sh (313 lines, 5 functions), checkpoint.sh routing (lines 582-695), encryption.sh, retention-policy.sh
+- Real backup data analysis — 202 current files, 62 archived versions, nested directory structure, YYYYMMDD_HHMMSS_PID timestamp format
+- fzf GitHub repo + ADVANCED.md — reload/transform drill-down, preview windows, --delimiter/--with-nth, --header, key bindings
+- restic docs — snapshots, ls, find, diff CLI patterns (two-level hierarchy)
+- borg docs — list, diff, --format strings, --json-lines streaming output
 
 ### Secondary (MEDIUM confidence)
-- ripgrep benchmark analysis (burntsushi.net) — performance comparisons verified against documentation
-- CLI UX best practices (clig.dev, Atlassian) — output format trinity, progressive disclosure patterns
-- fzf practical guides (thevaluable.dev) — preview window patterns, key binding customization
+- fzf practical guides (thevaluable.dev) — git explorer patterns, preview modes, color handling
+- ripgrep benchmarks (burntsushi.net) — 4-40x faster than grep on large trees
+- CLI UX best practices (clig.dev, Atlassian, Evil Martians) — output format trinity, progressive disclosure
+- git-fuzzy, forgit, fzf-navigator — real-world fzf file browser implementations on GitHub
 
 ### Tertiary (LOW confidence - needs validation)
 - None — all findings verified against official sources or existing codebase
