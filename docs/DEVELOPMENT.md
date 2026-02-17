@@ -182,7 +182,7 @@ Checkpoint/
 brew install bash git sqlite3 shellcheck shfmt
 
 # Clone repository
-git clone https://github.com/nizernoj/Checkpoint.git
+git clone https://github.com/fluxcodestudio/Checkpoint.git
 cd Checkpoint
 
 # Install pre-commit hooks

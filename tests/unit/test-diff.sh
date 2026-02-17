@@ -106,7 +106,7 @@ has_git=false
 line_count=$(echo "$result" | grep -c . || true)
 
 if [[ "$has_backups" == "true" ]] && [[ "$has_git" == "true" ]] && \
-   assert_equals "9" "$line_count" "Should have 9 exclude patterns"; then
+   assert_equals "34" "$line_count" "Should have 34 exclude patterns"; then
     test_pass
 else
     test_fail "backups=$has_backups, git=$has_git, lines=$line_count"

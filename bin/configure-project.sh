@@ -126,22 +126,9 @@ read -p "  Install hourly backup schedule? (Y/n): " install_daemon
 install_daemon=${install_daemon:-y}
 echo ""
 
-# === Question 4: Claude Code Integration ===
+# === Question 4: GitHub Auto-Push ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  4/6: Claude Code Integration (Optional)"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if [[ -d "$HOME/.claude" ]]; then
-    read -p "  Add backup trigger to Claude Code? (Y/n): " install_hook
-    install_hook=${install_hook:-y}
-else
-    echo "  Claude Code not detected - skipping"
-    install_hook=n
-fi
-echo ""
-
-# === Question 5: GitHub Auto-Push ===
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  5/6: GitHub Auto-Push (Optional)"
+echo "  4/5: GitHub Auto-Push (Optional)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 wants_github_push=n
 github_push_interval=7200
@@ -186,9 +173,9 @@ else
 fi
 echo ""
 
-# === Question 6: Initial Backup ===
+# === Question 5: Initial Backup ===
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  6/6: Initial Backup"
+echo "  5/5: Initial Backup"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 read -p "  Run initial backup now? (Y/n): " run_initial
 run_initial=${run_initial:-y}
@@ -300,35 +287,6 @@ if [[ "$install_daemon" =~ ^[Yy]$ ]]; then
     if [[ -n "${DAEMON_CMD:-}" ]]; then
         install_daemon "$PROJECT_NAME" "$DAEMON_CMD" "$PROJECT_DIR" "$PROJECT_NAME" "daemon"
         echo "  ✓ Hourly backups configured"
-    fi
-fi
-
-# Claude Code hook
-if [[ "$install_hook" =~ ^[Yy]$ ]] && [[ -d "$HOME/.claude" ]]; then
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  Installing Claude Code Integration"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-    mkdir -p "$HOME/.claude/hooks"
-
-    # Find backup-now command
-    if command -v backup-now &>/dev/null; then
-        BACKUP_CMD="backup-now"
-    elif [[ -x "$PACKAGE_DIR/bin/backup-now.sh" ]]; then
-        BACKUP_CMD="$PACKAGE_DIR/bin/backup-now.sh"
-    fi
-
-    if [[ -n "${BACKUP_CMD:-}" ]]; then
-        cat > "$HOME/.claude/hooks/user-prompt-submit.sh" << HOOK
-#!/usr/bin/env bash
-# Checkpoint - Auto-backup on Claude Code session start
-if [[ -f "\$PWD/.backup-config.sh" ]]; then
-    $BACKUP_CMD --quiet 2>/dev/null || true
-fi
-HOOK
-
-        chmod +x "$HOME/.claude/hooks/user-prompt-submit.sh"
-        echo "  ✓ Claude Code hook installed"
     fi
 fi
 

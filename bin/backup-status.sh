@@ -102,7 +102,9 @@ fi
 
 # Set defaults for optional config variables
 DATABASE_DIR="${DATABASE_DIR:-${BACKUP_DIR:-./backups}/databases}"
-ARCHIVE_DIR="${ARCHIVE_DIR:-${BACKUP_DIR:-./backups}/archived}"
+FILES_DIR="${FILES_DIR:-${BACKUP_DIR:-./backups}/files}"
+ARCHIVED_DIR="${ARCHIVED_DIR:-${BACKUP_DIR:-./backups}/archived}"
+ARCHIVE_DIR="${ARCHIVE_DIR:-$ARCHIVED_DIR}"
 DB_RETENTION_DAYS="${DB_RETENTION_DAYS:-30}"
 FILE_RETENTION_DAYS="${FILE_RETENTION_DAYS:-60}"
 

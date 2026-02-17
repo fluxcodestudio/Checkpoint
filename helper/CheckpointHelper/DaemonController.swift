@@ -139,14 +139,27 @@ class DaemonController {
 
     // MARK: - Manual Backup
 
-    static func runBackupNow(completion: @escaping (Bool, String) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let task = Process()
+    private static var backupProcess: Process?
 
-            // Find backup-now command
+    static func runBackupNow(completion: @escaping (Bool, String) -> Void) {
+        // Prevent concurrent backup runs
+        if let existing = backupProcess, existing.isRunning {
+            DispatchQueue.main.async {
+                completion(false, "Backup already in progress")
+            }
+            return
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { backupProcess = nil }
+
+            let task = Process()
+            backupProcess = task
+
+            // Find backup-all command (backs up all registered projects with progress heartbeat)
             let possiblePaths = [
-                "/usr/local/bin/backup-now",
-                FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/backup-now").path
+                "/usr/local/bin/backup-all",
+                FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/backup-all").path
             ]
 
             var backupCommand: String?
@@ -159,27 +172,27 @@ class DaemonController {
 
             guard let command = backupCommand else {
                 DispatchQueue.main.async {
-                    completion(false, "backup-now command not found")
+                    completion(false, "backup-all command not found")
                 }
                 return
             }
 
             task.launchPath = command
-            task.arguments = []
+            task.arguments = ["--force"]
 
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            task.standardError = pipe
+            // Discard output to /dev/null — progress is tracked via heartbeat file, not stdout.
+            // Using a Pipe here would deadlock when output exceeds the 64KB kernel buffer,
+            // because waitUntilExit() blocks while the child blocks on write().
+            task.standardOutput = FileHandle.nullDevice
+            task.standardError = FileHandle.nullDevice
 
             do {
                 try task.run()
                 task.waitUntilExit()
 
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8) ?? ""
-
+                let success = task.terminationStatus == 0
                 DispatchQueue.main.async {
-                    completion(task.terminationStatus == 0, output)
+                    completion(success, success ? "Backup complete" : "Backup failed (exit \(task.terminationStatus))")
                 }
             } catch {
                 DispatchQueue.main.async {

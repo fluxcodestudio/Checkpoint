@@ -523,17 +523,7 @@ if [ "$DRY_RUN" = true ]; then
 
         # FALLBACK: If no git repo, use mtime check for dry-run
         if [ ! -s "$changed_files" ]; then
-            find . -type f -mmin -$(( BACKUP_INTERVAL / 60 )) \
-                ! -path "*/backups/*" \
-                ! -path "*/.git/*" \
-                ! -path "*/node_modules/*" \
-                ! -path "*/.venv/*" \
-                ! -path "*/__pycache__/*" \
-                ! -path "*/dist/*" \
-                ! -path "*/build/*" \
-                ! -path "*/.next/*" \
-                ! -path "*/.DS_Store" \
-                2>/dev/null | sed 's|^\./||' >> "$changed_files"
+            eval "find . -type f -mmin -$(( BACKUP_INTERVAL / 60 )) $(get_find_excludes | tr '\n' ' ') 2>/dev/null" | sed 's|^\./||' >> "$changed_files"
         fi
 
         if [ "$BACKUP_ENV_FILES" = true ]; then
@@ -766,17 +756,7 @@ if [ "$DATABASE_ONLY" = false ]; then
         if [ ! -s "$changed_files" ]; then
             cli_verbose "   No git repository detected - using file system scan"
             log_debug "No git repo, falling back to filesystem scan"
-            find . -type f \
-                ! -path "*/backups/*" \
-                ! -path "*/.git/*" \
-                ! -path "*/node_modules/*" \
-                ! -path "*/.venv/*" \
-                ! -path "*/__pycache__/*" \
-                ! -path "*/dist/*" \
-                ! -path "*/build/*" \
-                ! -path "*/.next/*" \
-                ! -path "*/.DS_Store" \
-                2>/dev/null | sed 's|^\./||' >> "$changed_files"
+            eval "find . -type f $(get_find_excludes | tr '\n' ' ') 2>/dev/null" | sed 's|^\./||' >> "$changed_files"
         fi
     else
         # INCREMENTAL: Only changed files
@@ -789,17 +769,7 @@ if [ "$DATABASE_ONLY" = false ]; then
             cli_verbose "   No git repository detected - using mtime check"
             log_debug "No git repo, falling back to mtime check"
             # Find files modified in last hour (BACKUP_INTERVAL)
-            find . -type f -mmin -$(( BACKUP_INTERVAL / 60 )) \
-                ! -path "*/backups/*" \
-                ! -path "*/.git/*" \
-                ! -path "*/node_modules/*" \
-                ! -path "*/.venv/*" \
-                ! -path "*/__pycache__/*" \
-                ! -path "*/dist/*" \
-                ! -path "*/build/*" \
-                ! -path "*/.next/*" \
-                ! -path "*/.DS_Store" \
-                2>/dev/null | sed 's|^\./||' >> "$changed_files"
+            eval "find . -type f -mmin -$(( BACKUP_INTERVAL / 60 )) $(get_find_excludes | tr '\n' ' ') 2>/dev/null" | sed 's|^\./||' >> "$changed_files"
         fi
     fi
 
@@ -1592,19 +1562,18 @@ if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PAT
 
                 # Encrypt cloud database backups if encryption enabled
                 if encryption_enabled 2>/dev/null; then
-                    local cloud_db_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/databases"
-                    local age_recipient
-                    age_recipient="$(get_age_recipient)"
-                    if [[ -n "$age_recipient" ]]; then
+                    _cloud_db_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/databases"
+                    _age_recipient="$(get_age_recipient)"
+                    if [[ -n "$_age_recipient" ]]; then
                         while IFS= read -r -d '' db_file; do
                             if [[ ! -f "${db_file}.age" ]] || [[ "$db_file" -nt "${db_file}.age" ]]; then
-                                if age -r "$age_recipient" "$db_file" -o "${db_file}.age" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                                if age -r "$_age_recipient" -o "${db_file}.age" "$db_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                                     rm "$db_file"
                                 else
                                     log_warn "Encryption failed for: $db_file"
                                 fi
                             fi
-                        done < <(find "$cloud_db_dir" -name "*.db.gz" ! -name "*.age" -print0 2>/dev/null)
+                        done < <(find "$_cloud_db_dir" -name "*.db.gz" ! -name "*.age" -print0 2>/dev/null)
                         cli_info "   Databases encrypted"
                         log_info "Cloud sync: databases encrypted"
                     fi
@@ -1615,36 +1584,38 @@ if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PAT
             fi
         fi
 
-        # Sync critical files (not full file backups - too large)
+        # Sync all project files to cloud (excludes regeneratable dirs)
         if [[ -d "$FILES_DIR" ]]; then
-            # Only sync config and small critical files
-            if rsync -a --include='.env*' --include='*.sh' --include='.claude/' --include='.claude/**' \
-                  --exclude='node_modules/' --exclude='*.log' \
-                  --max-size=1M \
+            if rsync -a \
+                  --exclude='node_modules/' --exclude='.git/' --exclude='.venv/' \
+                  --exclude='__pycache__/' --exclude='dist/' --exclude='build/' \
+                  --exclude='.next/' --exclude='.cache/' --exclude='coverage/' \
+                  --exclude='.turbo/' --exclude='target/' --exclude='vendor/' \
+                  --exclude='.nuxt/' --exclude='.output/' --exclude='.svelte-kit/' \
+                  --exclude='*.log' --exclude='.DS_Store' \
                   "$FILES_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/files/" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                cli_info "   Critical files synced"
-                log_info "Cloud sync: critical files synced"
+                cli_info "   Project files synced"
+                log_info "Cloud sync: project files synced"
 
                 # Encrypt cloud file backups if encryption enabled
                 if encryption_enabled 2>/dev/null; then
-                    local cloud_files_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/files"
-                    local age_recipient
-                    age_recipient="$(get_age_recipient)"
-                    if [[ -n "$age_recipient" ]]; then
-                        local encrypted_count=0
+                    _cloud_files_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/files"
+                    _age_recipient="$(get_age_recipient)"
+                    if [[ -n "$_age_recipient" ]]; then
+                        _encrypted_count=0
                         while IFS= read -r -d '' src_file; do
                             if [[ ! -f "${src_file}.age" ]] || [[ "$src_file" -nt "${src_file}.age" ]]; then
-                                if age -r "$age_recipient" "$src_file" -o "${src_file}.age" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                                if age -r "$_age_recipient" -o "${src_file}.age" "$src_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                                     rm "$src_file"
-                                    encrypted_count=$((encrypted_count + 1))
+                                    _encrypted_count=$((_encrypted_count + 1))
                                 else
                                     log_warn "Encryption failed for: $src_file"
                                 fi
                             fi
-                        done < <(find "$cloud_files_dir" -type f ! -name "*.age" -print0 2>/dev/null)
-                        if [[ $encrypted_count -gt 0 ]]; then
-                            cli_info "   Files encrypted ($encrypted_count files)"
-                            log_info "Cloud sync: $encrypted_count files encrypted"
+                        done < <(find "$_cloud_files_dir" -type f ! -name "*.age" -print0 2>/dev/null)
+                        if [[ $_encrypted_count -gt 0 ]]; then
+                            cli_info "   Files encrypted ($_encrypted_count files)"
+                            log_info "Cloud sync: $_encrypted_count files encrypted"
                         fi
                     fi
                 fi
@@ -1716,29 +1687,35 @@ if [[ "$USE_RCLONE" == "true" ]] && [[ -n "${CLOUD_RCLONE_REMOTE:-}" ]]; then
             fi
         fi
 
-        # Sync critical files (using filter for small important files)
+        # Sync all project files (excludes regeneratable dirs)
         if [[ -d "$FILES_DIR" ]]; then
             # Create a temp filter file for rclone
             rclone_filter=$(mktemp)
             cat > "$rclone_filter" << 'RCLONE_FILTER'
-+ .env*
-+ *.sh
-+ .claude/**
-+ .backup-config.sh
-+ CLAUDE.md
-+ credentials.json
-+ *.pem
 - node_modules/**
+- .git/**
+- .venv/**
+- __pycache__/**
+- dist/**
+- build/**
+- .next/**
+- .cache/**
+- coverage/**
+- .turbo/**
+- target/**
+- vendor/**
+- .nuxt/**
+- .output/**
+- .svelte-kit/**
 - *.log
-- **
+- .DS_Store
 RCLONE_FILTER
 
             if rclone sync "$FILES_DIR/" "$rclone_dest/files/" \
                 --filter-from "$rclone_filter" \
-                --max-size 1M \
                 --quiet 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                cli_info "   Critical files uploaded"
-                log_info "rclone: critical files uploaded"
+                cli_info "   Project files uploaded"
+                log_info "rclone: project files uploaded"
             else
                 cli_warn "   File upload failed"
                 log_warn "rclone: file upload failed"

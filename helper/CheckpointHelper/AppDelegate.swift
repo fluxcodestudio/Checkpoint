@@ -16,6 +16,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var watchdogStatusMenuItem: NSMenuItem!
     var stalenessMenuItem: NSMenuItem!
 
+    // Sync progress menu items (hidden when idle)
+    var syncProgressMenuItem: NSMenuItem!
+    var syncCurrentProjectMenuItem: NSMenuItem!
+    var syncCountersMenuItem: NSMenuItem!
+
+    // Cache last-known sync progress to handle heartbeat write gaps
+    private var cachedSyncIndex: Int = 0
+    private var cachedSyncTotal: Int = 0
+    private var cachedSyncProject: String = ""
+    private var cachedSyncBackedUp: Int = 0
+    private var cachedSyncFailed: Int = 0
+    private var cachedSyncSkipped: Int = 0
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Request notification permissions
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
@@ -114,6 +127,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusMenuItem = NSMenuItem(title: "Status: Checking...", action: nil, keyEquivalent: "")
         statusMenuItem.isEnabled = false
         menu.addItem(statusMenuItem)
+
+        // Sync progress items (hidden when idle)
+        syncCurrentProjectMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        syncCurrentProjectMenuItem.isEnabled = false
+        syncCurrentProjectMenuItem.isHidden = true
+        menu.addItem(syncCurrentProjectMenuItem)
+
+        syncCountersMenuItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        syncCountersMenuItem.isEnabled = false
+        syncCountersMenuItem.isHidden = true
+        menu.addItem(syncCountersMenuItem)
 
         lastBackupMenuItem = NSMenuItem(title: "Last backup: --", action: nil, keyEquivalent: "")
         lastBackupMenuItem.isEnabled = false
@@ -255,6 +279,49 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.terminate(nil)
     }
 
+    // MARK: - Sync Progress
+
+    private func updateSyncProgress(data: HeartbeatMonitor.HeartbeatData) {
+        // Update cache when sync fields are present
+        if let index = data.syncingProjectIndex { cachedSyncIndex = index }
+        if let total = data.syncingTotalProjects { cachedSyncTotal = total }
+        if let project = data.syncingCurrentProject, !project.isEmpty { cachedSyncProject = project }
+        if let backedUp = data.syncingBackedUp { cachedSyncBackedUp = backedUp }
+        if let failed = data.syncingFailed { cachedSyncFailed = failed }
+        if let skipped = data.syncingSkipped { cachedSyncSkipped = skipped }
+
+        if data.isSyncing {
+            // Show progress in status line
+            statusMenuItem.title = "Status: Syncing \(cachedSyncIndex) of \(cachedSyncTotal) projects\u{2026}"
+
+            // Current project
+            syncCurrentProjectMenuItem.title = "  \u{25B8} \(cachedSyncProject)"
+            syncCurrentProjectMenuItem.isHidden = false
+
+            // Counters
+            var parts: [String] = []
+            parts.append("done \(cachedSyncBackedUp)")
+            parts.append("failed \(cachedSyncFailed)")
+            if cachedSyncSkipped > 0 {
+                parts.append("skipped \(cachedSyncSkipped)")
+            }
+            syncCountersMenuItem.title = "  \(parts.joined(separator: " \u{00B7} "))"
+            syncCountersMenuItem.isHidden = false
+        } else {
+            // Hide sync detail items when idle
+            syncCurrentProjectMenuItem.isHidden = true
+            syncCountersMenuItem.isHidden = true
+
+            // Reset cache
+            cachedSyncIndex = 0
+            cachedSyncTotal = 0
+            cachedSyncProject = ""
+            cachedSyncBackedUp = 0
+            cachedSyncFailed = 0
+            cachedSyncSkipped = 0
+        }
+    }
+
     // MARK: - Icon Updates
 
     func updateStatusIcon(for status: HeartbeatMonitor.DaemonStatus) {
@@ -313,7 +380,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: HeartbeatMonitorDelegate {
     func heartbeatUpdated(data: HeartbeatMonitor.HeartbeatData) {
         DispatchQueue.main.async {
-            self.statusMenuItem.title = "Status: \(data.status.rawValue.capitalized)"
+            // Update sync progress (may override status title during sync)
+            self.updateSyncProgress(data: data)
+
+            // Only set generic status title when NOT syncing (sync sets its own)
+            if !data.isSyncing {
+                self.statusMenuItem.title = "Status: \(data.status.rawValue.capitalized)"
+            }
 
             if let lastBackup = data.lastBackup {
                 let formatter = RelativeDateTimeFormatter()

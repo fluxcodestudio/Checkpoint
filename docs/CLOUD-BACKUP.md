@@ -469,4 +469,4 @@ rclone copy remotename:/Backups/Project /tmp/restore
 - Forum: https://forum.rclone.org/
 
 **Checkpoint Help:**
-- GitHub: https://github.com/nizernoj/Checkpoint
+- GitHub: https://github.com/fluxcodestudio/Checkpoint

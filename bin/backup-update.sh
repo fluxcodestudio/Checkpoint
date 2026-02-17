@@ -98,7 +98,7 @@ echo ""
 
 # Check GitHub for latest version
 echo "Checking for updates..."
-LATEST_VERSION=$(curl -sf https://api.github.com/repos/nizernoj/Checkpoint/releases/latest | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/' 2>/dev/null || echo "")
+LATEST_VERSION=$(curl -sf https://api.github.com/repos/fluxcodestudio/Checkpoint/releases/latest | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/' 2>/dev/null || echo "")
 
 if [[ -z "$LATEST_VERSION" ]]; then
     echo "⚠️  Update check failed - The repository is private and requires authentication."
@@ -166,8 +166,8 @@ TEMP_DIR=$(mktemp -d)
 trap "rm -rf '$TEMP_DIR'" EXIT
 
 # Download latest release with integrity verification
-download_url="https://github.com/nizernoj/Checkpoint/archive/refs/tags/v${LATEST_VERSION}.tar.gz"
-checksums_url="https://github.com/nizernoj/Checkpoint/releases/download/v${LATEST_VERSION}/SHA256SUMS"
+download_url="https://github.com/fluxcodestudio/Checkpoint/archive/refs/tags/v${LATEST_VERSION}.tar.gz"
+checksums_url="https://github.com/fluxcodestudio/Checkpoint/releases/download/v${LATEST_VERSION}/SHA256SUMS"
 
 cd "$TEMP_DIR"
 
@@ -253,19 +253,20 @@ echo "Migrating daemon services..."
 
 _refresh_count=0
 
-# macOS: patch existing plists with KeepAlive/SuccessfulExit=false
+# macOS: remove KeepAlive from existing plists (causes unwanted respawning)
 for plist in "$HOME/Library/LaunchAgents"/com.checkpoint.*.plist; do
     [ -f "$plist" ] || continue
 
-    # Check if plist has old-style KeepAlive=true (not the dict form)
-    if plutil -extract KeepAlive raw "$plist" 2>/dev/null | grep -q "true"; then
+    # Remove KeepAlive entirely — it causes launchd to respawn the daemon
+    # immediately after every successful exit, creating concurrent runs
+    if plutil -extract KeepAlive raw "$plist" 2>/dev/null; then
         label=$(defaults read "$plist" Label 2>/dev/null) || continue
 
         # Unload before modifying
         launchctl unload "$plist" 2>/dev/null || true
 
-        # Replace bare KeepAlive=true with SuccessfulExit=false dict
-        plutil -replace KeepAlive -json '{"SuccessfulExit":false}' "$plist" 2>/dev/null || true
+        # Remove KeepAlive (any form — bare true or SuccessfulExit dict)
+        plutil -remove KeepAlive "$plist" 2>/dev/null || true
 
         # Reload with updated config
         launchctl load -w "$plist" 2>/dev/null || true
@@ -293,5 +294,5 @@ echo "  Updated: $CURRENT_VERSION → $LATEST_VERSION"
 echo "═══════════════════════════════════════════════"
 echo ""
 echo "What's new:"
-echo "  https://github.com/nizernoj/Checkpoint/releases/tag/v${LATEST_VERSION}"
+echo "  https://github.com/fluxcodestudio/Checkpoint/releases/tag/v${LATEST_VERSION}"
 echo ""

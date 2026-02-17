@@ -76,6 +76,12 @@ if [[ -f "$SOURCE_DIR/AppIcon.icns" ]]; then
     cp "$SOURCE_DIR/AppIcon.icns" "$OUTPUT_APP/Contents/Resources/"
 fi
 
+# Copy Checkpoint logo for dashboard
+LOGO_SRC="$SCRIPT_DIR/../website/checkpoint-logo-no-text.png"
+if [[ -f "$LOGO_SRC" ]]; then
+    cp "$LOGO_SRC" "$OUTPUT_APP/Contents/Resources/checkpoint-logo.png"
+fi
+
 # Sign the app (ad-hoc for local use)
 echo "Signing app..."
 codesign --force --deep --sign - "$OUTPUT_APP"

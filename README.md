@@ -8,9 +8,10 @@
 
 Automated, intelligent backup system for any development environment. Battle-tested with comprehensive test coverage, cloud backup support, and multi-platform integrations.
 
-**Version:** 2.5.1
+**Version:** 2.5.2
 **Test Coverage:** 164/164 (100%)
-**License:** GPL v3
+**License:** [Polyform Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0/)
+**By:** [FluxCode Studio](https://fluxcode.studio)
 
 </div>
 
@@ -155,6 +156,10 @@ Automated, intelligent backup system for any development environment. Battle-tes
 - **Backup Verification** — Post-backup integrity checks
 - **Native File Watcher** — Real-time change detection via fswatch/inotifywait
 - **Daemon Health Monitoring** — Watchdog process with heartbeat tracking and auto-restart
+- **Encryption at Rest** — Cloud backups encrypted with `age` (modern GPG alternative)
+- **Storage Monitoring** — Pre-backup disk space checks with warnings and cleanup suggestions
+- **Search & Browse** — CLI search across all backup history with interactive fzf mode
+- **Native macOS Dashboard** — SwiftUI menu bar app with project status, settings, and live progress
 - **Cross-Platform** — macOS (launchd) and Linux (systemd) with cron fallback
 - **100% Test Coverage** — All functionality validated
 
@@ -187,7 +192,7 @@ backups/
 
 ```bash
 # Clone repository
-git clone https://github.com/nizernoj/Checkpoint.git
+git clone https://github.com/fluxcodestudio/Checkpoint.git
 cd Checkpoint
 
 # Run installer (global mode recommended)
@@ -870,13 +875,14 @@ See [docs/TESTING.md](docs/TESTING.md) for details.
 ## Credits
 
 **Author:** Jon Rezin
-**Repository:** https://github.com/nizernoj/Checkpoint
-**License:** GPL v3
+**Company:** [FluxCode Studio](https://fluxcode.studio) (Fluxcode Studio LLC)
+**Repository:** https://github.com/fluxcodestudio/Checkpoint
+**License:** [Polyform Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/)
 
 ---
 
 ## License
 
-GPL v3 License — see [LICENSE](LICENSE) file for details.
+Polyform Noncommercial License 1.0.0 — see [LICENSE](LICENSE) file for details.
 
-This ensures Checkpoint remains free and open-source for the community forever.
+Checkpoint is free to use for any noncommercial purpose. Commercial use requires written permission from Fluxcode Studio LLC. Attribution is required in all cases.

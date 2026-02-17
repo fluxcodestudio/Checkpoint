@@ -569,6 +569,9 @@ code {
 .feature-card:nth-child(4) .feature-icon { filter: drop-shadow(0 0 8px rgba(251, 146, 60, 0.6)); }
 .feature-card:nth-child(5) .feature-icon { filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6)); }
 .feature-card:nth-child(6) .feature-icon { filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.6)); }
+.feature-card:nth-child(7) .feature-icon { filter: drop-shadow(0 0 8px rgba(251, 146, 60, 0.6)); }
+.feature-card:nth-child(8) .feature-icon { filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.6)); }
+.feature-card:nth-child(9) .feature-icon { filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6)); }
 
 .feature-card h3 {
     font-size: 1.25rem;
@@ -674,6 +677,180 @@ code {
 
 .structure-demo .comment {
     color: var(--text-muted);
+}
+
+/* Dashboard Section */
+.dashboard-section {
+    padding: 120px 24px;
+    position: relative;
+    z-index: 1;
+}
+
+.dashboard-section h2 {
+    font-size: 2.5rem;
+    text-align: center;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.dashboard-showcase {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 60px;
+    align-items: center;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.dashboard-features {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+}
+
+.dashboard-feature {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.dashboard-feature-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.dashboard-feature h4 {
+    font-size: 1.05rem;
+    margin-bottom: 6px;
+    color: var(--text);
+}
+
+.dashboard-feature p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.dashboard-image-wrapper {
+    position: relative;
+}
+
+.dashboard-image {
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius);
+    box-shadow:
+        0 25px 60px rgba(0, 0, 0, 0.5),
+        0 0 40px rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+}
+
+/* Encryption Section */
+.encryption-section {
+    padding: 120px 24px;
+    background: var(--bg-light);
+    position: relative;
+    z-index: 1;
+}
+
+.encryption-section h2 {
+    font-size: 2.5rem;
+    text-align: center;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent-orange) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.encryption-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.encryption-card {
+    background: var(--bg);
+    padding: 32px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+}
+
+.encryption-card:hover {
+    border-color: rgba(251, 146, 60, 0.4);
+    box-shadow: 0 10px 40px rgba(251, 146, 60, 0.1);
+    transform: translateY(-4px);
+}
+
+.encryption-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.encryption-icon {
+    font-size: 1.5rem;
+}
+
+.encryption-card h3 {
+    font-size: 1.1rem;
+}
+
+.encryption-card p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.encryption-card a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.encryption-card a:hover {
+    text-decoration: underline;
+}
+
+.encryption-card code {
+    background: linear-gradient(135deg, rgba(251, 146, 60, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+    padding: 3px 10px;
+    border-radius: 4px;
+    color: var(--accent-orange);
+    border: 1px solid rgba(251, 146, 60, 0.2);
+}
+
+/* Footer company link */
+.footer-company {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.footer-company a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.footer-company a:hover {
+    color: var(--accent);
+}
+
+.footer-bottom a {
+    color: var(--text-muted);
+    text-decoration: none;
+}
+
+.footer-bottom a:hover {
+    color: var(--text);
 }
 
 /* Download */
@@ -986,8 +1163,16 @@ code {
         order: -1;
     }
 
-    .feature-grid, .steps {
+    .feature-grid, .steps, .encryption-grid {
         grid-template-columns: 1fr;
+    }
+
+    .dashboard-showcase {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-image-wrapper {
+        order: -1;
     }
 
     .download-card {

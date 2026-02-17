@@ -23,6 +23,39 @@ class HeartbeatMonitor {
         let lastBackupFiles: Int
         let error: String?
         let pid: Int?
+
+        // Sync progress fields (nil when not present in heartbeat)
+        let syncingProjectIndex: Int?
+        let syncingTotalProjects: Int?
+        let syncingCurrentProject: String?
+        let syncingBackedUp: Int?
+        let syncingFailed: Int?
+        let syncingSkipped: Int?
+
+        /// True when daemon is actively syncing projects
+        var isSyncing: Bool {
+            (syncingTotalProjects ?? 0) > 0 && status == .syncing
+        }
+
+        init(timestamp: Date, status: DaemonStatus, project: String?, lastBackup: Date?,
+             lastBackupFiles: Int, error: String?, pid: Int?,
+             syncingProjectIndex: Int? = nil, syncingTotalProjects: Int? = nil,
+             syncingCurrentProject: String? = nil, syncingBackedUp: Int? = nil,
+             syncingFailed: Int? = nil, syncingSkipped: Int? = nil) {
+            self.timestamp = timestamp
+            self.status = status
+            self.project = project
+            self.lastBackup = lastBackup
+            self.lastBackupFiles = lastBackupFiles
+            self.error = error
+            self.pid = pid
+            self.syncingProjectIndex = syncingProjectIndex
+            self.syncingTotalProjects = syncingTotalProjects
+            self.syncingCurrentProject = syncingCurrentProject
+            self.syncingBackedUp = syncingBackedUp
+            self.syncingFailed = syncingFailed
+            self.syncingSkipped = syncingSkipped
+        }
     }
 
     // MARK: - Properties
@@ -34,6 +67,9 @@ class HeartbeatMonitor {
     private let backupCriticalThreshold: TimeInterval = 72 * 3600  // 72 hours
     private var timer: Timer?
     private var lastStatus: DaemonStatus = .missing
+    private var currentPollingInterval: TimeInterval = 5
+    private let syncPollingInterval: TimeInterval = 2
+    private let idlePollingInterval: TimeInterval = 5
 
     weak var delegate: HeartbeatMonitorDelegate?
 
@@ -107,9 +143,17 @@ class HeartbeatMonitor {
             // Check if heartbeat is stale (daemon not updating)
             let heartbeatAge = Date().timeIntervalSince(timestamp)
             var status: DaemonStatus
+            let syncTotal = json["syncing_total_projects"] as? Int ?? 0
 
-            if heartbeatAge > staleThreshold {
+            if heartbeatAge > staleThreshold && statusStr != "syncing" {
+                // Mark stale only if not actively syncing — a single project backup
+                // can take several minutes without updating the heartbeat timestamp
                 status = .stale
+            } else if heartbeatAge > staleThreshold && statusStr == "syncing" && syncTotal > 0 {
+                // Syncing but heartbeat is old — keep syncing status with a longer
+                // tolerance (10 min per project is generous)
+                let syncThreshold = TimeInterval(max(syncTotal * 600, 1800))
+                status = heartbeatAge > syncThreshold ? .stale : .syncing
             } else {
                 status = DaemonStatus(rawValue: statusStr) ?? .error
             }
@@ -122,6 +166,14 @@ class HeartbeatMonitor {
                 }
             }
 
+            // Parse sync progress fields (optional — nil if missing)
+            let syncingProjectIndex = json["syncing_project_index"] as? Int
+            let syncingTotalProjects = json["syncing_total_projects"] as? Int
+            let syncingCurrentProject = json["syncing_current_project"] as? String
+            let syncingBackedUp = json["syncing_backed_up"] as? Int
+            let syncingFailed = json["syncing_failed"] as? Int
+            let syncingSkipped = json["syncing_skipped"] as? Int
+
             return HeartbeatData(
                 timestamp: timestamp,
                 status: status,
@@ -129,7 +181,13 @@ class HeartbeatMonitor {
                 lastBackup: lastBackup,
                 lastBackupFiles: lastBackupFiles,
                 error: error,
-                pid: pid
+                pid: pid,
+                syncingProjectIndex: syncingProjectIndex,
+                syncingTotalProjects: syncingTotalProjects,
+                syncingCurrentProject: syncingCurrentProject,
+                syncingBackedUp: syncingBackedUp,
+                syncingFailed: syncingFailed,
+                syncingSkipped: syncingSkipped
             )
         } catch {
             return HeartbeatData(
@@ -214,6 +272,16 @@ class HeartbeatMonitor {
 
         // Always notify for updates
         delegate?.heartbeatUpdated(data: data)
+
+        // Adaptive polling: faster during sync, slower when idle
+        let desiredInterval = data.isSyncing ? syncPollingInterval : idlePollingInterval
+        if desiredInterval != currentPollingInterval {
+            currentPollingInterval = desiredInterval
+            timer?.invalidate()
+            timer = Timer.scheduledTimer(withTimeInterval: currentPollingInterval, repeats: true) { [weak self] _ in
+                self?.checkHeartbeat()
+            }
+        }
     }
 }
 

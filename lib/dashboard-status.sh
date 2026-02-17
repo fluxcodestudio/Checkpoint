@@ -218,7 +218,7 @@ check_for_updates() {
 
     # Get latest version from GitHub
     local latest_version
-    latest_version=$(curl -sf https://api.github.com/repos/nizernoj/Checkpoint/releases/latest | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/' 2>/dev/null)
+    latest_version=$(curl -sf https://api.github.com/repos/fluxcodestudio/Checkpoint/releases/latest | grep '"tag_name"' | sed -E 's/.*"v?([^"]+)".*/\1/' 2>/dev/null)
 
     if [[ -z "$latest_version" ]]; then
         # No release yet or network error

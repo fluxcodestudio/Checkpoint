@@ -23,13 +23,13 @@ list_projects() {
     init_registry
     if command -v python3 &>/dev/null; then
         python3 -c "
-import json
-with open('$REGISTRY_FILE') as f:
+import json, sys
+with open(sys.argv[1]) as f:
     data = json.load(f)
 for p in data.get('projects', []):
     if p.get('enabled', True):
         print(p['path'])
-"
+" "$REGISTRY_FILE"
     else
         # Fallback: simple grep (less reliable)
         grep -o '"path": "[^"]*"' "$REGISTRY_FILE" | cut -d'"' -f4
@@ -43,14 +43,14 @@ is_registered() {
     init_registry
     if command -v python3 &>/dev/null; then
         python3 -c "
-import json
-with open('$REGISTRY_FILE') as f:
+import json, sys
+with open(sys.argv[1]) as f:
     data = json.load(f)
 for p in data.get('projects', []):
-    if p['path'] == '$project_path':
+    if p['path'] == sys.argv[2]:
         exit(0)
 exit(1)
-"
+" "$REGISTRY_FILE" "$project_path"
     else
         grep -q "\"path\": \"$project_path\"" "$REGISTRY_FILE"
     fi
@@ -71,23 +71,26 @@ register_project() {
 
     if command -v python3 &>/dev/null; then
         python3 -c "
-import json
-import time
+import json, time, sys
 
-with open('$REGISTRY_FILE') as f:
+registry_file = sys.argv[1]
+project_path = sys.argv[2]
+project_name = sys.argv[3]
+
+with open(registry_file) as f:
     data = json.load(f)
 
 data['projects'].append({
-    'path': '$project_path',
-    'name': '$project_name',
+    'path': project_path,
+    'name': project_name,
     'enabled': True,
     'added': int(time.time()),
     'last_backup': None
 })
 
-with open('$REGISTRY_FILE', 'w') as f:
+with open(registry_file, 'w') as f:
     json.dump(data, f, indent=2)
-"
+" "$REGISTRY_FILE" "$project_path" "$project_name"
         echo "Registered project: $project_name"
     else
         echo "Warning: python3 required for project registration" >&2
@@ -104,16 +107,19 @@ unregister_project() {
 
     if command -v python3 &>/dev/null; then
         python3 -c "
-import json
+import json, sys
 
-with open('$REGISTRY_FILE') as f:
+registry_file = sys.argv[1]
+project_path = sys.argv[2]
+
+with open(registry_file) as f:
     data = json.load(f)
 
-data['projects'] = [p for p in data.get('projects', []) if p['path'] != '$project_path']
+data['projects'] = [p for p in data.get('projects', []) if p['path'] != project_path]
 
-with open('$REGISTRY_FILE', 'w') as f:
+with open(registry_file, 'w') as f:
     json.dump(data, f, indent=2)
-"
+" "$REGISTRY_FILE" "$project_path"
         echo "Unregistered project: $project_path"
     fi
 }
@@ -127,20 +133,22 @@ update_last_backup() {
 
     if command -v python3 &>/dev/null; then
         python3 -c "
-import json
-import time
+import json, time, sys
 
-with open('$REGISTRY_FILE') as f:
+registry_file = sys.argv[1]
+project_path = sys.argv[2]
+
+with open(registry_file) as f:
     data = json.load(f)
 
 for p in data.get('projects', []):
-    if p['path'] == '$project_path':
+    if p['path'] == project_path:
         p['last_backup'] = int(time.time())
         break
 
-with open('$REGISTRY_FILE', 'w') as f:
+with open(registry_file, 'w') as f:
     json.dump(data, f, indent=2)
-"
+" "$REGISTRY_FILE" "$project_path"
     fi
 }
 
@@ -153,17 +161,20 @@ get_project_info() {
 
     if command -v python3 &>/dev/null; then
         python3 -c "
-import json
+import json, sys
 
-with open('$REGISTRY_FILE') as f:
+registry_file = sys.argv[1]
+project_path = sys.argv[2]
+
+with open(registry_file) as f:
     data = json.load(f)
 
 for p in data.get('projects', []):
-    if p['path'] == '$project_path':
+    if p['path'] == project_path:
         print(json.dumps(p))
         exit(0)
 print('null')
-"
+" "$REGISTRY_FILE" "$project_path"
     fi
 }
 
@@ -177,19 +188,23 @@ set_project_enabled() {
 
     if command -v python3 &>/dev/null; then
         python3 -c "
-import json
+import json, sys
 
-with open('$REGISTRY_FILE') as f:
+registry_file = sys.argv[1]
+project_path = sys.argv[2]
+enabled = sys.argv[3].lower() == 'true'
+
+with open(registry_file) as f:
     data = json.load(f)
 
 for p in data.get('projects', []):
-    if p['path'] == '$project_path':
-        p['enabled'] = $enabled
+    if p['path'] == project_path:
+        p['enabled'] = enabled
         break
 
-with open('$REGISTRY_FILE', 'w') as f:
+with open(registry_file, 'w') as f:
     json.dump(data, f, indent=2)
-"
+" "$REGISTRY_FILE" "$project_path" "$enabled"
     fi
 }
 

@@ -73,6 +73,24 @@ apply_global_defaults() {
                 DEFAULT_STORAGE_CLEANUP_SUGGEST) : "${STORAGE_CLEANUP_SUGGEST:=$value}" ;;
                 DEFAULT_ENCRYPTION_ENABLED) : "${ENCRYPTION_ENABLED:=$value}" ;;
                 DEFAULT_ENCRYPTION_KEY_PATH) : "${ENCRYPTION_KEY_PATH:=$value}" ;;
+                # Direct global config variables (not DEFAULT_ prefixed)
+                CLOUD_FOLDER_ENABLED)     : "${CLOUD_FOLDER_ENABLED:=$value}" ;;
+                CLOUD_FOLDER_PATH)        : "${CLOUD_FOLDER_PATH:=$value}" ;;
+                CLOUD_RCLONE_ENABLED)     : "${CLOUD_RCLONE_ENABLED:=$value}" ;;
+                CLOUD_RCLONE_REMOTE)      : "${CLOUD_RCLONE_REMOTE:=$value}" ;;
+                CLOUD_RCLONE_PATH)        : "${CLOUD_RCLONE_PATH:=$value}" ;;
+                ENCRYPTION_ENABLED)       : "${ENCRYPTION_ENABLED:=$value}" ;;
+                ENCRYPTION_KEY_PATH)      : "${ENCRYPTION_KEY_PATH:=$value}" ;;
+                BACKUP_REMOTE_DATABASES)  : "${BACKUP_REMOTE_DATABASES:=$value}" ;;
+                AUTO_START_LOCAL_DB)      : "${AUTO_START_LOCAL_DB:=$value}" ;;
+                STOP_DB_AFTER_BACKUP)     : "${STOP_DB_AFTER_BACKUP:=$value}" ;;
+                BACKUP_DOCKER_DATABASES)  : "${BACKUP_DOCKER_DATABASES:=$value}" ;;
+                AUTO_START_DOCKER)        : "${AUTO_START_DOCKER:=$value}" ;;
+                STOP_DOCKER_AFTER_BACKUP) : "${STOP_DOCKER_AFTER_BACKUP:=$value}" ;;
+                CLAUDE_CODE_INTEGRATION)  : "${CLAUDE_CODE_INTEGRATION:=$value}" ;;
+                GIT_HOOKS_ENABLED)        : "${GIT_HOOKS_ENABLED:=$value}" ;;
+                SHELL_INTEGRATION_ENABLED): "${SHELL_INTEGRATION_ENABLED:=$value}" ;;
+                AUTO_UPDATE_CHECK)        : "${AUTO_UPDATE_CHECK:=$value}" ;;
                 DESKTOP_NOTIFICATIONS)
                     if [ "$value" = "true" ]; then
                         : "${NOTIFICATIONS_ENABLED:=true}"
@@ -111,6 +129,31 @@ apply_global_defaults() {
     : "${AI_ARTIFACT_EXTRA_FILES:=}"
     : "${COMPRESSION_LEVEL:=6}"
     : "${NOTIFICATIONS_ENABLED:=true}"
+
+    # Cloud folder sync defaults
+    : "${CLOUD_FOLDER_ENABLED:=false}"
+    : "${CLOUD_FOLDER_PATH:=}"
+    : "${CLOUD_RCLONE_ENABLED:=false}"
+    : "${CLOUD_RCLONE_REMOTE:=}"
+    : "${CLOUD_RCLONE_PATH:=Backups/Checkpoint}"
+
+    # Encryption defaults
+    : "${ENCRYPTION_ENABLED:=false}"
+    : "${ENCRYPTION_KEY_PATH:=$HOME/.config/checkpoint/age-key.txt}"
+
+    # Database defaults
+    : "${BACKUP_REMOTE_DATABASES:=true}"
+    : "${AUTO_START_LOCAL_DB:=true}"
+    : "${STOP_DB_AFTER_BACKUP:=true}"
+    : "${BACKUP_DOCKER_DATABASES:=true}"
+    : "${AUTO_START_DOCKER:=true}"
+    : "${STOP_DOCKER_AFTER_BACKUP:=true}"
+
+    # Integration defaults
+    : "${CLAUDE_CODE_INTEGRATION:=true}"
+    : "${GIT_HOOKS_ENABLED:=false}"
+    : "${SHELL_INTEGRATION_ENABLED:=false}"
+    : "${AUTO_UPDATE_CHECK:=true}"
 }
 
 # ==============================================================================
@@ -131,11 +174,82 @@ get_backup_excludes() {
         'build/'
         '.next/'
         '.DS_Store'
+        '.cache/'
+        'coverage/'
+        '.nyc_output/'
+        '.turbo/'
+        '.gradle/'
+        '.maven/'
+        'target/'
+        'vendor/'
+        '.parcel-cache/'
+        '.sass-cache/'
+        'logs/'
+        '.nuxt/'
+        '.output/'
+        '.svelte-kit/'
+        '.vercel/'
+        '.netlify/'
+        'htmlcov/'
+        '*.pyc'
+        '.pytest_cache/'
+        '.mypy_cache/'
+        '.ruff_cache/'
+        '*.egg-info/'
+        '.eggs/'
+        'bower_components/'
+        '.pnpm/'
     )
     local e
     for e in "${excludes[@]}"; do
         echo "--exclude=$e"
     done
+}
+
+# Get standard backup exclude patterns for find commands
+# Returns: find-compatible ! -path arguments (one per line)
+# Used by: backup-now.sh (non-git fallback), change-detection.sh
+get_find_excludes() {
+    local excludes=(
+        'backups'
+        '.git'
+        'node_modules'
+        '.venv'
+        '__pycache__'
+        'dist'
+        'build'
+        '.next'
+        '.cache'
+        'coverage'
+        '.nyc_output'
+        '.turbo'
+        '.gradle'
+        '.maven'
+        'target'
+        'vendor'
+        '.parcel-cache'
+        '.sass-cache'
+        'logs'
+        '.nuxt'
+        '.output'
+        '.svelte-kit'
+        '.vercel'
+        '.netlify'
+        'htmlcov'
+        '.pytest_cache'
+        '.mypy_cache'
+        '.ruff_cache'
+        '.eggs'
+        'bower_components'
+        '.pnpm'
+    )
+    local e
+    for e in "${excludes[@]}"; do
+        echo "! -path '*/${e}/*'"
+    done
+    # File-level excludes (not directories)
+    echo "! -path '*/.DS_Store'"
+    echo "! -name '*.pyc'"
 }
 
 # ==============================================================================
@@ -192,9 +306,7 @@ check_drive() {
 : "${STORAGE_CHECK_ENABLED:=true}"     # Enable/disable pre-backup disk checks
 : "${STORAGE_CLEANUP_SUGGEST:=true}"   # Show cleanup suggestions when space is low
 
-# Encryption at rest (cloud backups only)
-: "${ENCRYPTION_ENABLED:=false}"          # Enable encryption for cloud-destined backups
-: "${ENCRYPTION_KEY_PATH:=$HOME/.config/checkpoint/age-key.txt}"  # Path to age private key
+# Encryption at rest — defaults now in apply_global_defaults() to allow global config override
 
 # Per-project notification override
 # Set in project's .backup-config.sh

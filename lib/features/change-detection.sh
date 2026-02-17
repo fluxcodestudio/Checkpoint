@@ -35,7 +35,21 @@ has_changes() {
             ! -path '*/.git/*' \
             ! -path '*/node_modules/*' \
             ! -path '*/backups/*' \
+            ! -path '*/.venv/*' \
+            ! -path '*/__pycache__/*' \
+            ! -path '*/dist/*' \
+            ! -path '*/build/*' \
+            ! -path '*/.next/*' \
+            ! -path '*/.cache/*' \
+            ! -path '*/coverage/*' \
+            ! -path '*/.turbo/*' \
+            ! -path '*/target/*' \
+            ! -path '*/vendor/*' \
+            ! -path '*/.nuxt/*' \
+            ! -path '*/.output/*' \
+            ! -path '*/.svelte-kit/*' \
             ! -path '*/.DS_Store' \
+            ! -name '*.pyc' \
             2>/dev/null | head -1)" ]
     fi
 }

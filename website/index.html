@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkpoint - Automated Backup for Developers</title>
-    <meta name="description" content="A code guardian for developing projects. Automated, intelligent backup system for any development environment.">
+    <meta name="description" content="A code guardian for developing projects. Automated, intelligent backup system for any development environment. Encrypted cloud backups, native macOS dashboard, and universal database support.">
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,8 +27,9 @@
             </a>
             <div class="nav-links">
                 <a href="#features">Features</a>
+                <a href="#dashboard">Dashboard</a>
                 <a href="#how-it-works">How It Works</a>
-                <a href="https://github.com/nizernoj/Checkpoint" target="_blank">GitHub</a>
+                <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank">GitHub</a>
                 <a href="#" onclick="openContactModal(); return false;">Contact</a>
                 <a href="#" onclick="openNewsletterModal(); return false;">Join Us</a>
                 <a href="#download" class="btn btn-primary">Download Free</a>
@@ -38,12 +39,12 @@
 
     <header class="hero">
         <div class="hero-content">
-            <div class="badge">Open Source & Free Forever</div>
+            <div class="badge">Free &amp; Open Source</div>
             <h1>A code guardian for your projects</h1>
-            <p class="hero-subtitle">Automated, intelligent backup system for developers. Never lose work again.</p>
+            <p class="hero-subtitle">Automated, intelligent backup system for developers. Encrypted cloud sync, native dashboard, universal database support. Never lose work again.</p>
             <div class="hero-cta">
                 <a href="#download" class="btn btn-large btn-primary">Download for macOS</a>
-                <a href="https://github.com/nizernoj/Checkpoint" class="btn btn-large btn-secondary" target="_blank">View on GitHub</a>
+                <a href="https://github.com/fluxcodestudio/Checkpoint" class="btn btn-large btn-secondary" target="_blank">View on GitHub</a>
             </div>
             <div class="hero-stats">
                 <div class="stat">
@@ -51,12 +52,12 @@
                     <span class="stat-label">Test Coverage</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-value">GPL v3</span>
-                    <span class="stat-label">Open Source</span>
+                    <span class="stat-value">v2.5.2</span>
+                    <span class="stat-label">Latest Release</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-value">v2.4.0</span>
-                    <span class="stat-label">Latest Release</span>
+                    <span class="stat-value">4+</span>
+                    <span class="stat-label">Database Engines</span>
                 </div>
             </div>
         </div>
@@ -78,6 +79,7 @@
 
 <span class="success">🚀 Backup complete!</span>
    Files: 142 backed up
+   Encryption: enabled (cloud backups)
    Next: in 59 minutes (hourly)</code></pre>
                 </div>
             </div>
@@ -107,28 +109,76 @@
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🔐</div>
-                    <h3>Critical Files</h3>
-                    <p>Backs up .env, credentials, API keys, IDE settings - everything Git ignores.</p>
+                    <h3>Encryption at Rest</h3>
+                    <p>Cloud backups encrypted with <code>age</code> before upload. Your keys, your data. Zero-knowledge cloud storage.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">☁️</div>
                     <h3>Cloud Backup</h3>
-                    <p>Optional off-site protection via Dropbox, Google Drive, OneDrive, or iCloud.</p>
+                    <p>Encrypted off-site sync via Dropbox, Google Drive, OneDrive, or iCloud. Direct folder sync or rclone API.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">📁</div>
                     <h3>Version History</h3>
-                    <p>Old file versions preserved in archives. Restore any point in time.</p>
+                    <p>Old file versions preserved in archives. Restore any point in time with the interactive CLI.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🖥️</div>
-                    <h3>Multi-Computer</h3>
-                    <p>Work from multiple machines seamlessly. Graceful handling when databases aren't on current machine.</p>
+                    <h3>Native Dashboard</h3>
+                    <p>SwiftUI menu bar app for macOS. See all projects, live backup progress, settings — no terminal needed.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🐳</div>
                     <h3>Docker Support</h3>
-                    <p>Auto-detect databases in docker-compose.yml. Auto-start Docker Desktop if needed.</p>
+                    <p>Auto-detect databases in docker-compose.yml. Docker volume backup. Auto-start Docker Desktop if needed.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔍</div>
+                    <h3>Search &amp; Browse</h3>
+                    <p>Search across all backup history. Interactive fzf mode for browsing snapshots and restoring files.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="dashboard" class="dashboard-section">
+        <div class="container">
+            <h2>Native macOS Dashboard</h2>
+            <p class="section-subtitle">A SwiftUI menu bar app that puts backup status at your fingertips</p>
+
+            <div class="dashboard-showcase">
+                <div class="dashboard-features">
+                    <div class="dashboard-feature">
+                        <span class="dashboard-feature-icon">📊</span>
+                        <div>
+                            <h4>Live Project Status</h4>
+                            <p>See all registered projects with file counts, sizes, and last backup time at a glance.</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-feature">
+                        <span class="dashboard-feature-icon">⚙️</span>
+                        <div>
+                            <h4>In-App Settings</h4>
+                            <p>Configure schedules, retention, encryption, notifications — all without touching config files.</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-feature">
+                        <span class="dashboard-feature-icon">🔒</span>
+                        <div>
+                            <h4>Encryption Toggle</h4>
+                            <p>Enable or disable cloud encryption with a single switch. Warning prompts protect against accidental disabling.</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-feature">
+                        <span class="dashboard-feature-icon">🎯</span>
+                        <div>
+                            <h4>One-Click Actions</h4>
+                            <p>Backup All, Pause/Resume, Check for Updates, and per-project context menus — right from the menu bar.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="dashboard-image-wrapper">
+                    <img src="Dashboard.png" alt="Checkpoint Dashboard - Native macOS menu bar app showing backup status for all projects" class="dashboard-image">
                 </div>
             </div>
         </div>
@@ -144,7 +194,7 @@
                     <div class="step-number">1</div>
                     <h3>Install globally</h3>
                     <div class="code-block">
-                        <code>git clone https://github.com/nizernoj/Checkpoint.git<br>
+                        <code>git clone https://github.com/fluxcodestudio/Checkpoint.git<br>
 cd Checkpoint && ./bin/install-global.sh</code>
                     </div>
                 </div>
@@ -159,7 +209,7 @@ backup-now</code>
                 <div class="step">
                     <div class="step-number">3</div>
                     <h3>Done. Forever.</h3>
-                    <p>Project registered. Hourly backups enabled. Go build something.</p>
+                    <p>Project registered. Hourly backups enabled. Cloud encrypted. Go build something.</p>
                 </div>
             </div>
         </div>
@@ -186,29 +236,62 @@ backup-now</code>
         </div>
     </section>
 
+    <section class="encryption-section">
+        <div class="container">
+            <h2>Encryption at rest</h2>
+            <p class="section-subtitle">Your backups, your keys — zero-knowledge cloud storage</p>
+
+            <div class="encryption-grid">
+                <div class="encryption-card">
+                    <div class="encryption-header">
+                        <span class="encryption-icon">🔑</span>
+                        <h3>age encryption</h3>
+                    </div>
+                    <p>Files encrypted with <a href="https://github.com/FiloSottile/age" target="_blank">age</a> — a modern, simple alternative to GPG. Small, auditable, no config files.</p>
+                </div>
+                <div class="encryption-card">
+                    <div class="encryption-header">
+                        <span class="encryption-icon">☁️</span>
+                        <h3>Cloud-only encryption</h3>
+                    </div>
+                    <p>Local backups stay unencrypted for fast access. Only files synced to cloud storage (Dropbox, iCloud, etc.) get encrypted.</p>
+                </div>
+                <div class="encryption-card">
+                    <div class="encryption-header">
+                        <span class="encryption-icon">⚡</span>
+                        <h3>One command setup</h3>
+                    </div>
+                    <p><code>checkpoint encrypt setup</code> generates your key and enables encryption. Or toggle it in the Dashboard settings.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section id="download" class="download">
         <div class="container">
             <h2>Download Checkpoint</h2>
-            <p class="section-subtitle">Free, open source, forever</p>
+            <p class="section-subtitle">Free for noncommercial use, forever</p>
 
             <div class="download-card">
                 <div class="download-info">
-                    <h3>Checkpoint v2.4.0</h3>
-                    <p>For macOS (Bash 3.2+)</p>
+                    <h3>Checkpoint v2.5.2</h3>
+                    <p>For macOS &amp; Linux</p>
                     <ul class="download-features">
                         <li>✓ Global multi-project backups</li>
-                        <li>✓ Remote & Docker databases</li>
-                        <li>✓ Multi-computer support</li>
-                        <li>✓ Cloud backup ready</li>
+                        <li>✓ Encrypted cloud sync</li>
+                        <li>✓ Native macOS dashboard</li>
+                        <li>✓ Remote &amp; Docker databases</li>
+                        <li>✓ Search &amp; browse history</li>
+                        <li>✓ Storage monitoring</li>
                     </ul>
                 </div>
                 <div class="download-actions">
-                    <a href="https://github.com/nizernoj/Checkpoint/archive/refs/heads/main.zip" class="btn btn-large btn-primary">
+                    <a href="https://github.com/fluxcodestudio/Checkpoint/archive/refs/heads/main.zip" class="btn btn-large btn-primary">
                         Download ZIP
                     </a>
                     <p class="download-alt">or clone with Git:</p>
                     <div class="code-block small">
-                        <code>git clone https://github.com/nizernoj/Checkpoint.git</code>
+                        <code>git clone https://github.com/fluxcodestudio/Checkpoint.git</code>
                     </div>
                 </div>
             </div>
@@ -224,15 +307,16 @@ backup-now</code>
                         <span class="logo-text">CHECKPOINT</span>
                     </div>
                     <p>A little peace of mind goes a long way.</p>
+                    <p class="footer-company">A product of <a href="https://fluxcode.studio" target="_blank">FluxCode Studio</a></p>
                 </div>
                 <div class="footer-links">
-                    <a href="https://github.com/nizernoj/Checkpoint" target="_blank">GitHub</a>
-                    <a href="https://github.com/nizernoj/Checkpoint/blob/main/README.md" target="_blank">Documentation</a>
-                    <a href="https://github.com/nizernoj/Checkpoint/issues" target="_blank">Report Issue</a>
+                    <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank">GitHub</a>
+                    <a href="https://github.com/fluxcodestudio/Checkpoint/blob/main/README.md" target="_blank">Documentation</a>
+                    <a href="https://github.com/fluxcodestudio/Checkpoint/issues" target="_blank">Report Issue</a>
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>Open source under GPL v3 License</p>
+                <p>&copy; 2025 Fluxcode Studio LLC. <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/" target="_blank">Polyform Noncommercial License</a></p>
             </div>
         </div>
     </footer>
@@ -268,7 +352,7 @@ backup-now</code>
             <button class="modal-close" onclick="closeNewsletterModal()">&times;</button>
             <div class="newsletter-icon">🚀</div>
             <h2>Join the Revolution</h2>
-            <p class="modal-subtitle">We're building killer apps for coders and society at large. Be first to know when we launch something new — plus get CHECKPOINT updates and new releases delivered straight to your inbox.</p>
+            <p class="modal-subtitle">We're building killer apps for coders and society at large. Be first to know when we launch something new — plus get Checkpoint updates and new releases delivered straight to your inbox.</p>
             <form id="newsletterForm" class="modal-form" action="SENDY_URL_HERE/subscribe" method="POST" onsubmit="submitNewsletterForm(event)">
                 <input type="hidden" name="list" value="SENDY_LIST_ID_HERE">
                 <input type="hidden" name="subform" value="yes">

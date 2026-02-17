@@ -53,6 +53,39 @@ daemon_log "══════════════════════�
 daemon_log "Checkpoint Global Daemon - Starting"
 daemon_log "═══════════════════════════════════════════════"
 
+# Lockfile: prevent concurrent backup-all runs
+LOCK_FILE="$HOME/.checkpoint/.backup-all.lock"
+mkdir -p "$(dirname "$LOCK_FILE")"
+
+cleanup_lock() {
+    rm -f "$LOCK_FILE"
+}
+trap cleanup_lock EXIT
+
+if [[ -f "$LOCK_FILE" ]]; then
+    lock_pid=$(cat "$LOCK_FILE" 2>/dev/null)
+    if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+        if [[ "$FORCE_BACKUP" == "true" ]]; then
+            # Force run takes priority — terminate the existing run
+            daemon_log "Force backup requested. Stopping existing run (PID $lock_pid)."
+            kill "$lock_pid" 2>/dev/null
+            # Wait briefly for it to exit and clean up its lock
+            for i in 1 2 3 4 5; do
+                kill -0 "$lock_pid" 2>/dev/null || break
+                sleep 1
+            done
+            rm -f "$LOCK_FILE"
+        else
+            daemon_log "Another backup-all is already running (PID $lock_pid). Skipping."
+            exit 0
+        fi
+    else
+        daemon_log "Stale lock found (PID $lock_pid no longer running). Removing."
+        rm -f "$LOCK_FILE"
+    fi
+fi
+echo $$ > "$LOCK_FILE"
+
 # Get list of registered projects
 project_count=$(count_projects)
 daemon_log "Registered projects: $project_count"
@@ -66,6 +99,37 @@ fi
 backed_up=0
 skipped=0
 failed=0
+project_index=0
+
+# Progress heartbeat for menu bar widget (Dropbox-style live progress)
+HEARTBEAT_DIR="$HOME/.checkpoint"
+PROGRESS_HEARTBEAT_FILE="$HEARTBEAT_DIR/daemon.heartbeat"
+
+write_progress_heartbeat() {
+    local current_project="${1:-}"
+    local tmp_file="${HEARTBEAT_DIR}/.heartbeat.progress.tmp.$$"
+    local now
+    now=$(date +%s)
+    mkdir -p "$HEARTBEAT_DIR"
+    cat > "$tmp_file" <<PEOF
+{
+  "timestamp": $now,
+  "status": "syncing",
+  "project": "global",
+  "last_backup": $now,
+  "last_backup_files": $backed_up,
+  "error": null,
+  "pid": $$,
+  "syncing_project_index": $project_index,
+  "syncing_total_projects": $project_count,
+  "syncing_current_project": "$current_project",
+  "syncing_backed_up": $backed_up,
+  "syncing_failed": $failed,
+  "syncing_skipped": $skipped
+}
+PEOF
+    mv "$tmp_file" "$PROGRESS_HEARTBEAT_FILE"
+}
 
 # Backup each project
 while IFS= read -r project_path; do
@@ -73,8 +137,13 @@ while IFS= read -r project_path; do
         continue
     fi
 
+    ((project_index++)) || true
     project_name="$(basename "$project_path")"
     log_set_context "all-projects:$project_name"
+
+    # Write progress heartbeat BEFORE starting this project
+    write_progress_heartbeat "$project_name"
+
     daemon_log "─────────────────────────────────────────────"
     daemon_log "Project: $project_name"
     daemon_log "Path: $project_path"
@@ -82,14 +151,16 @@ while IFS= read -r project_path; do
     # Check if project directory exists
     if [[ ! -d "$project_path" ]]; then
         daemon_log "  ⚠️  Directory not found - skipping"
-        ((skipped++))
+        ((skipped++)) || true
+        write_progress_heartbeat "$project_name"
         continue
     fi
 
     # Check if config exists
     if [[ ! -f "$project_path/.backup-config.sh" ]]; then
         daemon_log "  ⚠️  No config found - skipping"
-        ((skipped++))
+        ((skipped++)) || true
+        write_progress_heartbeat "$project_name"
         continue
     fi
 
@@ -102,6 +173,14 @@ while IFS= read -r project_path; do
     else
         backup_cmd="$SCRIPT_DIR/backup-daemon.sh"
     fi
+
+    # Export sync progress so backup-daemon.sh can include it in heartbeats
+    export CHECKPOINT_SYNC_INDEX="$project_index"
+    export CHECKPOINT_SYNC_TOTAL="$project_count"
+    export CHECKPOINT_SYNC_PROJECT="$project_name"
+    export CHECKPOINT_SYNC_BACKED_UP="$backed_up"
+    export CHECKPOINT_SYNC_FAILED="$failed"
+    export CHECKPOINT_SYNC_SKIPPED="$skipped"
 
     if (cd "$project_path" && $backup_cmd 2>&1); then
         daemon_log "  ✅ Backup complete"
@@ -120,6 +199,9 @@ while IFS= read -r project_path; do
         fi
     fi
 
+    # Write progress heartbeat AFTER this project completes
+    write_progress_heartbeat "$project_name"
+
 done < <(list_projects)
 
 # Cleanup: Stop Docker if we started it (only after ALL backups complete)
@@ -137,10 +219,8 @@ daemon_log "  Skipped:   $skipped"
 daemon_log "  Failed:    $failed"
 daemon_log "═══════════════════════════════════════════════"
 
-# Write global heartbeat for helper app
-HEARTBEAT_DIR="$HOME/.checkpoint"
-HEARTBEAT_FILE="$HEARTBEAT_DIR/daemon.heartbeat"
-mkdir -p "$HEARTBEAT_DIR"
+# Write global heartbeat for helper app (uses HEARTBEAT_DIR defined above)
+HEARTBEAT_FILE="$PROGRESS_HEARTBEAT_FILE"
 
 now=$(date +%s)
 if [[ $failed -gt 0 ]]; then
@@ -168,7 +248,13 @@ cat > "$HEARTBEAT_FILE" <<EOF
   "last_backup": $now,
   "last_backup_files": $backed_up,
   "error": $error_json,
-  "pid": $$
+  "pid": $$,
+  "syncing_project_index": 0,
+  "syncing_total_projects": 0,
+  "syncing_current_project": "",
+  "syncing_backed_up": $backed_up,
+  "syncing_failed": $failed,
+  "syncing_skipped": $skipped
 }
 EOF
 

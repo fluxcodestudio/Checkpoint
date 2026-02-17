@@ -16,9 +16,9 @@ checkpoint/
 ├── tests/                # Test suite
 ├── CHANGELOG.md          # Version history
 ├── CONTRIBUTING.md       # Contribution guidelines
-├── LICENSE               # MIT License
+├── LICENSE               # Polyform Noncommercial License
 ├── README.md             # Main documentation
-└── VERSION               # Current version (1.3.0)
+└── VERSION               # Current version
 ```
 
 ## Directory Details
