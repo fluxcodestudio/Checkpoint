@@ -155,7 +155,8 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 25-01: TBD (run /gsd:plan-phase 25 to break down)
+- [ ] 25-01: Search & Browse CLI — checkpoint-search.sh with search and browse modes
+- [ ] 25-02: History Interactive + Routing — fzf history upgrade, checkpoint.sh wiring
 
 ## Progress
 
