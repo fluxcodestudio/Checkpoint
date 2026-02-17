@@ -144,7 +144,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 24-01: Docker Volumes Library — docker-volumes.sh, config wiring
+- [x] 24-01: Docker Volumes Library — docker-volumes.sh, config wiring
 - [ ] 24-02: Pipeline Integration & CLI — backup-now.sh integration, checkpoint docker-volumes command
 
 #### Phase 25: Backup Search & Browse CLI
@@ -184,5 +184,5 @@ Plans:
 | 21. Storage Usage Warnings | v3.0 | 2/2 | Complete | 2026-02-16 |
 | 22. Checkpoint Diff Command | v3.0 | 2/2 | Complete | 2026-02-16 |
 | 23. Encryption at Rest | v3.0 | 3/3 | Complete | 2026-02-16 |
-| 24. Docker Volume Backup | v3.0 | 0/? | Not started | - |
+| 24. Docker Volume Backup | v3.0 | 1/2 | In progress | - |
 | 25. Backup Search & Browse CLI | v3.0 | 0/? | Not started | - |
