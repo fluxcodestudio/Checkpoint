@@ -44,8 +44,9 @@ discover_snapshots() {
     fi
 
     # Find all files, extract timestamp suffixes, deduplicate, sort newest first
-    # Handles both .YYYYMMDD_HHMMSS_PID and .YYYYMMDD_HHMMSS patterns
+    # Handles .YYYYMMDD_HHMMSS_PID, .YYYYMMDD_HHMMSS, and .age suffixed variants
     find "$archived_dir" -type f 2>/dev/null \
+        | sed 's/\.age$//' \
         | sed -n 's/.*\.\([0-9]\{8\}_[0-9]\{6\}\)\(_[0-9]*\)\{0,1\}$/\1/p' \
         | sort -u -r
 }
@@ -272,11 +273,12 @@ get_file_at_snapshot() {
         local cname
         cname=$(basename "$candidate")
 
-        # Extract timestamp from archived filename
+        # Extract timestamp from archived filename (strip .age suffix first)
+        local cname_stripped="${cname%.age}"
         local cts=""
-        if [[ "$cname" =~ \.([0-9]{8}_[0-9]{6})_[0-9]+$ ]]; then
+        if [[ "$cname_stripped" =~ \.([0-9]{8}_[0-9]{6})_[0-9]+$ ]]; then
             cts="${BASH_REMATCH[1]}"
-        elif [[ "$cname" =~ \.([0-9]{8}_[0-9]{6})$ ]]; then
+        elif [[ "$cname_stripped" =~ \.([0-9]{8}_[0-9]{6})$ ]]; then
             cts="${BASH_REMATCH[1]}"
         fi
 

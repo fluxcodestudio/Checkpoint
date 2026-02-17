@@ -80,6 +80,8 @@ classify_retention_tier() {
 # Returns: timestamp portion (20260102_150000)
 extract_timestamp() {
     local filename="$1"
+    # Strip .age suffix before extracting timestamp (encrypted backup support)
+    filename="${filename%.age}"
     # Pattern: name.ext.YYYYMMDD_HHMMSS_XXXX or name.ext.YYYYMMDD_HHMMSS or name_YYYYMMDD_HHMMSS.ext
     if [[ "$filename" =~ \.([0-9]{8}_[0-9]{6})_[0-9]+ ]]; then
         echo "${BASH_REMATCH[1]}"

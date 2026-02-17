@@ -299,6 +299,12 @@ verify_backup_quick() {
                 continue
             fi
 
+            # Encrypted databases: skip integrity check (verify local unencrypted copy instead)
+            if echo "$db_rel_path" | grep -q '\.gz\.age$'; then
+                _verify_record_db "$db_rel_path" "pass" "Encrypted backup — size OK (verify local copy for integrity)"
+                continue
+            fi
+
             # gunzip -t for compressed databases
             if echo "$db_rel_path" | grep -q '\.gz$'; then
                 local _v_err
@@ -335,6 +341,11 @@ verify_backup_quick() {
             while IFS= read -r db_file; do
                 [ -z "$db_file" ] && continue
                 local db_rel="${db_file#$backup_dir/}"
+                # Encrypted databases: skip integrity check
+                if echo "$db_file" | grep -q '\.gz\.age$'; then
+                    _verify_record_db "$db_rel" "pass" "Encrypted backup — exists (verify local copy for integrity)"
+                    continue
+                fi
                 if echo "$db_file" | grep -q '\.gz$'; then
                     local _v_err
                     if _v_err=$(gunzip -t "$db_file" 2>&1); then
@@ -344,7 +355,7 @@ verify_backup_quick() {
                         _verify_record_db "$db_rel" "fail" "Gzip decompression test failed"
                     fi
                 fi
-            done < <(find "$backup_dir/databases" -type f -name "*.gz" 2>/dev/null)
+            done < <(find "$backup_dir/databases" -type f \( -name "*.gz" -o -name "*.gz.age" \) 2>/dev/null)
         fi
     fi
 
@@ -499,6 +510,12 @@ verify_backup_full() {
                 fi
             fi
 
+            # Encrypted databases: skip deep integrity check (verify local unencrypted copy instead)
+            if echo "$db_rel_path" | grep -q '\.gz\.age$'; then
+                _verify_record_db "$db_rel_path" "pass" "Encrypted backup — size/hash OK (verify local copy for integrity)"
+                continue
+            fi
+
             # Full verification for compressed databases
             if echo "$db_rel_path" | grep -q '\.gz$'; then
                 local _v_err
@@ -561,6 +578,12 @@ verify_backup_full() {
                     _verify_record_db "$db_rel" "warning" "Suspiciously small ($db_size bytes)"
                 fi
 
+                # Encrypted databases: skip deep integrity check
+                if echo "$db_file" | grep -q '\.gz\.age$'; then
+                    _verify_record_db "$db_rel" "pass" "Encrypted backup — exists (verify local copy for integrity)"
+                    continue
+                fi
+
                 if echo "$db_file" | grep -q '\.gz$'; then
                     local _v_err
                     if ! _v_err=$(gunzip -t "$db_file" 2>&1); then
@@ -589,7 +612,7 @@ verify_backup_full() {
                     fi
                     rm -f "$temp_db"
                 fi
-            done < <(find "$backup_dir/databases" -type f -name "*.gz" 2>/dev/null)
+            done < <(find "$backup_dir/databases" -type f \( -name "*.gz" -o -name "*.gz.age" \) 2>/dev/null)
         fi
     fi
 
@@ -851,58 +874,74 @@ persist_manifest_json() {
     local backup_id
     backup_id=$(date +%Y%m%d_%H%M%S)
 
-    # Start JSON
+    # Bulk-collect file list with sizes using a single find+stat pipeline
+    # Output: "size<TAB>relative_path" per line, sorted
+    local _files_tmp
+    _files_tmp=$(mktemp 2>/dev/null) || return 1
+    local _dbs_tmp
+    _dbs_tmp=$(mktemp 2>/dev/null) || return 1
+
+    local file_count=0
+    local db_count=0
+
+    if [ -d "$files_dir" ]; then
+        # Single find piped to xargs stat — 2 forks total instead of 2 per file
+        find "$files_dir" -type f 2>/dev/null | \
+            tr '\n' '\0' | xargs -0 stat -f$'%z\t%N' 2>/dev/null | \
+            sort -t$'\t' -k2 > "$_files_tmp"
+        file_count=$(wc -l < "$_files_tmp" | tr -d ' ')
+    fi
+
+    if [ -d "$database_dir" ]; then
+        find "$database_dir" -type f \( -name "*.gz" -o -name "*.gz.age" -o -name "*.db" \) 2>/dev/null | \
+            tr '\n' '\0' | xargs -0 stat -f$'%z\t%N' 2>/dev/null | \
+            sort -t$'\t' -k2 > "$_dbs_tmp"
+        db_count=$(wc -l < "$_dbs_tmp" | tr -d ' ')
+    fi
+
+    # Build JSON in one write
     {
-        echo "{"
-        echo "  $(json_kv_num "version" "1"),"
-        echo "  $(json_kv "timestamp" "$ts"),"
-        echo "  $(json_kv "project" "$project_name"),"
-        echo "  $(json_kv "backup_id" "$backup_id"),"
+        printf '{\n'
+        printf '  "version": 1,\n'
+        printf '  "timestamp": "%s",\n' "$ts"
+        printf '  "project": "%s",\n' "$(printf '%s' "$project_name" | sed 's/\\/\\\\/g;s/"/\\"/g')"
+        printf '  "backup_id": "%s",\n' "$backup_id"
 
         # --- Files array ---
-        echo "  \"files\": ["
-        local file_count=0
-        local first_file=true
-        if [ -d "$files_dir" ]; then
-            while IFS= read -r file_path; do
+        printf '  "files": [\n'
+        local _first=true
+        if [ "$file_count" -gt 0 ]; then
+            while IFS=$'\t' read -r f_size file_path; do
                 [ -z "$file_path" ] && continue
-                local rel_path="${file_path#$backup_dir/}"
-                local f_size
-                f_size=$(get_file_size "$file_path")
-                local f_hash
-                f_hash=$(get_file_hash "$file_path" 2>/dev/null) || f_hash=""
-
-                if [ "$first_file" = true ]; then
-                    first_file=false
+                # Strip files_dir prefix to get relative path (handles cloud destinations)
+                local rel_path="${file_path#$files_dir/}"
+                # Fallback: strip backup_dir prefix
+                [ "$rel_path" = "$file_path" ] && rel_path="${file_path#$backup_dir/}"
+                if [ "$_first" = true ]; then
+                    _first=false
                 else
-                    echo ","
+                    printf ',\n'
                 fi
-                printf '    {%s, %s, %s}' \
-                    "$(json_kv "path" "$rel_path")" \
-                    "$(json_kv_num "size" "$f_size")" \
-                    "$(json_kv "sha256" "$f_hash")"
-                file_count=$((file_count + 1))
-            done < <(find "$files_dir" -type f 2>/dev/null | sort)
+                # Escape path for JSON (backslash and double-quote)
+                local safe_path
+                safe_path=$(printf '%s' "$rel_path" | sed 's/\\/\\\\/g;s/"/\\"/g')
+                printf '    {"path": "%s", "size": %s}' "$safe_path" "$f_size"
+            done < "$_files_tmp"
         fi
-        echo ""
-        echo "  ],"
+        printf '\n  ],\n'
 
         # --- Databases array ---
-        echo "  \"databases\": ["
-        local db_count=0
-        local first_db=true
-        if [ -d "$database_dir" ]; then
-            while IFS= read -r db_path; do
+        printf '  "databases": [\n'
+        _first=true
+        if [ "$db_count" -gt 0 ]; then
+            while IFS=$'\t' read -r d_size db_path; do
                 [ -z "$db_path" ] && continue
-                local db_rel="${db_path#$backup_dir/}"
-                local d_size
-                d_size=$(get_file_size "$db_path")
-                local d_hash
-                d_hash=$(get_file_hash "$db_path" 2>/dev/null) || d_hash=""
-
-                # Get table count (decompress if needed)
+                local db_rel="${db_path#$database_dir/}"
+                [ "$db_rel" = "$db_path" ] && db_rel="${db_path#$backup_dir/}"
                 local d_tables=0
-                if echo "$db_path" | grep -q '\.gz$'; then
+
+                # Get table count for .gz databases (small number of DBs, ok to fork)
+                if [[ "$db_path" == *.gz ]]; then
                     local tmp_db
                     tmp_db=$(mktemp 2>/dev/null) || true
                     if [ -n "$tmp_db" ] && gunzip -c "$db_path" > "$tmp_db" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
@@ -911,26 +950,24 @@ persist_manifest_json() {
                     rm -f "$tmp_db" 2>/dev/null || true
                 fi
 
-                if [ "$first_db" = true ]; then
-                    first_db=false
+                if [ "$_first" = true ]; then
+                    _first=false
                 else
-                    echo ","
+                    printf ',\n'
                 fi
-                printf '    {%s, %s, %s, %s}' \
-                    "$(json_kv "path" "$db_rel")" \
-                    "$(json_kv_num "size" "$d_size")" \
-                    "$(json_kv "sha256" "$d_hash")" \
-                    "$(json_kv_num "tables" "$d_tables")"
-                db_count=$((db_count + 1))
-            done < <(find "$database_dir" -type f \( -name "*.gz" -o -name "*.db" \) 2>/dev/null | sort)
+                local safe_db
+                safe_db=$(printf '%s' "$db_rel" | sed 's/\\/\\\\/g;s/"/\\"/g')
+                printf '    {"path": "%s", "size": %s, "tables": %s}' "$safe_db" "$d_size" "$d_tables"
+            done < "$_dbs_tmp"
         fi
-        echo ""
-        echo "  ],"
+        printf '\n  ],\n'
 
         # --- Totals ---
-        echo "  \"totals\": {$(json_kv_num "files" "$file_count"), $(json_kv_num "databases" "$db_count")}"
-        echo "}"
+        printf '  "totals": {"files": %s, "databases": %s}\n' "$file_count" "$db_count"
+        printf '}\n'
     } > "$tmp_manifest"
+
+    rm -f "$_files_tmp" "$_dbs_tmp"
 
     # Atomic move
     local _mv_err

@@ -25,7 +25,7 @@ list_database_backups_sorted() {
     [ ! -d "$db_dir" ] && return 1
 
     local count=0
-    find "$db_dir" -name "*.db.gz" -type f 2>/dev/null | while read -r backup; do
+    find "$db_dir" \( -name "*.db.gz" -o -name "*.db.gz.age" \) -type f 2>/dev/null | while read -r backup; do
         local mtime=$(get_file_mtime "$backup")
         echo "$mtime|$backup"
     done | sort -rn -t'|' | while IFS='|' read -r mtime backup; do
@@ -50,25 +50,35 @@ list_file_versions_sorted() {
 
     local versions=()
 
-    # Current version
+    # Current version (check both unencrypted and encrypted)
+    local current_path=""
     if [ -f "$files_dir/$file_path" ]; then
-        local mtime=$(get_file_mtime "$files_dir/$file_path")
-        local size=$(get_file_size "$files_dir/$file_path")
+        current_path="$files_dir/$file_path"
+    elif [ -f "$files_dir/${file_path}.age" ]; then
+        current_path="$files_dir/${file_path}.age"
+    fi
+    if [ -n "$current_path" ]; then
+        local mtime=$(get_file_mtime "$current_path")
+        local size=$(get_file_size "$current_path")
         local size_human=$(format_bytes "$size")
         local created=$(date -r "$mtime" "+%Y-%m-%d %H:%M" 2>/dev/null)
         local relative=$(format_relative_time "$mtime")
 
-        echo "$mtime|CURRENT|$created|$relative|$size_human|$files_dir/$file_path"
+        echo "$mtime|CURRENT|$created|$relative|$size_human|$current_path"
     fi
 
-    # Archived versions
+    # Archived versions (match both encrypted and unencrypted)
     find "$archived_dir" -type f -name "$(basename "$file_path").*" 2>/dev/null | while read -r backup; do
         local mtime=$(get_file_mtime "$backup")
         local size=$(get_file_size "$backup")
         local size_human=$(format_bytes "$size")
         local created=$(date -r "$mtime" "+%Y-%m-%d %H:%M" 2>/dev/null)
         local relative=$(format_relative_time "$mtime")
-        local version=$(basename "$backup" | sed "s/.*\.//")
+        # Strip .age suffix before extracting version/timestamp
+        local base_name
+        base_name=$(basename "$backup")
+        base_name="${base_name%.age}"
+        local version=$(echo "$base_name" | sed "s/.*\.//")
 
         echo "$mtime|$version|$created|$relative|$size_human|$backup"
     done | sort -rn -t'|'
