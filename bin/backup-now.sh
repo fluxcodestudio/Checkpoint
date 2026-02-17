@@ -34,6 +34,11 @@ if [ -f "$LIB_DIR/features/encryption.sh" ]; then
     source "$LIB_DIR/features/encryption.sh"
 fi
 
+# Source Docker volume backup
+if [ -f "$LIB_DIR/features/docker-volumes.sh" ]; then
+    source "$LIB_DIR/features/docker-volumes.sh"
+fi
+
 # ==============================================================================
 # COMMAND LINE OPTIONS
 # ==============================================================================
@@ -695,6 +700,24 @@ if [ "$FILES_ONLY" = false ]; then
         else
             cli_verbose "   Database: No databases detected"
             log_debug "No databases detected"
+        fi
+    fi
+fi
+
+# ==============================================================================
+# DOCKER VOLUME BACKUP
+# ==============================================================================
+
+if [ "$FILES_ONLY" = false ]; then
+    if command -v backup_docker_volumes &>/dev/null && docker_volumes_enabled; then
+        cli_info "   Docker Volumes: Detecting..."
+        if backup_docker_volumes "$PROJECT_DIR" "$BACKUP_DIR"; then
+            cli_success "   Docker Volumes: Backup complete"
+            log_info "Docker volume backup complete"
+        else
+            cli_info "   Docker Volumes: Some backups failed (see above)"
+            log_warn "Some Docker volume backups failed"
+            backup_errors=$((backup_errors + 1))
         fi
     fi
 fi
