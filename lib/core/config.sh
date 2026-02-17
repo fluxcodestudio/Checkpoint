@@ -71,6 +71,8 @@ apply_global_defaults() {
                 DEFAULT_STORAGE_CRITICAL_PERCENT) : "${STORAGE_CRITICAL_PERCENT:=$value}" ;;
                 DEFAULT_STORAGE_CHECK_ENABLED) : "${STORAGE_CHECK_ENABLED:=$value}" ;;
                 DEFAULT_STORAGE_CLEANUP_SUGGEST) : "${STORAGE_CLEANUP_SUGGEST:=$value}" ;;
+                DEFAULT_ENCRYPTION_ENABLED) : "${ENCRYPTION_ENABLED:=$value}" ;;
+                DEFAULT_ENCRYPTION_KEY_PATH) : "${ENCRYPTION_KEY_PATH:=$value}" ;;
                 DESKTOP_NOTIFICATIONS)
                     if [ "$value" = "true" ]; then
                         : "${NOTIFICATIONS_ENABLED:=true}"
@@ -189,6 +191,10 @@ check_drive() {
 : "${STORAGE_CRITICAL_PERCENT:=90}"    # Block backup when disk usage exceeds this %
 : "${STORAGE_CHECK_ENABLED:=true}"     # Enable/disable pre-backup disk checks
 : "${STORAGE_CLEANUP_SUGGEST:=true}"   # Show cleanup suggestions when space is low
+
+# Encryption at rest (cloud backups only)
+: "${ENCRYPTION_ENABLED:=false}"          # Enable encryption for cloud-destined backups
+: "${ENCRYPTION_KEY_PATH:=$HOME/.config/checkpoint/age-key.txt}"  # Path to age private key
 
 # Per-project notification override
 # Set in project's .backup-config.sh
@@ -357,6 +363,8 @@ config_key_to_var() {
         "storage.critical_percent") echo "STORAGE_CRITICAL_PERCENT" ;;
         "storage.check_enabled") echo "STORAGE_CHECK_ENABLED" ;;
         "storage.cleanup_suggest") echo "STORAGE_CLEANUP_SUGGEST" ;;
+        "encryption.enabled") echo "ENCRYPTION_ENABLED" ;;
+        "encryption.key_path") echo "ENCRYPTION_KEY_PATH" ;;
         "logging.log_file") echo "LOG_FILE" ;;
         "logging.fallback_log") echo "FALLBACK_LOG" ;;
         "state.state_dir") echo "STATE_DIR" ;;
@@ -401,6 +409,8 @@ config_var_to_key() {
         "STORAGE_CRITICAL_PERCENT") echo "storage.critical_percent" ;;
         "STORAGE_CHECK_ENABLED") echo "storage.check_enabled" ;;
         "STORAGE_CLEANUP_SUGGEST") echo "storage.cleanup_suggest" ;;
+        "ENCRYPTION_ENABLED") echo "encryption.enabled" ;;
+        "ENCRYPTION_KEY_PATH") echo "encryption.key_path" ;;
         "LOG_FILE") echo "logging.log_file" ;;
         "FALLBACK_LOG") echo "logging.fallback_log" ;;
         "STATE_DIR") echo "state.state_dir" ;;

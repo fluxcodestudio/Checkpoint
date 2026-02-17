@@ -178,6 +178,16 @@ STORAGE_CHECK_ENABLED=true
 STORAGE_CLEANUP_SUGGEST=true
 
 # ==============================================================================
+# ENCRYPTION AT REST
+# ==============================================================================
+
+# Encrypt cloud-destined backups using age (https://github.com/FiloSottile/age)
+# Local backups remain unencrypted for fast access
+# Run: checkpoint encrypt setup — to generate encryption key
+ENCRYPTION_ENABLED=false
+# ENCRYPTION_KEY_PATH="$HOME/.config/checkpoint/age-key.txt"
+
+# ==============================================================================
 # CLOUD FOLDER DESTINATION (auto-sync via desktop app)
 # ==============================================================================
 
