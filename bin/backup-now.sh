@@ -1557,6 +1557,26 @@ if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PAT
             if rsync -a --delete "$DATABASE_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/databases/" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                 cli_info "   Databases synced"
                 log_info "Cloud sync: databases synced"
+
+                # Encrypt cloud database backups if encryption enabled
+                if encryption_enabled 2>/dev/null; then
+                    local cloud_db_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/databases"
+                    local age_recipient
+                    age_recipient="$(get_age_recipient)"
+                    if [[ -n "$age_recipient" ]]; then
+                        while IFS= read -r -d '' db_file; do
+                            if [[ ! -f "${db_file}.age" ]] || [[ "$db_file" -nt "${db_file}.age" ]]; then
+                                if age -r "$age_recipient" "$db_file" -o "${db_file}.age" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                                    rm "$db_file"
+                                else
+                                    log_warn "Encryption failed for: $db_file"
+                                fi
+                            fi
+                        done < <(find "$cloud_db_dir" -name "*.db.gz" ! -name "*.age" -print0 2>/dev/null)
+                        cli_info "   Databases encrypted"
+                        log_info "Cloud sync: databases encrypted"
+                    fi
+                fi
             else
                 cli_warn "   Database sync failed"
                 log_warn "Cloud sync: database sync failed"
