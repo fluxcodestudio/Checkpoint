@@ -611,3 +611,293 @@ if [[ "$MODE" == "search" ]]; then
     output_search_results "$results" "$stderr_info"
     exit $?
 fi
+
+# ==============================================================================
+# BROWSE: List files at a specific snapshot timestamp
+# ==============================================================================
+
+list_files_at_snapshot() {
+    local archived_dir="$1"
+    local timestamp="$2"
+
+    find "$archived_dir" -type f -name "*${timestamp}*" 2>/dev/null | sort | while IFS= read -r filepath; do
+        [[ -z "$filepath" ]] && continue
+
+        local basename_file
+        basename_file=$(basename "$filepath")
+
+        # Strip .age suffix to get base
+        local stripped="$basename_file"
+        local encrypted="no"
+        case "$stripped" in
+            *.age)
+                stripped="${stripped%.age}"
+                encrypted="yes"
+                ;;
+        esac
+
+        # Strip timestamp + optional PID suffix to get original filename
+        # Pattern: original_name.YYYYMMDD_HHMMSS or original_name.YYYYMMDD_HHMMSS_PID
+        local original_name
+        original_name=$(echo "$stripped" | sed 's/\.[0-9]\{8\}_[0-9]\{6\}\(_[0-9]*\)\{0,1\}$//')
+
+        # Reconstruct relative path: directory within archived + original filename
+        local rel_dir="${filepath#"$archived_dir"/}"
+        rel_dir=$(dirname "$rel_dir")
+        local original_relpath
+        if [[ "$rel_dir" == "." ]]; then
+            original_relpath="$original_name"
+        else
+            original_relpath="${rel_dir}/${original_name}"
+        fi
+
+        local size
+        size=$(get_file_size "$filepath")
+        local size_human
+        size_human=$(format_bytes "$size")
+
+        echo "${original_relpath}|${size_human}|${encrypted}|${filepath}"
+    done
+}
+
+# ==============================================================================
+# MODE: browse
+# ==============================================================================
+
+if [[ "$MODE" == "browse" ]]; then
+    if [[ ! -d "$ARCHIVED_DIR" ]]; then
+        if [[ "$JSON_OUTPUT" == "true" ]]; then
+            echo '{"snapshots":[],"count":0}'
+        else
+            echo "No archived backups found at: $ARCHIVED_DIR" >&2
+        fi
+        exit 1
+    fi
+
+    snapshots=$(discover_snapshots "$ARCHIVED_DIR" 2>/dev/null || true)
+
+    if [[ -z "$snapshots" ]]; then
+        if [[ "$JSON_OUTPUT" == "true" ]]; then
+            echo '{"snapshots":[],"count":0}'
+        else
+            echo "No snapshots found."
+        fi
+        exit 0
+    fi
+
+    # --json mode: output all snapshots with file counts
+    if [[ "$JSON_OUTPUT" == "true" ]]; then
+        printf '{"snapshots":['
+        first=true
+        while IFS= read -r ts; do
+            [[ -z "$ts" ]] && continue
+
+            formatted_ts=$(format_timestamp "$ts")
+
+            file_count=$(find "$ARCHIVED_DIR" -type f -name "*${ts}*" 2>/dev/null | wc -l | tr -d ' ')
+
+            epoch=$(timestamp_to_epoch "$ts")
+            relative=""
+            if [[ "$epoch" -gt 0 ]]; then
+                relative=$(format_relative_time "$epoch")
+            fi
+
+            if [[ "$first" == "true" ]]; then
+                first=false
+            else
+                printf ','
+            fi
+
+            escaped_relative=$(json_escape "$relative")
+            printf '{"timestamp":"%s","date":"%s","relative":"%s","file_count":%d}' \
+                "$ts" "$formatted_ts" "$escaped_relative" "$file_count"
+        done <<< "$snapshots"
+
+        snap_count=$(echo "$snapshots" | grep -c . || true)
+        printf '],"count":%d}\n' "$snap_count"
+        exit 0
+    fi
+
+    # Interactive browse: fzf or select fallback
+
+    if command -v fzf >/dev/null 2>&1 && [[ -t 1 ]]; then
+        # ============================================================
+        # FZF MODE: Two-level drill-down
+        # ============================================================
+
+        # Level 1: Select snapshot
+        fzf_snapshot_input=""
+        while IFS= read -r ts; do
+            [[ -z "$ts" ]] && continue
+            formatted_ts=$(format_timestamp "$ts")
+            epoch=$(timestamp_to_epoch "$ts")
+            relative=""
+            if [[ "$epoch" -gt 0 ]]; then
+                relative=$(format_relative_time "$epoch")
+            fi
+            file_count=$(find "$ARCHIVED_DIR" -type f -name "*${ts}*" 2>/dev/null | wc -l | tr -d ' ')
+            fzf_snapshot_input="${fzf_snapshot_input}${formatted_ts}  (${relative})  [${file_count} files]\t${ts}
+"
+        done <<< "$snapshots"
+
+        selected_snapshot=$(printf '%s' "$fzf_snapshot_input" | fzf \
+            --prompt "Select snapshot > " \
+            --header "ENTER: browse files | ESC: quit" \
+            --delimiter '\t' \
+            --with-nth 1 \
+            --preview "find \"$ARCHIVED_DIR\" -type f -name \"*{2}*\" 2>/dev/null | wc -l | xargs printf '%s files in this snapshot\n'" \
+            --preview-window right:30% 2>/dev/null) || true
+
+        if [[ -z "$selected_snapshot" ]]; then
+            exit 0
+        fi
+
+        # Extract raw timestamp (after tab)
+        chosen_ts=$(echo "$selected_snapshot" | cut -f2)
+
+        # Level 2: Browse files in selected snapshot
+        file_list=$(list_files_at_snapshot "$ARCHIVED_DIR" "$chosen_ts")
+
+        if [[ -z "$file_list" ]]; then
+            echo "No files found at snapshot $chosen_ts."
+            exit 0
+        fi
+
+        selected_file=$(echo "$file_list" | fzf \
+            --prompt "Files > " \
+            --header "ENTER: view | ESC: back" \
+            --delimiter '|' \
+            --with-nth '1,2,3' \
+            --preview 'file=$(echo {} | cut -d"|" -f4); if echo "$file" | grep -q "\.age$"; then echo "Encrypted file - use --decrypt to view"; else cat "$file" 2>/dev/null || echo "Cannot preview file"; fi' \
+            --preview-window right:50% 2>/dev/null) || true
+
+        if [[ -n "$selected_file" ]]; then
+            # Output the full path
+            echo "$selected_file" | cut -d'|' -f4
+        fi
+        exit 0
+
+    else
+        # ============================================================
+        # SELECT FALLBACK: bash select menu
+        # ============================================================
+
+        echo -e "${C_BOLD}Browse Snapshots${C_RESET}"
+        echo ""
+
+        # Build snapshot list
+        snap_options=()
+        snap_timestamps=()
+        display_count=0
+        total_snaps=0
+
+        while IFS= read -r ts; do
+            [[ -z "$ts" ]] && continue
+            total_snaps=$((total_snaps + 1))
+
+            if [[ "$display_count" -ge 50 ]]; then
+                continue
+            fi
+
+            formatted_ts=$(format_timestamp "$ts")
+            epoch=$(timestamp_to_epoch "$ts")
+            relative=""
+            if [[ "$epoch" -gt 0 ]]; then
+                relative=$(format_relative_time "$epoch")
+            fi
+            file_count=$(find "$ARCHIVED_DIR" -type f -name "*${ts}*" 2>/dev/null | wc -l | tr -d ' ')
+
+            snap_options[${#snap_options[@]}]="${formatted_ts}  (${relative})  [${file_count} files]"
+            snap_timestamps[${#snap_timestamps[@]}]="$ts"
+            display_count=$((display_count + 1))
+        done <<< "$snapshots"
+
+        if [[ "$total_snaps" -gt 50 ]]; then
+            echo -e "  ${C_DIM}Showing 50 of ${total_snaps} snapshots.${C_RESET}"
+            echo ""
+        fi
+
+        PS3="Select snapshot (or 'q' to quit): "
+        select opt in "${snap_options[@]}"; do
+            if [[ "$REPLY" == "q" ]] || [[ "$REPLY" == "Q" ]]; then
+                exit 0
+            fi
+            if [[ -n "$opt" ]]; then
+                # Find index
+                idx=0
+                while [[ "$idx" -lt "${#snap_options[@]}" ]]; do
+                    if [[ "${snap_options[$idx]}" == "$opt" ]]; then
+                        break
+                    fi
+                    idx=$((idx + 1))
+                done
+
+                chosen_ts="${snap_timestamps[$idx]}"
+                echo ""
+                echo -e "${C_BOLD}Files at snapshot: $(format_timestamp "$chosen_ts")${C_RESET}"
+                echo ""
+
+                # List files
+                file_list=$(list_files_at_snapshot "$ARCHIVED_DIR" "$chosen_ts")
+
+                if [[ -z "$file_list" ]]; then
+                    echo "No files found at this snapshot."
+                    break
+                fi
+
+                file_options=()
+                file_paths=()
+                fcount=0
+
+                while IFS='|' read -r original_relpath size_human encrypted fullpath; do
+                    [[ -z "$original_relpath" ]] && continue
+                    if [[ "$fcount" -ge 50 ]]; then
+                        continue
+                    fi
+                    enc_label=""
+                    if [[ "$encrypted" == "yes" ]]; then
+                        enc_label=" [encrypted]"
+                    fi
+                    file_options[${#file_options[@]}]="${original_relpath}  (${size_human})${enc_label}"
+                    file_paths[${#file_paths[@]}]="$fullpath"
+                    fcount=$((fcount + 1))
+                done <<< "$file_list"
+
+                total_files=$(echo "$file_list" | grep -c . || true)
+                if [[ "$total_files" -gt 50 ]]; then
+                    echo -e "  ${C_DIM}Showing 50 of ${total_files} files.${C_RESET}"
+                    echo ""
+                fi
+
+                PS3="Select file (or 'q' to quit): "
+                select fopt in "${file_options[@]}"; do
+                    if [[ "$REPLY" == "q" ]] || [[ "$REPLY" == "Q" ]]; then
+                        break 2
+                    fi
+                    if [[ -n "$fopt" ]]; then
+                        fidx=0
+                        while [[ "$fidx" -lt "${#file_options[@]}" ]]; do
+                            if [[ "${file_options[$fidx]}" == "$fopt" ]]; then
+                                break
+                            fi
+                            fidx=$((fidx + 1))
+                        done
+                        echo "${file_paths[$fidx]}"
+                        exit 0
+                    else
+                        echo "Invalid selection. Try again." >&2
+                    fi
+                done
+                break
+            else
+                echo "Invalid selection. Try again." >&2
+            fi
+        done
+        exit 0
+    fi
+fi
+
+# If we get here, no valid mode was handled
+echo "Error: unknown mode '$MODE'" >&2
+echo "Use --help for usage information" >&2
+exit 1
