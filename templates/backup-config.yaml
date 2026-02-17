@@ -141,6 +141,20 @@ storage:
   cleanup_suggest: true
 
 # ==============================================================================
+# DOCKER VOLUME BACKUP
+# ==============================================================================
+
+docker_volume:
+  # Enable Docker named volume backup
+  enabled: false
+
+  # Volumes to include (comma-separated, empty = all named volumes)
+  includes: ""
+
+  # Volumes to exclude (comma-separated, supports wildcards)
+  excludes: ""
+
+# ==============================================================================
 # GIT INTEGRATION
 # ==============================================================================
 

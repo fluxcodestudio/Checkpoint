@@ -188,6 +188,22 @@ ENCRYPTION_ENABLED=false
 # ENCRYPTION_KEY_PATH="$HOME/.config/checkpoint/age-key.txt"
 
 # ==============================================================================
+# DOCKER VOLUME BACKUP
+# ==============================================================================
+
+# Enable Docker named volume backup (true/false)
+# Automatically detects volumes from docker-compose/compose files
+BACKUP_DOCKER_VOLUMES=false
+
+# Volumes to include (comma-separated, empty = all named volumes)
+# Example: "myapp_pgdata,myapp_uploads"
+DOCKER_VOLUME_INCLUDES=""
+
+# Volumes to exclude (comma-separated, supports wildcards)
+# Example: "*_cache,*_node_modules,*_tmp"
+DOCKER_VOLUME_EXCLUDES=""
+
+# ==============================================================================
 # CLOUD FOLDER DESTINATION (auto-sync via desktop app)
 # ==============================================================================
 
