@@ -614,6 +614,7 @@ case "${1:-}" in
         echo "  verify              Verify backup integrity"
         echo "  diff                Compare working directory with backup"
         echo "  history <file>      Show all versions of a file"
+        echo "  encrypt             Manage backup encryption (setup, status, test)"
         echo "  --help, -h          Show this help"
         echo ""
         echo "No options:           Launch interactive TUI dashboard"
@@ -636,6 +637,16 @@ case "${1:-}" in
             exec "$CHECKPOINT_LIB/bin/checkpoint-diff.sh" "$@"
         else
             echo "Error: checkpoint-diff.sh not found" >&2
+            exit 1
+        fi
+        ;;
+    encrypt|--encrypt)
+        # Manage backup encryption (setup, status, test)
+        if [[ -x "$CHECKPOINT_LIB/bin/checkpoint-encrypt.sh" ]]; then
+            shift
+            exec "$CHECKPOINT_LIB/bin/checkpoint-encrypt.sh" "$@"
+        else
+            echo "Error: checkpoint-encrypt.sh not found" >&2
             exit 1
         fi
         ;;
