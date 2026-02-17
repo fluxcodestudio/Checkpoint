@@ -133,7 +133,7 @@ Plans:
 Plans:
 - [x] 23-01: Encryption Library & Config — encryption.sh, config wiring, checkpoint encrypt CLI
 - [x] 23-02: Backup Pipeline Encryption — cloud folder post-sync encryption in backup-now.sh
-- [ ] 23-03: Restore & Discovery Adaptation — .age handling in restore, discovery, verification, diff
+- [x] 23-03: Restore & Discovery Adaptation — .age handling in restore, discovery, verification, diff
 
 #### Phase 24: Docker Volume Backup
 
@@ -182,6 +182,6 @@ Plans:
 | 20. Cron-Style Scheduling | v3.0 | 2/2 | Complete | 2026-02-16 |
 | 21. Storage Usage Warnings | v3.0 | 2/2 | Complete | 2026-02-16 |
 | 22. Checkpoint Diff Command | v3.0 | 2/2 | Complete | 2026-02-16 |
-| 23. Encryption at Rest | v3.0 | 2/3 | In progress | - |
+| 23. Encryption at Rest | v3.0 | 3/3 | Complete | 2026-02-16 |
 | 24. Docker Volume Backup | v3.0 | 0/? | Not started | - |
 | 25. Backup Search & Browse CLI | v3.0 | 0/? | Not started | - |
