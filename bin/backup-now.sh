@@ -29,6 +29,11 @@ if [ -f "$LIB_DIR/features/storage-monitor.sh" ]; then
     source "$LIB_DIR/features/storage-monitor.sh"
 fi
 
+# Source encryption library (cloud backup encryption)
+if [ -f "$LIB_DIR/features/encryption.sh" ]; then
+    source "$LIB_DIR/features/encryption.sh"
+fi
+
 # ==============================================================================
 # COMMAND LINE OPTIONS
 # ==============================================================================
@@ -1415,6 +1420,10 @@ if [ $db_removed -gt 0 ] || [ $file_removed -gt 0 ]; then
     cli_info "   Cleanup: $db_removed DB backups, $file_removed files removed"
 fi
 
+if encryption_enabled 2>/dev/null; then
+    cli_info "   Encryption: enabled (cloud backups)"
+fi
+
 cli_info ""
 cli_info "View status: ${COLOR_CYAN}backup-status.sh${COLOR_RESET}"
 
@@ -1592,6 +1601,30 @@ if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PAT
                   "$FILES_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/files/" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                 cli_info "   Critical files synced"
                 log_info "Cloud sync: critical files synced"
+
+                # Encrypt cloud file backups if encryption enabled
+                if encryption_enabled 2>/dev/null; then
+                    local cloud_files_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/files"
+                    local age_recipient
+                    age_recipient="$(get_age_recipient)"
+                    if [[ -n "$age_recipient" ]]; then
+                        local encrypted_count=0
+                        while IFS= read -r -d '' src_file; do
+                            if [[ ! -f "${src_file}.age" ]] || [[ "$src_file" -nt "${src_file}.age" ]]; then
+                                if age -r "$age_recipient" "$src_file" -o "${src_file}.age" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                                    rm "$src_file"
+                                    encrypted_count=$((encrypted_count + 1))
+                                else
+                                    log_warn "Encryption failed for: $src_file"
+                                fi
+                            fi
+                        done < <(find "$cloud_files_dir" -type f ! -name "*.age" -print0 2>/dev/null)
+                        if [[ $encrypted_count -gt 0 ]]; then
+                            cli_info "   Files encrypted ($encrypted_count files)"
+                            log_info "Cloud sync: $encrypted_count files encrypted"
+                        fi
+                    fi
+                fi
             else
                 cli_warn "   File sync failed"
                 log_warn "Cloud sync: file sync failed"
