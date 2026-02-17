@@ -155,7 +155,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 25-01: Search & Browse CLI — checkpoint-search.sh with search and browse modes
+- [x] 25-01: Search & Browse CLI — checkpoint-search.sh with search and browse modes
 - [ ] 25-02: History Interactive + Routing — fzf history upgrade, checkpoint.sh wiring
 
 ## Progress
@@ -186,4 +186,4 @@ Plans:
 | 22. Checkpoint Diff Command | v3.0 | 2/2 | Complete | 2026-02-16 |
 | 23. Encryption at Rest | v3.0 | 3/3 | Complete | 2026-02-16 |
 | 24. Docker Volume Backup | v3.0 | 2/2 | Complete | 2026-02-17 |
-| 25. Backup Search & Browse CLI | v3.0 | 0/? | Not started | - |
+| 25. Backup Search & Browse CLI | v3.0 | 1/2 | In progress | - |
