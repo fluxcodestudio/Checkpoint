@@ -794,6 +794,9 @@ code {
     margin: 0;
     font-size: 0.95rem;
     line-height: 1.8;
+    overflow-x: auto;
+    white-space: pre;
+    max-width: 100%;
 }
 
 .structure-demo .comment {
@@ -2345,8 +2348,8 @@ main.legal-container {
     }
 
     .footer-links {
-        flex-wrap: wrap;
-        gap: 16px 24px;
+        flex-direction: column;
+        gap: 12px;
     }
 }
 
@@ -2354,6 +2357,12 @@ main.legal-container {
    RESPONSIVE — MOBILE (max-width: 600px)
    ========================================== */
 @media (max-width: 600px) {
+    /* Global pre/code overflow safety */
+    pre, code {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
     /* Hero */
     .hero {
         padding-top: 90px;
@@ -2494,13 +2503,16 @@ main.legal-container {
 
     /* Backup structure */
     .structure-demo {
-        padding: 20px 16px;
+        padding: 20px 12px;
+        max-width: 100%;
+        box-sizing: border-box;
     }
 
     .structure-demo pre {
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         line-height: 1.5;
         overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     /* Download card */
