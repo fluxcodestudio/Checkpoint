@@ -226,7 +226,7 @@ All submissions require review. We look for:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the GNU General Public License v3.0.
+By contributing, you agree that your contributions will be licensed under the Polyform Noncommercial License 1.0.0, the same license as the project.
 
 ## Recognition
 

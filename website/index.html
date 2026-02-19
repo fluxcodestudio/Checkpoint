@@ -21,6 +21,7 @@
     <meta name="twitter:title" content="Checkpoint - Automated Backup for Developers">
     <meta name="twitter:description" content="Automated, intelligent backup system for developers. Encrypted cloud sync, native dashboard, universal database support.">
     <meta name="twitter:image" content="https://checkpoint.fluxcode.studio/Dashboard.png">
+    <meta name="twitter:image:alt" content="Checkpoint Dashboard showing automated backup status for multiple developer projects">
 
     <!-- Favicon & Manifest -->
     <link rel="icon" type="image/png" href="checkpoint-logo-no-text.png">
@@ -28,7 +29,7 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#a666ff">
     <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    <meta property="og:image:height" content="1560">
     <meta property="og:image:alt" content="Checkpoint Dashboard showing automated backup status for multiple developer projects">
     <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt">
 
@@ -216,7 +217,7 @@
                     </div>
                     <div class="dash-header">
                         <div class="dash-title">
-                            <img src="checkpoint-logo-no-text.png" alt="" class="dash-logo">
+                            <img src="checkpoint-logo-no-text.png" alt="Checkpoint logo" class="dash-logo">
                             <span>Checkpoint</span>
                         </div>
                         <span class="dash-badge-active"><span class="dash-active-dot"></span> Active</span>
@@ -471,7 +472,7 @@
                         <!-- Header -->
                         <div class="dash-header">
                             <div class="dash-title">
-                                <img src="checkpoint-logo-no-text.png" alt="" class="dash-logo">
+                                <img src="checkpoint-logo-no-text.png" alt="Checkpoint logo" class="dash-logo">
                                 <span>Checkpoint</span>
                             </div>
                             <span class="dash-badge-active"><span class="dash-active-dot"></span> Active</span>
@@ -884,8 +885,9 @@ cd Checkpoint && ./bin/install-global.sh</code>
                         Download ZIP
                     </a>
                     <p class="download-alt">or clone with Git:</p>
-                    <div class="code-block small">
+                    <div class="code-block small clone-block">
                         <code>git clone https://github.com/fluxcodestudio/Checkpoint.git</code>
+                        <button class="copy-btn" onclick="navigator.clipboard.writeText('git clone https://github.com/fluxcodestudio/Checkpoint.git');this.textContent='Copied!';setTimeout(function(){document.querySelector('.clone-block .copy-btn').textContent='Copy'},2000)" aria-label="Copy to clipboard">Copy</button>
                     </div>
                 </div>
             </div>

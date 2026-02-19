@@ -761,6 +761,14 @@ code {
     border: 1px solid rgba(166, 102, 255, 0.2);
     margin-top: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(166, 102, 255, 0.1);
+    overflow-x: auto;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.code-block code {
+    color: var(--accent);
+    word-break: break-all;
 }
 
 .code-block.small {
@@ -768,8 +776,36 @@ code {
     font-size: 0.85rem;
 }
 
-.code-block code {
+.clone-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.clone-block code {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: normal;
+}
+
+.copy-btn {
+    flex-shrink: 0;
+    background: rgba(166, 102, 255, 0.15);
+    border: 1px solid rgba(166, 102, 255, 0.3);
     color: var(--accent);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-family: inherit;
+    transition: background 0.2s;
+}
+
+.copy-btn:hover {
+    background: rgba(166, 102, 255, 0.25);
 }
 
 /* Backup Structure */
@@ -2283,6 +2319,8 @@ main.legal-container {
         grid-template-columns: 1fr;
         text-align: center;
         padding: 36px 28px;
+        max-width: 100%;
+        box-sizing: border-box;
     }
 
     .download-features {
@@ -2357,10 +2395,34 @@ main.legal-container {
    RESPONSIVE — MOBILE (max-width: 600px)
    ========================================== */
 @media (max-width: 600px) {
-    /* Global pre/code overflow safety */
+    /* Global overflow safety */
     pre, code {
         max-width: 100%;
         overflow-x: auto;
+    }
+
+    *, *::before, *::after {
+        box-sizing: border-box;
+    }
+
+    .step {
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .step p {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .step .code-block {
+        font-size: 0.75rem;
+        padding: 12px 14px;
+    }
+
+    .step .code-block code {
+        word-break: break-all;
+        display: block;
     }
 
     /* Hero */
@@ -2390,7 +2452,9 @@ main.legal-container {
     }
 
     .hero-stats {
+        justify-content: center;
         gap: 24px;
+        flex-wrap: wrap;
     }
 
     .stat-value {
@@ -2446,6 +2510,13 @@ main.legal-container {
     /* Dashboard mock */
     .dash-mock {
         font-size: 10px;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .dashboard-image-wrapper {
+        max-width: 100%;
+        overflow: hidden;
     }
 
     .dash-header {
@@ -2517,12 +2588,39 @@ main.legal-container {
 
     /* Download card */
     .download-card {
-        padding: 28px 20px;
-        gap: 32px;
+        padding: 28px 16px;
+        gap: 24px;
+        max-width: calc(100vw - 32px);
+        width: 100%;
+        box-sizing: border-box;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .download-info,
+    .download-actions {
+        max-width: 100%;
+        overflow: hidden;
+        word-wrap: break-word;
     }
 
     .download-info h3 {
-        font-size: 1.4rem;
+        font-size: 1.3rem;
+    }
+
+    .download-features {
+        max-width: 100%;
+    }
+
+    .download-features li {
+        font-size: 0.85rem;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+
+    .download-actions .code-block {
+        font-size: 0.7rem;
+        padding: 10px 12px;
     }
 
     .btn-large {

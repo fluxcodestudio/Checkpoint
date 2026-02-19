@@ -405,6 +405,13 @@ extension AppDelegate: HeartbeatMonitorDelegate {
                                  to newStatus: HeartbeatMonitor.DaemonStatus,
                                  data: HeartbeatMonitor.HeartbeatData) {
         switch newStatus {
+        case .healthy, .syncing:
+            // Auto-open dashboard when daemon starts (transitions from inactive to active)
+            if oldStatus == .missing || oldStatus == .stopped || oldStatus == .stale {
+                DispatchQueue.main.async {
+                    DashboardWindowController.shared.showDashboard()
+                }
+            }
         case .error:
             notificationManager.showNotification(title: "Checkpoint Error", body: data.error ?? "Daemon error")
         case .stale:

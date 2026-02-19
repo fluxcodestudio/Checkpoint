@@ -12,13 +12,15 @@
     <meta property="og:title" content="Documentation - Checkpoint">
     <meta property="og:description" content="Complete documentation for Checkpoint backup software — installation, cloud sync, encryption, CLI commands, and dashboard guide.">
     <meta property="og:image" content="https://checkpoint.fluxcode.studio/Dashboard.png">
+    <meta property="og:image:alt" content="Checkpoint backup dashboard showing project status and backup history">
     <meta property="og:site_name" content="Checkpoint">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Documentation - Checkpoint">
     <meta name="twitter:description" content="Complete documentation for Checkpoint backup software.">
     <meta name="twitter:image" content="https://checkpoint.fluxcode.studio/Dashboard.png">
+    <meta name="twitter:image:alt" content="Checkpoint backup dashboard showing project status and backup history">
     <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    <meta property="og:image:height" content="1560">
     <link rel="icon" type="image/png" href="checkpoint-logo-no-text.png">
     <link rel="apple-touch-icon" href="checkpoint-logo-no-text.png">
     <link rel="manifest" href="manifest.json">
@@ -158,7 +160,7 @@ backup-now</code>
             <!-- MANAGING PROJECTS -->
 
             <section id="add-projects">
-                <h1>Managing Projects</h1>
+                <h2>Managing Projects</h2>
                 <h2>Adding Projects</h2>
                 <p>There are three ways to add a project to Checkpoint:</p>
 
@@ -245,7 +247,7 @@ nano ~/.config/checkpoint/config.sh</code>
             <!-- CLOUD BACKUP -->
 
             <section id="cloud-setup">
-                <h1>Cloud Backup</h1>
+                <h2>Cloud Backup</h2>
                 <h2>Setting Up Cloud Sync</h2>
                 <p>Checkpoint supports two cloud sync methods:</p>
 
@@ -359,7 +361,7 @@ checkpoint cloud download-all --project MyProject --zip</code>
             <!-- DASHBOARD -->
 
             <section id="dashboard-overview">
-                <h1>Dashboard</h1>
+                <h2>Dashboard</h2>
                 <h2>Menu Bar App</h2>
                 <p>The Checkpoint Dashboard is a native SwiftUI app that lives in your macOS menu bar. It's installed automatically during setup.</p>
 
@@ -405,7 +407,7 @@ NOTIFY_ON_FAILURE_ONLY=false  # Only notify on failures</code>
             <!-- CLI REFERENCE -->
 
             <section id="cli-commands">
-                <h1>CLI Reference</h1>
+                <h2>CLI Reference</h2>
                 <h2>Commands</h2>
                 <table class="docs-table">
                     <thead>
@@ -467,7 +469,7 @@ gunzip -k backups/databases/MyApp-2025.02.15-10.45.12.db.gz</code>
             <!-- ADVANCED -->
 
             <section id="databases">
-                <h1>Advanced</h1>
+                <h2>Advanced</h2>
                 <h2>Database Backup</h2>
                 <p>Checkpoint auto-detects databases in your project and uses the proper dump tool:</p>
                 <table class="docs-table">
