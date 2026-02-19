@@ -1,4 +1,5 @@
 # macOS
+**/.DS_Store
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -25,6 +26,7 @@ Temporary Items
 # Test artifacts
 /tests/*.log
 /tests/test-backup-project-*
+/tests/reports/
 
 # Development
 *.swp
@@ -36,8 +38,14 @@ Temporary Items
 # Local testing
 test-output/
 
-# Claude Code IDE settings (local only - skills are shipped with project)
+# Claude Code IDE (local state only - skills are shipped with project)
 .claude/settings.local.json
+.claude/sessions.json
+.claude/project-memory.md
+.claude/vibe-state.md
+.claude/.vibe-session
+.claude/.last_branch
+.claude/.DS_Store
 
 # Checkpoint backups
 backups/
@@ -49,6 +57,11 @@ backups/
 .planning/
 PLAN.md
 TODO.md
+CODING.md
+DECISIONS.md
+FILE_MAP.md
+SCOPE_LOCK.md
+CONTEXT_DIGEST.md
 
 # Internal development docs
 PRE-RELEASE-CHECKLIST.md

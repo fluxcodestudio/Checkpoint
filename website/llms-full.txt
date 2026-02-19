@@ -1,0 +1,198 @@
+# Checkpoint — Complete Documentation for LLMs
+# https://checkpoint.fluxcode.studio
+# Version: 2.6.0 | License: Polyform Noncommercial 1.0.0
+# Company: Fluxcode Studio LLC | Contact: legal@fluxcode.studio
+
+## What is Checkpoint?
+
+Checkpoint is an automated, intelligent backup system designed for developers. It runs as a background daemon on macOS and Linux, creating hourly snapshots of project files and databases. It supports encrypted cloud sync, a native macOS dashboard, and universal database support.
+
+## Key Facts
+- Free for noncommercial use (Polyform Noncommercial License 1.0.0)
+- Commercial use requires a separate license from Fluxcode Studio LLC
+- Source available at https://github.com/fluxcodestudio/Checkpoint
+- Written in Bash (shell scripts), with a SwiftUI macOS dashboard
+- Current version: 2.6.0
+
+## Installation
+
+```bash
+git clone https://github.com/fluxcodestudio/Checkpoint.git
+cd Checkpoint && ./bin/install-global.sh
+```
+
+The installer:
+- Adds `checkpoint` and `backup-now` commands to PATH
+- Starts a background daemon (launchd on macOS, systemd on Linux, cron fallback)
+- Creates global config at ~/.config/checkpoint/config.sh
+- Installs the macOS menu bar dashboard (macOS only)
+
+## Core Features
+
+### 1. Automated Hourly Backups
+- Background daemon runs every 60 minutes (configurable)
+- Only backs up projects with changes (smart change detection)
+- Auto-starts on boot, auto-restarts on crash
+- Built-in watchdog: notifies if no backup runs for 24 hours
+
+### 2. Database Support
+Auto-detects and backs up:
+- SQLite (direct file copy + .dump)
+- PostgreSQL (pg_dump, supports local and remote including Neon, Supabase)
+- MySQL/MariaDB (mysqldump, local and remote)
+- MongoDB (mongodump, local and remote)
+- Docker containers: auto-detects databases in docker-compose.yml
+
+### 3. Encrypted Cloud Sync
+Two methods:
+- **Direct folder sync**: Copy backups to a synced cloud folder (Dropbox, iCloud, Google Drive, OneDrive)
+- **rclone**: Direct API uploads to 40+ providers (S3, Backblaze, encrypted remotes)
+
+Encryption uses `age` (https://github.com/FiloSottile/age) — files compressed with gzip then encrypted before upload. Zero-knowledge cloud storage. Parallel encryption across multiple CPU cores for large backups (100+ files).
+
+### 4. Native macOS Dashboard
+- SwiftUI menu bar app
+- Real-time backup status for all registered projects
+- Progress indicators, last backup times, file counts
+- Settings management (no config file editing needed)
+- One-click backup trigger
+
+### 5. Version History & Search
+- Every file version preserved automatically
+- `checkpoint search "filename"` — search across all backup history
+- `checkpoint restore` — interactive fzf-based file browser
+- Browse snapshots, compare changes, restore any point in time
+
+### 6. Cloud Browse & Restore
+- `checkpoint cloud list` — list all cloud backups
+- `checkpoint cloud browse PROJECT` — browse files interactively (fzf or numbered list)
+- `checkpoint cloud download FILE` — download and auto-decrypt individual files
+- `checkpoint cloud download-all --zip` — download entire backup as a zip
+- `checkpoint cloud setup` — configure cloud access on a new machine
+- All downloads are automatically decrypted and decompressed
+
+### 7. Docker Support
+- Auto-detect databases in docker-compose.yml
+- Docker volume backup
+- Auto-start Docker Desktop if needed
+- Container-aware database dumps
+
+## CLI Commands
+
+```bash
+backup-now                    # Run immediate backup in current directory
+checkpoint --status           # Show all registered projects and their status
+checkpoint --global           # Edit global settings
+checkpoint --project          # Edit per-project settings
+checkpoint search "query"     # Search backup history
+checkpoint restore            # Interactive restore with fzf
+checkpoint history            # Browse backup history
+checkpoint --interactive      # Interactive fzf mode for history
+checkpoint cloud list [PROJECT]  # List cloud backups
+checkpoint cloud browse PROJECT  # Browse and download cloud files
+checkpoint cloud download FILE   # Download file (auto-decrypted)
+checkpoint cloud download-all    # Download entire backup (--zip)
+checkpoint cloud setup           # Configure cloud on new machine
+```
+
+## Configuration
+
+### Global Config (~/.config/checkpoint/config.sh)
+- BACKUP_INTERVAL: Minutes between backups (default: 60)
+- COMPRESSION_LEVEL: gzip level 1-9 (default: 6)
+- DESKTOP_NOTIFICATIONS: true/false
+- CLOUD_FOLDER_ENABLED: true/false
+- CLOUD_FOLDER_PATH: Path to synced cloud folder
+- CLOUD_RCLONE_ENABLED: true/false
+- CLOUD_RCLONE_REMOTE: rclone remote name
+- ENCRYPTION_ENABLED: true/false
+- ENCRYPTION_KEY_PATH: Path to age key file
+- DEBUG_MODE: true/false
+
+### Per-Project Config (.backup-config.sh in project root)
+- BACKUP_DIR: Where backups are stored (default: ./backups)
+- DB_TYPE: Database engine (auto-detected: sqlite, postgres, mysql, mongodb)
+- BACKUP_CRITICAL_FILES: Back up .env, credentials (default: true)
+- RETENTION_DAYS_DB: Days to keep database backups (default: 30)
+- RETENTION_DAYS_FILES: Days to keep file archives (default: 90)
+
+## Backup Structure
+
+```
+project/backups/
+├── db/
+│   ├── 2026-02-17_140000.sql.gz          # Database dumps
+│   └── 2026-02-17_150000.sql.gz
+├── files/
+│   ├── src/app.js                         # Latest file versions
+│   ├── .env                               # Critical files
+│   └── package.json
+├── archive/
+│   ├── 2026-02-17_140000/                 # Point-in-time snapshots
+│   └── 2026-02-17_150000/
+├── cloud/                                  # Encrypted cloud staging
+└── .backup-manifest.json                   # Backup metadata
+```
+
+## Supported Cloud Providers
+
+| Provider | Free Tier | Method |
+|----------|-----------|--------|
+| Dropbox | 2 GB | Folder sync or rclone |
+| Google Drive | 15 GB | Folder sync or rclone |
+| iCloud Drive | 5 GB | Folder sync |
+| OneDrive | 5 GB | Folder sync or rclone |
+| Amazon S3 | Pay per use | rclone |
+| Backblaze B2 | 10 GB | rclone |
+
+## Encryption & Compression
+
+- Uses `age` encryption (modern, audited, no config needed)
+- Compression pipeline: text files gzip-compressed before encryption (.gz.age)
+- Already-compressed formats (images, video, archives) encrypted directly (.age)
+- Parallel encryption across multiple CPU cores for 100+ files
+- Generate key: `age-keygen -o key.txt`
+- Set ENCRYPTION_ENABLED=true and ENCRYPTION_KEY_PATH in config
+- Files compressed and encrypted before cloud upload
+- Lost keys = permanently inaccessible backups (no recovery)
+
+## System Requirements
+
+- macOS 12+ or Linux (Ubuntu 20.04+, Debian 11+, Fedora 35+)
+- Bash 4.0+
+- Optional: age (encryption), rclone (cloud sync), fzf (interactive browse)
+- Optional: Docker (for container database backups)
+- 50 MB disk space for Checkpoint itself
+- Additional disk for backups (varies by project size)
+
+## Third-Party Dependencies
+
+| Software | Purpose | License |
+|----------|---------|---------|
+| age | File encryption | BSD 3-Clause |
+| rclone | Cloud sync | MIT |
+| fzf | Interactive file browsing | MIT |
+| SQLite | Database backup support | Public Domain |
+| PostgreSQL | Database backup support | PostgreSQL License |
+| MySQL | Database backup support | GPL v2 |
+| MongoDB | Database backup support | SSPL |
+
+None are bundled — install separately as needed.
+
+## License
+
+Polyform Noncommercial License 1.0.0:
+- Free for personal, educational, open source, and noncommercial use
+- Commercial use requires a separate license from Fluxcode Studio LLC
+- Source code is viewable and auditable
+- Contact legal@fluxcode.studio for commercial licensing
+
+## Links
+
+- Homepage: https://checkpoint.fluxcode.studio/
+- Documentation: https://checkpoint.fluxcode.studio/docs.html
+- GitHub: https://github.com/fluxcodestudio/Checkpoint
+- Privacy Policy: https://checkpoint.fluxcode.studio/privacy.html
+- Terms of Service: https://checkpoint.fluxcode.studio/terms.html
+- Legal: https://checkpoint.fluxcode.studio/legal.html
+- Company: https://fluxcode.studio

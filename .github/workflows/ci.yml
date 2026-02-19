@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3 gzip
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew list sqlite3 &>/dev/null || brew install sqlite3
+          brew list gzip &>/dev/null || brew install gzip
+
+      - name: Bash syntax check
+        run: |
+          echo "Checking bash syntax for all .sh files in bin/ and lib/..."
+          errors=0
+          while IFS= read -r file; do
+            if ! bash -n "$file"; then
+              echo "FAIL: $file"
+              errors=$((errors + 1))
+            fi
+          done < <(find bin/ lib/ -name '*.sh' -type f)
+          if [ "$errors" -gt 0 ]; then
+            echo "$errors file(s) with syntax errors"
+            exit 1
+          fi
+          echo "All files passed syntax check."
+
+      - name: Run test suite
+        run: |
+          chmod +x ./tests/run-all-tests.sh
+          ./tests/run-all-tests.sh

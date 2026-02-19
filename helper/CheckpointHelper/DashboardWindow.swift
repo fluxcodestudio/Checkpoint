@@ -153,6 +153,11 @@ struct DashboardView: View {
         .sheet(isPresented: $viewModel.showingHelp) {
             HelpView(isPresented: $viewModel.showingHelp)
         }
+        .sheet(isPresented: $viewModel.showingCloudBrowse) {
+            if let project = viewModel.cloudBrowseProject {
+                CloudBrowseView(isPresented: $viewModel.showingCloudBrowse, projectName: project.name)
+            }
+        }
     }
 
     // MARK: - Header
@@ -193,20 +198,24 @@ struct DashboardView: View {
     // MARK: - Backup Banner
 
     private var backupBanner: some View {
-        VStack(spacing: 8) {
+        let isCloud = viewModel.isCloudPhase
+        let tintColor: Color = isCloud ? .cpBlue : .cpAccentWarm
+        let bgColor: Color = isCloud ? .cpBlue : .cpAccent
+
+        return VStack(spacing: 8) {
             HStack(spacing: 8) {
                 ProgressView()
                     .controlSize(.small)
-                    .tint(.cpAccentWarm)
-                Text("Backing up\u{2026}")
+                    .tint(tintColor)
+                Text(isCloud ? "Uploading to cloud\u{2026}" : "Backing up\u{2026}")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.cpAccentWarm)
+                    .foregroundColor(tintColor)
                 Spacer()
             }
             ForEach(Array(viewModel.backingUpProjects), id: \.self) { projectId in
                 HStack(spacing: 6) {
-                    Image(systemName: "arrow.right.circle.fill")
-                        .foregroundColor(.cpAccentWarm.opacity(0.7))
+                    Image(systemName: isCloud ? "cloud.fill" : "arrow.right.circle.fill")
+                        .foregroundColor(tintColor.opacity(0.7))
                         .font(.system(size: 10))
                     Text((projectId as NSString).lastPathComponent)
                         .font(.system(size: 12, weight: .medium))
@@ -219,7 +228,7 @@ struct DashboardView: View {
                 Text(viewModel.backupProgressPhaseText)
                     .font(.system(size: 11))
                     .foregroundColor(.cpTextSecondary)
-                if viewModel.backupProgressTotal > 0 {
+                if !isCloud && viewModel.backupProgressTotal > 0 {
                     Text("\u{2022} \(viewModel.backupProgressTotal) files")
                         .font(.system(size: 11))
                         .foregroundColor(.cpTextSecondary)
@@ -228,16 +237,16 @@ struct DashboardView: View {
             }
 
             ProgressView(value: Double(viewModel.backupProgressPercent), total: 100)
-                .tint(.cpAccentWarm)
+                .tint(tintColor)
                 .scaleEffect(y: 0.6)
         }
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(Color.cpAccent.opacity(0.08))
+                .fill(bgColor.opacity(0.08))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .strokeBorder(Color.cpAccent.opacity(0.15), lineWidth: 0.5)
+                        .strokeBorder(bgColor.opacity(0.15), lineWidth: 0.5)
                 )
         )
         .padding(.horizontal, 16)
@@ -334,7 +343,8 @@ struct DashboardView: View {
                         onRevealInFinder: { viewModel.revealInFinder(project) },
                         onViewBackupFolder: { viewModel.viewBackupFolder(project) },
                         onViewLog: { viewModel.viewLog(project) },
-                        onToggleEnabled: { viewModel.toggleEnabled(project) }
+                        onToggleEnabled: { viewModel.toggleEnabled(project) },
+                        onBrowseCloud: { viewModel.browseCloud(project) }
                     )
                 }
             }
@@ -491,6 +501,7 @@ struct ProjectRow: View {
     let onViewBackupFolder: () -> Void
     let onViewLog: () -> Void
     let onToggleEnabled: () -> Void
+    var onBrowseCloud: (() -> Void)? = nil
 
     @State private var isHovered = false
 
@@ -635,6 +646,14 @@ struct ProjectRow: View {
 
             Button { onViewLog() } label: {
                 Label("View Backup Log", systemImage: "doc.text")
+            }
+
+            if let browseCloud = onBrowseCloud {
+                Divider()
+
+                Button { browseCloud() } label: {
+                    Label("Browse Cloud Backups", systemImage: "cloud")
+                }
             }
 
             Divider()
@@ -1183,7 +1202,13 @@ struct HelpView: View {
                     helpSection(
                         icon: "cloud.fill",
                         title: "Cloud Sync",
-                        text: "Optionally sync backups to encrypted cloud storage via rclone. Supports any rclone-compatible provider (S3, B2, Google Drive, etc.)."
+                        text: "Sync backups to Dropbox, Google Drive, OneDrive, iCloud, or any rclone-compatible provider. Files are compressed with gzip and encrypted with age before upload. Parallel encryption across multiple CPU cores for large backups."
+                    )
+
+                    helpSection(
+                        icon: "arrow.down.circle",
+                        title: "Cloud Restore",
+                        text: "Browse and download files from cloud backups with `checkpoint cloud browse`. Files are auto-decrypted and decompressed on download. Download individual files or entire backups as a zip."
                     )
 
                     helpSection(
@@ -1195,7 +1220,7 @@ struct HelpView: View {
                     helpSection(
                         icon: "terminal",
                         title: "CLI Commands",
-                        text: "`checkpoint status` \u{2014} view backup status\n`checkpoint history` \u{2014} browse backup history\n`checkpoint search` \u{2014} search across backups\n`checkpoint restore` \u{2014} restore files from backup"
+                        text: "`checkpoint status` \u{2014} view backup status\n`checkpoint history` \u{2014} browse backup history\n`checkpoint search` \u{2014} search across backups\n`checkpoint restore` \u{2014} restore files from backup\n`checkpoint cloud browse` \u{2014} browse cloud backups\n`checkpoint cloud download` \u{2014} download from cloud"
                     )
 
                     // Link to repo
@@ -1261,6 +1286,633 @@ struct HelpView: View {
             }
         }
     }
+}
+
+// MARK: - Cloud Browse View
+
+struct CloudBrowseView: View {
+    @Binding var isPresented: Bool
+    let projectName: String
+    @StateObject private var viewModel = CloudBrowseViewModel()
+
+    var body: some View {
+        ZStack {
+            Color.cpBg.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Title bar
+                HStack {
+                    Image(systemName: "cloud")
+                        .font(.system(size: 14))
+                        .foregroundColor(.cpBlue)
+                    Text("Cloud Backups")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.cpTextPrimary)
+                    Text("\u{2014} \(projectName)")
+                        .font(.system(size: 14))
+                        .foregroundColor(.cpTextSecondary)
+                    Spacer()
+                    Button("Done") { isPresented = false }
+                        .buttonStyle(CPButtonStyle(accent: .cpAccent, filled: true))
+                        .keyboardShortcut(.cancelAction)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color.cpBorder).frame(height: 0.5)
+                }
+
+                // Content
+                switch viewModel.state {
+                case .loading:
+                    Spacer()
+                    VStack(spacing: 12) {
+                        ProgressView().controlSize(.regular)
+                        Text("Loading cloud index\u{2026}")
+                            .font(.system(size: 12))
+                            .foregroundColor(.cpTextSecondary)
+                    }
+                    Spacer()
+
+                case .error(let msg):
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 36))
+                            .foregroundColor(.cpWarning)
+                        Text(msg)
+                            .font(.system(size: 13))
+                            .foregroundColor(.cpTextSecondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(20)
+                    Spacer()
+
+                case .noCloud:
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "cloud.slash")
+                            .font(.system(size: 36))
+                            .foregroundColor(.cpTextTertiary)
+                        Text("No cloud backups found")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.cpTextSecondary)
+                        Text("Run a backup with cloud sync enabled to see backups here.")
+                            .font(.system(size: 12))
+                            .foregroundColor(.cpTextTertiary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(20)
+                    Spacer()
+
+                case .loaded:
+                    // Backup selector
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(viewModel.backups) { backup in
+                                Button(action: { viewModel.selectBackup(backup.id) }) {
+                                    VStack(spacing: 2) {
+                                        Text(backup.displayDate)
+                                            .font(.system(size: 11, weight: .medium))
+                                        Text("\(backup.filesCount) files")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.cpTextTertiary)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .fill(viewModel.selectedBackupId == backup.id ? Color.cpAccent.opacity(0.2) : Color.cpSurface)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6)
+                                            .strokeBorder(viewModel.selectedBackupId == backup.id ? Color.cpAccent.opacity(0.5) : Color.cpBorder, lineWidth: 0.5)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundColor(viewModel.selectedBackupId == backup.id ? .cpAccent : .cpTextPrimary)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    .padding(.vertical, 10)
+
+                    // Search
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 12))
+                            .foregroundColor(.cpTextTertiary)
+                        TextField("Search files\u{2026}", text: $viewModel.searchText)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                            .foregroundColor(.cpTextPrimary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.cpSurface)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(Color.cpBorder, lineWidth: 0.5)
+                    )
+                    .padding(.horizontal, 16)
+
+                    // Snapshot context bar
+                    if let backup = viewModel.selectedBackup {
+                        HStack(spacing: 8) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 10))
+                                .foregroundColor(.cpTextTertiary)
+                            Text("Snapshot: \(backup.fullDate)")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.cpTextSecondary)
+                            Text("\u{2022}")
+                                .foregroundColor(.cpTextTertiary)
+                                .font(.system(size: 8))
+                            Text("\(backup.filesCount) files, \(backup.databasesCount) db")
+                                .font(.system(size: 11))
+                                .foregroundColor(.cpTextTertiary)
+                            Text("\u{2022}")
+                                .foregroundColor(.cpTextTertiary)
+                                .font(.system(size: 8))
+                            Text(backup.sizeText)
+                                .font(.system(size: 11))
+                                .foregroundColor(.cpTextTertiary)
+                            if backup.encrypted {
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(.cpAccent.opacity(0.6))
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 4)
+                    }
+
+                    // File list
+                    ScrollView {
+                        LazyVStack(spacing: 2) {
+                            if !viewModel.filteredFiles.isEmpty {
+                                cloudSectionHeader("FILES")
+                                ForEach(viewModel.filteredFiles) { file in
+                                    cloudFileRow(file)
+                                }
+                            }
+                            if !viewModel.filteredDatabases.isEmpty {
+                                cloudSectionHeader("DATABASES")
+                                ForEach(viewModel.filteredDatabases) { db in
+                                    cloudDatabaseRow(db)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+
+                    // Footer with download buttons
+                    VStack(spacing: 0) {
+                        Rectangle().fill(Color.cpBorder).frame(height: 0.5)
+                        HStack(spacing: 10) {
+                            if let progress = viewModel.downloadProgress {
+                                ProgressView(value: progress.fraction)
+                                    .tint(.cpAccent)
+                                    .frame(maxWidth: .infinity)
+                                Text(progress.label)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.cpTextSecondary)
+                            } else {
+                                Button(action: viewModel.downloadAll) {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "arrow.down.circle")
+                                            .font(.system(size: 11))
+                                        Text("Download All")
+                                            .font(.system(size: 12, weight: .medium))
+                                    }
+                                }
+                                .buttonStyle(CPButtonStyle(accent: .cpTextSecondary))
+
+                                Button(action: viewModel.downloadZip) {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "doc.zipper")
+                                            .font(.system(size: 11))
+                                        Text("Download Zip")
+                                            .font(.system(size: 12, weight: .medium))
+                                    }
+                                }
+                                .buttonStyle(CPButtonStyle(accent: .cpAccent, filled: true))
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    }
+                    .background(Color.cpSurface.opacity(0.7))
+                }
+            }
+        }
+        .frame(width: 560, height: 500)
+        .onAppear {
+            viewModel.projectName = projectName
+            viewModel.loadIndex()
+        }
+    }
+
+    private func cloudSectionHeader(_ title: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.cpTextTertiary)
+                .textCase(.uppercase)
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
+    }
+
+    private func cloudFileRow(_ file: CloudFileEntry) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "doc")
+                .font(.system(size: 12))
+                .foregroundColor(.cpTextTertiary)
+                .frame(width: 16)
+            Text(file.path)
+                .font(.system(size: 12))
+                .foregroundColor(.cpTextPrimary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 8)
+            Text(file.sizeText)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(.cpTextTertiary)
+            Button(action: { viewModel.downloadFile(file) }) {
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 13))
+                    .foregroundColor(.cpAccent)
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.downloadProgress != nil)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.clear)
+        )
+    }
+
+    private func cloudDatabaseRow(_ db: CloudDatabaseEntry) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "cylinder")
+                .font(.system(size: 12))
+                .foregroundColor(.cpTextTertiary)
+                .frame(width: 16)
+            Text(db.path)
+                .font(.system(size: 12))
+                .foregroundColor(.cpTextPrimary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if let tables = db.tables, !tables.isEmpty {
+                Text(tables)
+                    .font(.system(size: 10))
+                    .foregroundColor(.cpTextTertiary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(Color.white.opacity(0.05))
+                    )
+            }
+            Spacer(minLength: 8)
+            Text(db.sizeText)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(.cpTextTertiary)
+            Button(action: { viewModel.downloadDatabase(db) }) {
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 13))
+                    .foregroundColor(.cpAccent)
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.downloadProgress != nil)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Cloud Browse View Model
+
+class CloudBrowseViewModel: ObservableObject {
+    enum ViewState {
+        case loading, loaded, error(String), noCloud
+    }
+
+    struct DownloadProgress {
+        var fraction: Double
+        var label: String
+    }
+
+    var projectName: String = ""
+
+    @Published var state: ViewState = .loading
+    @Published var backups: [CloudBackupEntry] = []
+    @Published var selectedBackupId: String?
+    @Published var files: [CloudFileEntry] = []
+    @Published var databases: [CloudDatabaseEntry] = []
+    @Published var searchText: String = ""
+    @Published var downloadProgress: DownloadProgress?
+
+    var filteredFiles: [CloudFileEntry] {
+        guard !searchText.isEmpty else { return files }
+        let query = searchText.lowercased()
+        return files.filter { $0.path.lowercased().contains(query) }
+    }
+
+    var filteredDatabases: [CloudDatabaseEntry] {
+        guard !searchText.isEmpty else { return databases }
+        let query = searchText.lowercased()
+        return databases.filter { $0.path.lowercased().contains(query) }
+    }
+
+    var selectedBackup: CloudBackupEntry? {
+        guard let id = selectedBackupId else { return nil }
+        return backups.first { $0.id == id }
+    }
+
+    func loadIndex() {
+        state = .loading
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let result = self.runCheckpointCloud(["list", self.projectName, "--json"])
+
+            DispatchQueue.main.async {
+                guard let data = result.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let backupsArray = json["backups"] as? [[String: Any]] else {
+                    if result.contains("error") || result.isEmpty {
+                        self.state = .noCloud
+                    } else {
+                        self.state = .error("Could not parse cloud index")
+                    }
+                    return
+                }
+
+                if backupsArray.isEmpty {
+                    self.state = .noCloud
+                    return
+                }
+
+                let encryptionEnabled = json["encryption_enabled"] as? Bool ?? false
+
+                self.backups = backupsArray.compactMap { dict -> CloudBackupEntry? in
+                    guard let backupId = dict["backup_id"] as? String else { return nil }
+                    return CloudBackupEntry(
+                        id: backupId,
+                        backupId: backupId,
+                        timestamp: dict["timestamp"] as? String ?? "",
+                        filesCount: dict["files_count"] as? Int ?? 0,
+                        databasesCount: dict["databases_count"] as? Int ?? 0,
+                        totalSizeBytes: dict["total_size_bytes"] as? Int ?? 0,
+                        encrypted: encryptionEnabled
+                    )
+                }
+
+                self.state = .loaded
+
+                // Auto-select latest
+                if let first = self.backups.first {
+                    self.selectBackup(first.id)
+                }
+            }
+        }
+    }
+
+    func selectBackup(_ backupId: String) {
+        selectedBackupId = backupId
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let result = self.runCheckpointCloud(["browse", self.projectName, backupId, "--json"])
+
+            DispatchQueue.main.async {
+                guard let data = result.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    return
+                }
+
+                // Parse files
+                if let filesArray = json["files"] as? [[String: Any]] {
+                    self.files = filesArray.compactMap { dict -> CloudFileEntry? in
+                        guard let path = dict["path"] as? String else { return nil }
+                        return CloudFileEntry(
+                            id: path,
+                            path: path,
+                            size: dict["size"] as? Int ?? 0
+                        )
+                    }
+                }
+
+                // Parse databases
+                if let dbArray = json["databases"] as? [[String: Any]] {
+                    self.databases = dbArray.compactMap { dict -> CloudDatabaseEntry? in
+                        guard let path = dict["path"] as? String else { return nil }
+                        let tables = dict["tables"] as? Int
+                        return CloudDatabaseEntry(
+                            id: path,
+                            path: path,
+                            size: dict["size"] as? Int ?? 0,
+                            tables: tables.map { "\($0) tables" }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    func downloadFile(_ file: CloudFileEntry) {
+        guard let backupId = selectedBackupId else { return }
+        downloadProgress = DownloadProgress(fraction: 0.3, label: "Downloading \(file.path)\u{2026}")
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let _ = self.runCheckpointCloud([
+                "download", file.path,
+                "--project", self.projectName,
+                "--backup-id", backupId,
+                "--json"
+            ])
+
+            DispatchQueue.main.async {
+                self.downloadProgress = DownloadProgress(fraction: 1.0, label: "Done!")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    self.downloadProgress = nil
+                }
+            }
+        }
+    }
+
+    func downloadDatabase(_ db: CloudDatabaseEntry) {
+        guard let backupId = selectedBackupId else { return }
+        downloadProgress = DownloadProgress(fraction: 0.3, label: "Downloading \(db.path)\u{2026}")
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let _ = self.runCheckpointCloud([
+                "download", db.path,
+                "--project", self.projectName,
+                "--backup-id", backupId,
+                "--json"
+            ])
+
+            DispatchQueue.main.async {
+                self.downloadProgress = DownloadProgress(fraction: 1.0, label: "Done!")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    self.downloadProgress = nil
+                }
+            }
+        }
+    }
+
+    func downloadAll() {
+        guard let backupId = selectedBackupId else { return }
+        downloadProgress = DownloadProgress(fraction: 0.1, label: "Downloading all files\u{2026}")
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let _ = self.runCheckpointCloud([
+                "download-all",
+                "--project", self.projectName,
+                "--backup-id", backupId,
+                "--json"
+            ])
+
+            DispatchQueue.main.async {
+                self.downloadProgress = DownloadProgress(fraction: 1.0, label: "Done!")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    self.downloadProgress = nil
+                }
+            }
+        }
+    }
+
+    func downloadZip() {
+        guard let backupId = selectedBackupId else { return }
+        downloadProgress = DownloadProgress(fraction: 0.1, label: "Creating zip archive\u{2026}")
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            let _ = self.runCheckpointCloud([
+                "download-all",
+                "--project", self.projectName,
+                "--backup-id", backupId,
+                "--zip",
+                "--json"
+            ])
+
+            DispatchQueue.main.async {
+                self.downloadProgress = DownloadProgress(fraction: 1.0, label: "Done!")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    self.downloadProgress = nil
+                }
+            }
+        }
+    }
+
+    private func runCheckpointCloud(_ args: [String]) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let possiblePaths = [
+            "\(home)/.local/bin/checkpoint",
+            "/usr/local/bin/checkpoint"
+        ]
+        guard let command = possiblePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+            return ""
+        }
+
+        let task = Process()
+        task.launchPath = command
+        task.arguments = ["cloud"] + args
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+        } catch {
+            NSLog("CheckpointHelper: cloud command failed: %@", error.localizedDescription)
+            return ""
+        }
+
+        // Read output BEFORE waitUntilExit to avoid pipe buffer deadlock
+        // (pipe buffer is ~64KB; large output like browse with 36K files is ~4MB)
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+}
+
+// MARK: - Cloud Data Models
+
+struct CloudBackupEntry: Identifiable {
+    let id: String
+    let backupId: String
+    let timestamp: String
+    let filesCount: Int
+    let databasesCount: Int
+    let totalSizeBytes: Int
+    let encrypted: Bool
+
+    var displayDate: String {
+        // Parse from backup_id format: YYYYMMDD_HHMMSS
+        guard backupId.count >= 15 else { return backupId }
+        let m = backupId.dropFirst(4).prefix(2)
+        let d = backupId.dropFirst(6).prefix(2)
+        let h = backupId.dropFirst(9).prefix(2)
+        let mn = backupId.dropFirst(11).prefix(2)
+        return "\(m)/\(d) \(h):\(mn)"
+    }
+
+    var fullDate: String {
+        // Parse from backup_id format: YYYYMMDD_HHMMSS → "Feb 17, 2026 1:49 AM"
+        guard backupId.count >= 15 else { return backupId }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        guard let date = formatter.date(from: String(backupId.prefix(15))) else { return backupId }
+        let display = DateFormatter()
+        display.dateFormat = "MMM d, yyyy h:mm a"
+        return display.string(from: date)
+    }
+
+    var sizeText: String { formatSize(totalSizeBytes) }
+}
+
+struct CloudFileEntry: Identifiable {
+    let id: String
+    let path: String
+    let size: Int
+
+    var sizeText: String { formatSize(size) }
+}
+
+struct CloudDatabaseEntry: Identifiable {
+    let id: String
+    let path: String
+    let size: Int
+    let tables: String?
+
+    var sizeText: String { formatSize(size) }
+}
+
+private func formatSize(_ bytes: Int) -> String {
+    if bytes < 1024 { return "\(bytes) B" }
+    let kb = Double(bytes) / 1024
+    if kb < 1024 { return String(format: "%.0f KB", kb) }
+    let mb = kb / 1024
+    if mb < 1024 { return String(format: "%.1f MB", mb) }
+    let gb = mb / 1024
+    return String(format: "%.1f GB", gb)
 }
 
 // MARK: - Settings Helpers
@@ -1441,16 +2093,26 @@ class DashboardViewModel: ObservableObject {
     @Published var showingAbout = false
     @Published var showingHelp = false
     @Published var showingUpdateCheck = false
+    @Published var showingCloudBrowse = false
+    @Published var cloudBrowseProject: ProjectInfo?
     @Published var updateCheckResult: UpdateCheckResult?
 
     func dismissAllModals() {
         showingSettings = false
         showingHelp = false
         showingUpdateCheck = false
+        showingCloudBrowse = false
+        cloudBrowseProject = nil
         if showingAbout {
             showingAbout = false
             AboutPanelController.shared.close()
         }
+    }
+
+    func browseCloud(_ project: ProjectInfo) {
+        dismissAllModals()
+        cloudBrowseProject = project
+        showingCloudBrowse = true
     }
 
     enum UpdateCheckResult {
@@ -1472,15 +2134,24 @@ class DashboardViewModel: ObservableObject {
 
     var backupProgressPhaseText: String {
         switch backupProgressPhase {
-        case "initializing": return "Initializing\u{2026}"
-        case "scanning":     return "Scanning for changes\u{2026}"
-        case "preparing":    return "Preparing files\u{2026}"
-        case "copying":      return "Copying files\u{2026}"
-        case "verifying":    return "Verifying integrity\u{2026}"
-        case "manifest":     return "Writing manifest\u{2026}"
-        case "finalizing":   return "Finalizing\u{2026}"
-        default:             return "Working\u{2026}"
+        case "initializing":     return "Initializing\u{2026}"
+        case "scanning":         return "Scanning for changes\u{2026}"
+        case "preparing":        return "Preparing files\u{2026}"
+        case "copying":          return "Copying files\u{2026}"
+        case "verifying":        return "Verifying integrity\u{2026}"
+        case "manifest":         return "Writing manifest\u{2026}"
+        case "finalizing":       return "Finalizing\u{2026}"
+        case "cloud_syncing":    return "\u{2601}\u{FE0F} Uploading to cloud\u{2026}"
+        case "cloud_databases":  return "\u{2601}\u{FE0F} Uploading databases to cloud\u{2026}"
+        case "cloud_files":      return "\u{2601}\u{FE0F} Uploading files to cloud\u{2026}"
+        case "cloud_archives":   return "\u{2601}\u{FE0F} Uploading version history to cloud\u{2026}"
+        case "cloud_encrypting": return "\u{1F512} Encrypting cloud files\u{2026}"
+        default:                 return "Working\u{2026}"
         }
+    }
+
+    var isCloudPhase: Bool {
+        backupProgressPhase.hasPrefix("cloud_")
     }
 
     // Live sync progress from heartbeat
@@ -1787,65 +2458,105 @@ class DashboardViewModel: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let installDir = self?.findInstallDir() ?? ""
             let dirURL = URL(fileURLWithPath: installDir)
+            let fm = FileManager.default
 
-            // Helper to run git commands
-            func git(_ args: [String]) -> String? {
-                let proc = Process()
-                proc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-                proc.arguments = args
-                proc.currentDirectoryURL = dirURL
-                let pipe = Pipe()
-                proc.standardOutput = pipe
-                proc.standardError = Pipe()
-                do {
-                    try proc.run()
-                    proc.waitUntilExit()
-                    guard proc.terminationStatus == 0 else { return nil }
-                } catch { return nil }
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+            // Check if this is a git-based install
+            let hasGit = fm.fileExists(atPath: installDir + "/.git")
 
-            // Get local HEAD
-            guard let localHash = git(["rev-parse", "HEAD"]), !localHash.isEmpty else {
-                DispatchQueue.main.async {
-                    self?.updateCheckResult = .error("Could not read local version at:\n\(installDir)")
+            if hasGit {
+                // Git-based install: compare commit hashes
+                func git(_ args: [String]) -> String? {
+                    let proc = Process()
+                    proc.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+                    proc.arguments = args
+                    proc.currentDirectoryURL = dirURL
+                    let pipe = Pipe()
+                    proc.standardOutput = pipe
+                    proc.standardError = Pipe()
+                    do {
+                        try proc.run()
+                        proc.waitUntilExit()
+                        guard proc.terminationStatus == 0 else { return nil }
+                    } catch { return nil }
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
                 }
-                return
-            }
 
-            // Fetch latest from remote (uses existing git credentials)
-            let _ = git(["fetch", "origin", "--quiet"])
+                guard let localHash = git(["rev-parse", "HEAD"]), !localHash.isEmpty else {
+                    DispatchQueue.main.async {
+                        self?.updateCheckResult = .error("Could not read local version at:\n\(installDir)")
+                    }
+                    return
+                }
 
-            // Get remote HEAD
-            guard let remoteHash = git(["rev-parse", "origin/main"]), !remoteHash.isEmpty else {
-                // Try origin/master as fallback
-                guard let remoteHashMaster = git(["rev-parse", "origin/master"]), !remoteHashMaster.isEmpty else {
+                let _ = git(["fetch", "origin", "--quiet"])
+
+                guard let remoteHash = git(["rev-parse", "origin/main"]) ?? git(["rev-parse", "origin/master"]),
+                      !remoteHash.isEmpty else {
                     DispatchQueue.main.async {
                         self?.updateCheckResult = .error("Could not fetch remote version.\nIs the remote configured?")
                     }
                     return
                 }
+
                 let localShort = String(localHash.prefix(7))
-                let remoteShort = String(remoteHashMaster.prefix(7))
+                let remoteShort = String(remoteHash.prefix(7))
+
                 DispatchQueue.main.async {
-                    if localHash == remoteHashMaster {
+                    if localHash == remoteHash {
                         self?.updateCheckResult = .upToDate(version: localShort)
                     } else {
                         self?.updateCheckResult = .updateAvailable(local: localShort, remote: remoteShort)
                     }
                 }
-                return
-            }
+            } else {
+                // Non-git install: compare VERSION file against GitHub API
+                let versionPath = installDir + "/VERSION"
+                guard let localVersion = try? String(contentsOfFile: versionPath, encoding: .utf8)
+                    .trimmingCharacters(in: .whitespacesAndNewlines), !localVersion.isEmpty else {
+                    DispatchQueue.main.async {
+                        self?.updateCheckResult = .error("Could not read VERSION file at:\n\(installDir)")
+                    }
+                    return
+                }
 
-            let localShort = String(localHash.prefix(7))
-            let remoteShort = String(remoteHash.prefix(7))
+                // Fetch latest version from GitHub raw VERSION file
+                let rawURL = URL(string: "https://raw.githubusercontent.com/fluxcodestudio/Checkpoint/main/VERSION")!
+                let semaphore = DispatchSemaphore(value: 0)
+                var remoteVersion: String?
+                var fetchError: String?
 
-            DispatchQueue.main.async {
-                if localHash == remoteHash {
-                    self?.updateCheckResult = .upToDate(version: localShort)
-                } else {
-                    self?.updateCheckResult = .updateAvailable(local: localShort, remote: remoteShort)
+                let task = URLSession.shared.dataTask(with: rawURL) { data, response, error in
+                    defer { semaphore.signal() }
+                    if let error = error {
+                        fetchError = error.localizedDescription
+                        return
+                    }
+                    guard let data = data,
+                          let httpResponse = response as? HTTPURLResponse,
+                          httpResponse.statusCode == 200 else {
+                        fetchError = "Could not reach GitHub"
+                        return
+                    }
+                    remoteVersion = String(data: data, encoding: .utf8)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                task.resume()
+                _ = semaphore.wait(timeout: .now() + 10)
+
+                guard let remote = remoteVersion, !remote.isEmpty else {
+                    DispatchQueue.main.async {
+                        self?.updateCheckResult = .error(fetchError ?? "Could not check for updates.\nNo internet connection?")
+                    }
+                    return
+                }
+
+                DispatchQueue.main.async {
+                    if localVersion == remote {
+                        self?.updateCheckResult = .upToDate(version: "v\(localVersion)")
+                    } else {
+                        self?.updateCheckResult = .updateAvailable(local: "v\(localVersion)", remote: "v\(remote)")
+                    }
                 }
             }
         }

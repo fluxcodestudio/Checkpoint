@@ -320,7 +320,7 @@ if [[ "$auto_configure" =~ ^[Yy]$ ]]; then
     echo "Where are your projects located?"
     echo ""
     echo "  Examples:"
-    echo "    /Volumes/WORK DRIVE/WEB DEV"
+    echo "    /Volumes/ExternalDrive/Projects"
     echo "    ~/Developer"
     echo "    ~/Projects"
     echo ""

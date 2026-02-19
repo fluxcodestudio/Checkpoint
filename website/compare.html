@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkpoint vs Alternatives - Compare Developer Backup Tools</title>
+    <meta name="description" content="Compare Checkpoint against Time Machine, rsync, cron, Restic, Git, and cloud sync. See why Checkpoint is the best automated backup tool for developers.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://checkpoint.fluxcode.studio/compare.html">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://checkpoint.fluxcode.studio/compare.html">
+    <meta property="og:title" content="Checkpoint vs Alternatives - Compare Developer Backup Tools">
+    <meta property="og:description" content="Compare Checkpoint against Time Machine, rsync, cron, Restic, Git, and cloud sync for developer backups.">
+    <meta property="og:site_name" content="Checkpoint">
+    <meta property="og:image" content="https://checkpoint.fluxcode.studio/Dashboard.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Checkpoint vs Alternatives - Compare Developer Backup Tools">
+    <meta name="twitter:description" content="Compare Checkpoint against Time Machine, rsync, cron, Restic, Git, and cloud sync for developer backups.">
+    <meta name="twitter:image" content="https://checkpoint.fluxcode.studio/Dashboard.png">
+    <link rel="icon" type="image/png" href="checkpoint-logo-no-text.png">
+    <link rel="apple-touch-icon" href="checkpoint-logo-no-text.png">
+    <meta name="theme-color" content="#a666ff">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="fonts/fonts.css">
+</head>
+<body class="docs-page legal-page">
+    <a href="#compare-main" class="skip-link">Skip to main content</a>
+    <div class="aurora" aria-hidden="true">
+        <div class="aurora__layer aurora__layer--1"></div>
+        <div class="aurora__layer aurora__layer--2"></div>
+        <div class="aurora__layer aurora__layer--3"></div>
+        <div class="aurora__layer aurora__layer--4"></div>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <img src="checkpoint-logo-no-text.png" alt="Checkpoint" class="logo-img">
+                <span class="logo-text">CHECKPOINT</span>
+            </a>
+            <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle navigation">☰</button>
+            <div class="nav-links">
+                <a href="index.html#features">Features</a>
+                <a href="index.html#dashboard">Dashboard</a>
+                <a href="docs.html">Docs</a>
+                <a href="compare.html" class="active">Compare</a>
+                <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <a href="index.html#contact" onclick="if(window.openContactModal){openContactModal();return false;}">Contact</a>
+                <a href="index.html#newsletter" onclick="if(window.openNewsletterModal){openNewsletterModal();return false;}">Join Us</a>
+                <a href="index.html#download" class="btn btn-primary">Download Free</a>
+            </div>
+        </div>
+    </nav>
+
+    <main id="compare-main" class="legal-container" style="max-width: 960px;">
+        <h1>Checkpoint vs. The Alternatives</h1>
+        <p class="legal-updated">You've got options. Most of them weren't built for the way developers actually work. Here's the honest breakdown.</p>
+
+        <h2>Feature Comparison</h2>
+        <div style="overflow-x: auto;">
+            <table class="legal-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Checkpoint</th>
+                        <th>Time Machine</th>
+                        <th>rsync / cron</th>
+                        <th>Restic</th>
+                        <th>Git</th>
+                        <th>Cloud Sync</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Automatic scheduled backups</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007; Manual setup</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007; Manual setup</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                    </tr>
+                    <tr>
+                        <td>Database backup (SQLite/PG/MySQL/Mongo)</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                    </tr>
+                    <tr>
+                        <td>.env &amp; secrets protection</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                    </tr>
+                    <tr>
+                        <td>Encrypted cloud sync</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007; Not encrypted</td>
+                    </tr>
+                    <tr>
+                        <td>Version history</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007; Overwrites</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003; Limited</td>
+                    </tr>
+                    <tr>
+                        <td>Native macOS dashboard</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                    </tr>
+                    <tr>
+                        <td>Docker support</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                    </tr>
+                    <tr>
+                        <td>Search &amp; restore</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                    </tr>
+                    <tr>
+                        <td>Zero config</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                    </tr>
+                    <tr>
+                        <td>Free</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: #4ade80;">&#10003;</td>
+                        <td style="color: rgba(255,255,255,0.35);">&#10007; Paid plans</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2>Checkpoint vs. Time Machine</h2>
+        <p>Time Machine does one thing well: it backs up your whole computer. The problem is, "your whole computer" includes 400 GB of stuff you don't care about and none of the developer-specific intelligence you actually need. It doesn't know what a database is. It doesn't know what <code>.env</code> means. It can't tell your project files from your system cache. And when you need to pull back a single project from two Tuesdays ago, you're spelunking through a full-system timeline looking for a needle in a haystack.</p>
+        <p>Checkpoint thinks in projects, not partitions. It dumps your databases properly, skips <code>node_modules</code> and build artifacts automatically, and lets you restore a complete project — code, data, config — in one command. No external drive required. No NAS. Just works.</p>
+
+        <h2>Checkpoint vs. rsync / cron</h2>
+        <p>The DIY approach. Respectable. Also, a maintenance nightmare that nobody admits to. You'll spend an afternoon writing rsync flags, setting up cron schedules, rigging log rotation, building exclude lists — and then you'll never touch it again until it silently breaks three months later and you find out the hard way.</p>
+        <p>Checkpoint is the version of that script you'd write if you had unlimited time and actually followed through. Versioned snapshots, smart exclusions, database dumps, encrypted cloud sync, health monitoring, failure alerts — all from one <code>backup-now</code> command. No crontab required. No shell script to babysit. A menu bar dashboard tells you if anything's gone sideways, so you don't discover problems on the worst possible day.</p>
+
+        <h2>Checkpoint vs. Restic</h2>
+        <p>Restic is genuinely good software. Deduplication, encryption, multi-backend support — it's well-engineered for server backups and general-purpose snapshots. What it isn't is developer-aware. Restic sees files and directories. Checkpoint sees projects.</p>
+        <p>That distinction matters. Checkpoint auto-detects your databases — SQLite, Postgres, MySQL, Mongo — and runs proper dumps before each snapshot. No corrupt half-written WAL files. It knows to skip <code>node_modules</code>, <code>.git</code>, and build output without being told. And it picks up <code>.env</code> files and credentials that live in your .gitignore — the exact files Restic would only back up if you remembered to tell it where they are.</p>
+        <p>Restic also needs you to handle scheduling, exclude patterns, and repo initialization yourself. Checkpoint does all of that on install. Plus there's a native macOS dashboard that gives you the kind of at-a-glance status Restic's CLI never will.</p>
+
+        <h2>Checkpoint vs. Git (as Backup)</h2>
+        <p>Here's the thing nobody wants to say out loud: Git is not a backup system. It was never designed to be one. It deliberately ignores your <code>.env</code> files, your databases, your uploaded assets, your credentials — basically everything in <code>.gitignore</code>. That's by design. Git tracks source code. If your SSD dies tomorrow and all you have is your GitHub repo, you'll get your code back. You will not get a working project back.</p>
+        <p>Checkpoint protects the rest — all the stuff that makes a project actually run. Think of Git as your collaboration tool and Checkpoint as the thing that catches you when the collaboration tool can't. They're not competitors. They're partners.</p>
+        <p>Also: Git only saves what you commit. That half-finished refactor you haven't pushed yet? The local branch you've been working on for a week? If you didn't push, it doesn't exist anywhere else. Checkpoint runs automatically. Your work is protected whether you remembered to commit or not.</p>
+
+        <h2>Checkpoint vs. Cloud Sync (Dropbox / iCloud)</h2>
+        <p>Put a developer project in Dropbox and watch the chaos unfold. Every <code>node_modules</code> install triggers thousands of file syncs. SQLite databases lock up because two processes are fighting over them. Build output gets uploaded, deleted, re-uploaded — burning through your quota and your patience simultaneously. These tools were built for documents and photos. Developer projects break them.</p>
+        <p>Security is the other problem nobody talks about. Dropbox and iCloud store your files in plaintext on their servers. Your <code>.env</code> files, your API keys, your database dumps — all sitting on infrastructure you don't control. Checkpoint encrypts everything with <code>age</code> before it ever leaves your machine. Your cloud provider gets ciphertext. You keep the key.</p>
+        <p>And "restore to a point in time"? Cloud sync doesn't do that. You might get version history on individual files, but reassembling an entire project state from a specific moment is basically impossible. Checkpoint gives you complete, timestamped project snapshots. One command. Done.</p>
+
+        <h2 style="text-align: center; margin-top: 60px; border-bottom: none; padding-bottom: 0;">Sold yet?</h2>
+        <p style="text-align: center; font-size: 1.05rem; margin-bottom: 32px;">Free, open source, installs in under a minute. No credit card, no sign-up, no catch.</p>
+        <p style="text-align: center; margin-bottom: 60px;">
+            <a href="index.html#download" class="btn btn-primary" style="font-size: 1rem; padding: 14px 36px;">Download Free</a>
+        </p>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <img src="checkpoint-logo-no-text.png" alt="Checkpoint" class="logo-img footer-logo-img">
+                        <span class="logo-text">CHECKPOINT</span>
+                    </div>
+                    <p>A little peace of mind goes a long way.</p>
+                    <p class="footer-company">A product of <a href="https://fluxcode.studio" target="_blank" rel="noopener noreferrer">FluxCode Studio</a></p>
+                </div>
+                <div class="footer-links">
+                    <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <a href="docs.html">Documentation</a>
+                    <a href="privacy.html">Privacy Policy</a>
+                    <a href="terms.html">Terms of Service</a>
+                    <a href="legal.html">Legal</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025–2026 Fluxcode Studio LLC. <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/" target="_blank" rel="noopener noreferrer">Polyform Noncommercial License</a></p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

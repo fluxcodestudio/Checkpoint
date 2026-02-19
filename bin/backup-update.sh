@@ -108,7 +108,7 @@ if [[ -z "$LATEST_VERSION" ]]; then
     # Try to find the original git repository
     if [[ "$INSTALL_MODE" == "global" ]]; then
         # For global installs, suggest common locations
-        echo "  cd \"/Volumes/WORK DRIVE - 4TB/WEB DEV/CLAUDE CODE PROJECT BACKUP\""
+        echo "  cd \"$(dirname "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")")\""
         echo "  git pull"
         echo "  ./bin/install-global.sh"
     else

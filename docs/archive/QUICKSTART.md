@@ -5,7 +5,7 @@
 ### Step 1: Deploy the Library (30 seconds)
 
 ```bash
-cd "/Volumes/WORK DRIVE - 4TB/WEB DEV/CLAUDE CODE PROJECT BACKUP"
+cd "/path/to/Checkpoint"
 
 # Backup current library
 cp lib/backup-lib.sh lib/backup-lib.sh.v1.0.backup

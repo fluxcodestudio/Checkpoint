@@ -5,12 +5,154 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkpoint - Automated Backup for Developers</title>
     <meta name="description" content="A code guardian for developing projects. Automated, intelligent backup system for any development environment. Encrypted cloud backups, native macOS dashboard, and universal database support.">
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+    <link rel="canonical" href="https://checkpoint.fluxcode.studio/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://checkpoint.fluxcode.studio/">
+    <meta property="og:title" content="Checkpoint - Automated Backup for Developers">
+    <meta property="og:description" content="Automated, intelligent backup system for developers. Encrypted cloud sync, native macOS dashboard, universal database support. Free and open source.">
+    <meta property="og:image" content="https://checkpoint.fluxcode.studio/Dashboard.png">
+    <meta property="og:site_name" content="Checkpoint">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Checkpoint - Automated Backup for Developers">
+    <meta name="twitter:description" content="Automated, intelligent backup system for developers. Encrypted cloud sync, native dashboard, universal database support.">
+    <meta name="twitter:image" content="https://checkpoint.fluxcode.studio/Dashboard.png">
+
+    <!-- Favicon & Manifest -->
+    <link rel="icon" type="image/png" href="checkpoint-logo-no-text.png">
+    <link rel="apple-touch-icon" href="checkpoint-logo-no-text.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#a666ff">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Checkpoint Dashboard showing automated backup status for multiple developer projects">
+    <link rel="alternate" type="text/plain" title="LLMs.txt" href="/llms.txt">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Checkpoint",
+        "description": "Automated, intelligent backup system for developers. Encrypted cloud sync, native macOS dashboard, universal database support.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Linux",
+        "softwareVersion": "2.6.0",
+        "url": "https://checkpoint.fluxcode.studio",
+        "downloadUrl": "https://github.com/fluxcodestudio/Checkpoint/archive/refs/heads/main.zip",
+        "screenshot": "https://checkpoint.fluxcode.studio/Dashboard.png",
+        "author": {
+            "@type": "Organization",
+            "name": "Fluxcode Studio LLC",
+            "url": "https://fluxcode.studio"
+        },
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "Free for noncommercial use"
+        },
+        "license": "https://polyformproject.org/licenses/noncommercial/1.0.0/"
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "What does Checkpoint back up?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Checkpoint backs up your project source code, databases (SQLite, PostgreSQL, MySQL, MongoDB), environment files (.env), credentials, keys, and IDE settings. It detects databases automatically — local, remote (Neon, Supabase), and Docker containers."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Is Checkpoint free?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes! Checkpoint is free for all noncommercial use under the Polyform Noncommercial License. Commercial use requires a license from Fluxcode Studio LLC."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Does Checkpoint work on Linux?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. Checkpoint has full Linux support with native systemd service units for the backup daemon, watchdog, and file watcher. Cron fallback is available for systems without systemd."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Why not just use Git for backups?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Git doesn't protect .env files, database contents, untracked work-in-progress, or credentials — all things you'd lose in a disaster. Checkpoint backs up everything Git ignores, with versioned snapshots and encrypted cloud sync."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How does cloud backup work in Checkpoint?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Checkpoint syncs backups to Dropbox, Google Drive, OneDrive, or iCloud. Files are compressed with gzip and encrypted with age before upload using parallel multi-core processing. Cloud uploads run in the background after each local backup for zero-knowledge storage."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Can I use Checkpoint without the macOS dashboard?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Absolutely. Every feature works from the command line. The dashboard is optional — it's a SwiftUI menu bar app for visual overview. Terminal-only users get the same functionality via CLI commands."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How do I restore a file from Checkpoint backups?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Run checkpoint restore for an interactive menu, or checkpoint search to find files across all backups. Browse snapshots interactively with fzf using checkpoint history --interactive."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What happens if a Checkpoint backup fails?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Checkpoint sends native macOS notifications on failure. A watchdog process monitors daemon health via heartbeats, with staleness alerts at 24h warning and 72h critical. The daemon auto-restarts on crashes."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Can I restore files from cloud backups?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. Use checkpoint cloud browse to browse all cloud backups, select files, and download them auto-decrypted and decompressed. Works with fzf for interactive browsing. Download individual files or entire backups as a zip."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What if I lose my encryption key?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Your encrypted cloud backups become permanently inaccessible. There is no recovery mechanism. Back up your key file (~/.config/checkpoint/age-key.txt) somewhere safe. Local backups are always unencrypted and unaffected."
+                }
+            }
+        ]
+    }
+    </script>
+
     <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="fonts/fonts.css">
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <!-- Aurora Borealis Background -->
     <div class="aurora" aria-hidden="true">
         <div class="aurora__layer aurora__layer--1"></div>
@@ -22,14 +164,16 @@
     <nav class="nav">
         <div class="nav-container">
             <a href="#" class="logo">
-                <img src="checkpoint-logo.png" alt="CHECKPOINT" class="logo-img">
+                <img src="checkpoint-logo-no-text.png" alt="Checkpoint" class="logo-img">
                 <span class="logo-text">CHECKPOINT</span>
             </a>
+            <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle navigation">☰</button>
             <div class="nav-links">
                 <a href="#features">Features</a>
                 <a href="#dashboard">Dashboard</a>
-                <a href="#how-it-works">How It Works</a>
-                <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank">GitHub</a>
+                <a href="docs.html">Docs</a>
+                <a href="compare.html">Compare</a>
+                <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank" rel="noopener noreferrer">GitHub</a>
                 <a href="#" onclick="openContactModal(); return false;">Contact</a>
                 <a href="#" onclick="openNewsletterModal(); return false;">Join Us</a>
                 <a href="#download" class="btn btn-primary">Download Free</a>
@@ -37,6 +181,7 @@
         </div>
     </nav>
 
+    <main id="main-content">
     <header class="hero">
         <div class="hero-content">
             <div class="badge">Free &amp; Open Source</div>
@@ -44,7 +189,7 @@
             <p class="hero-subtitle">Automated, intelligent backup system for developers. Encrypted cloud sync, native dashboard, universal database support. Never lose work again.</p>
             <div class="hero-cta">
                 <a href="#download" class="btn btn-large btn-primary">Download for macOS</a>
-                <a href="https://github.com/fluxcodestudio/Checkpoint" class="btn btn-large btn-secondary" target="_blank">View on GitHub</a>
+                <a href="https://github.com/fluxcodestudio/Checkpoint" class="btn btn-large btn-secondary" target="_blank" rel="noopener noreferrer">View on GitHub</a>
             </div>
             <div class="hero-stats">
                 <div class="stat">
@@ -52,7 +197,7 @@
                     <span class="stat-label">Test Coverage</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-value">v2.5.2</span>
+                    <span class="stat-value">v2.6.0</span>
                     <span class="stat-label">Latest Release</span>
                 </div>
                 <div class="stat">
@@ -61,28 +206,158 @@
                 </div>
             </div>
         </div>
-        <div class="hero-terminal">
-            <div class="terminal">
-                <div class="terminal-header">
-                    <span class="terminal-dot red"></span>
-                    <span class="terminal-dot yellow"></span>
-                    <span class="terminal-dot green"></span>
-                    <span class="terminal-title">Terminal</span>
-                </div>
-                <div class="terminal-body">
-                    <pre><code><span class="prompt">$</span> cd my-project
-<span class="prompt">$</span> backup-now
+        <div class="hero-dashboard">
+            <div class="hero-dash-inner">
+                <div class="dash-mock dash-mock--hero" aria-label="Animated Checkpoint Dashboard preview">
+                    <div class="dash-chrome">
+                        <span class="dash-dot dash-dot--red"></span>
+                        <span class="dash-dot dash-dot--yellow"></span>
+                        <span class="dash-dot dash-dot--green"></span>
+                    </div>
+                    <div class="dash-header">
+                        <div class="dash-title">
+                            <img src="checkpoint-logo-no-text.png" alt="" class="dash-logo">
+                            <span>Checkpoint</span>
+                        </div>
+                        <span class="dash-badge-active"><span class="dash-active-dot"></span> Active</span>
+                    </div>
+                    <div class="dash-backup-banner">
+                        <div class="dash-banner-top">
+                            <span class="dash-spinner"></span>
+                            <span class="dash-banner-label">Backing up…</span>
+                        </div>
+                        <div class="dash-banner-project">
+                            <svg class="dash-arrow-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.5 3.75a.75.75 0 0 1 1.5 0v3.69l1.22-1.22a.75.75 0 1 1 1.06 1.06l-2.5 2.5a.75.75 0 0 1-1.06 0l-2.5-2.5a.75.75 0 1 1 1.06-1.06l1.22 1.22V4.75z"/></svg>
+                            FORTUNE 500 SAAS KIT
+                        </div>
+                        <div class="dash-banner-status">
+                            <span class="dash-status-text dash-status-text--hero">Scanning for changes…</span>
+                            <span class="dash-status-sep">•</span>
+                            <span class="dash-file-counter dash-file-counter--hero">0</span> files
+                        </div>
+                        <div class="dash-progress-track">
+                            <div class="dash-progress-bar dash-progress-bar--hero"></div>
+                        </div>
+                    </div>
+                    <div class="dash-projects">
+                        <div class="dash-row">
+                            <div class="dash-row-left">
+                                <div class="dash-row-indicator"></div>
+                                <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                <div class="dash-row-info">
+                                    <div class="dash-row-name">Revenue Dashboard Pro <span class="dash-row-meta">12 files • 48 KB</span></div>
+                                    <div class="dash-row-path">/Volumes/WORK DRIVE/Revenue Dashboard Pro</div>
+                                </div>
+                            </div>
+                            <div class="dash-row-right">
+                                <span class="dash-row-time">35 min. ago</span>
+                                <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                            </div>
+                        </div>
+                        <div class="dash-row dash-row--active">
+                            <div class="dash-row-left">
+                                <div class="dash-row-indicator dash-row-indicator--warm"></div>
+                                <span class="dash-spinner dash-spinner--small"></span>
+                                <div class="dash-row-info">
+                                    <div class="dash-row-name dash-row-name--active">FORTUNE 500 SAAS KIT <span class="dash-row-meta">2,847 files • 156.3 MB</span></div>
+                                    <div class="dash-row-path">/Volumes/WORK DRIVE/FORTUNE 500 SAAS KIT</div>
+                                </div>
+                            </div>
+                            <div class="dash-row-right">
+                                <span class="dash-row-backing">Backing up…</span>
+                                <span class="dash-spinner dash-spinner--small"></span>
+                            </div>
+                        </div>
+                        <div class="dash-row">
+                            <div class="dash-row-left">
+                                <div class="dash-row-indicator"></div>
+                                <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                <div class="dash-row-info">
+                                    <div class="dash-row-name">Client Portal - $4K/mo <span class="dash-row-meta">324 files • 2.1 MB</span></div>
+                                    <div class="dash-row-path">/Volumes/WORK DRIVE/Client Portal</div>
+                                </div>
+                            </div>
+                            <div class="dash-row-right">
+                                <span class="dash-row-time">28 min. ago</span>
+                                <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                            </div>
+                        </div>
+                        <div class="dash-row">
+                            <div class="dash-row-left">
+                                <div class="dash-row-indicator"></div>
+                                <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                <div class="dash-row-info">
+                                    <div class="dash-row-name">MRR Machine - Shopify App <span class="dash-row-meta">5,612 files • 89.4 MB</span></div>
+                                    <div class="dash-row-path">/Volumes/WORK DRIVE/MRR Machine</div>
+                                </div>
+                            </div>
+                            <div class="dash-row-right">
+                                <span class="dash-row-time">31 min. ago</span>
+                                <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                            </div>
+                        </div>
+                        <div class="dash-row">
+                            <div class="dash-row-left">
+                                <div class="dash-row-indicator"></div>
+                                <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                <div class="dash-row-info">
+                                    <div class="dash-row-name">My Entire Livelihood <span class="dash-row-meta">9,234 files • 1.2 GB</span></div>
+                                    <div class="dash-row-path">/Volumes/WORK DRIVE/My Entire Livelihood</div>
+                                </div>
+                            </div>
+                            <div class="dash-row-right">
+                                <span class="dash-row-time">8 min. ago</span>
+                                <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                            </div>
+                        </div>
 
-<span class="success">📦 First time backup - creating configuration...</span>
-   ✅ Configuration created
-   ✅ Project registered
-
-<span class="success">🚀 Backup complete!</span>
-   Files: 142 backed up
-   Encryption: enabled (cloud backups)
-   Next: in 59 minutes (hourly)</code></pre>
+                        <!-- Bottom Bar -->
+                        <div class="dash-bottom">
+                            <div class="dash-bottom-left">
+                                <button class="dash-btn dash-btn--accent">
+                                    <svg class="dash-btn-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.75 3.25a.75.75 0 0 1 1.5 0v2.5h2.5a.75.75 0 0 1 0 1.5h-2.5v2.5a.75.75 0 0 1-1.5 0v-2.5h-2.5a.75.75 0 0 1 0-1.5h2.5v-2.5z"/></svg>
+                                    Backup All
+                                </button>
+                                <button class="dash-btn">
+                                    <svg class="dash-btn-icon" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm9-3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM8 6.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 6.75z"/></svg>
+                                    Settings
+                                </button>
+                            </div>
+                            <div class="dash-bottom-icons">
+                                <span class="dash-icon-btn">?</span>
+                                <span class="dash-icon-btn">i</span>
+                                <span class="dash-icon-btn">↓</span>
+                                <span class="dash-icon-btn">⟳</span>
+                            </div>
+                            <button class="dash-btn">
+                                <svg class="dash-btn-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 3.5A1.5 1.5 0 0 0 4 5v6a1.5 1.5 0 0 0 3 0V5A1.5 1.5 0 0 0 5.5 3.5zm5 0A1.5 1.5 0 0 0 9 5v6a1.5 1.5 0 0 0 3 0V5a1.5 1.5 0 0 0-1.5-1.5z"/></svg>
+                                Pause
+                            </button>
+                        </div>
+                        <div class="dash-footer-text">A product of <span class="dash-footer-brand">FluxCode.Studio</span></div>
+                    </div>
                 </div>
+                <div class="hero-dash-fade"></div>
             </div>
+
+            <script>
+            (function() {
+                var c2 = document.querySelector('.dash-file-counter--hero');
+                var b2 = document.querySelector('.dash-progress-bar--hero');
+                var s2 = document.querySelector('.dash-status-text--hero');
+                var phases = ['Initializing…','Scanning for changes…','Preparing files…','Copying files…','Verifying integrity…','Writing manifest…','Finalizing…'];
+                var total = 2847, phase = 0, prog = 0;
+                function t2() {
+                    prog += 0.15 + Math.random() * 0.35;
+                    if (prog >= 100) { prog = 0; phase = (phase + 1) % phases.length; }
+                    c2.textContent = Math.floor((prog / 100) * total).toLocaleString();
+                    b2.style.width = prog + '%';
+                    s2.textContent = phases[phase];
+                    requestAnimationFrame(function() { setTimeout(t2, 30 + Math.random() * 20); });
+                }
+                t2();
+            })();
+            </script>
         </div>
     </header>
 
@@ -93,49 +368,49 @@
 
             <div class="feature-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <h3>Zero Config</h3>
-                    <p>Run <code>backup-now</code> in any terminal, or <code>/checkpoint</code> in Claude Code. Config auto-created.</p>
+                    <div class="feature-icon" aria-hidden="true">⚡</div>
+                    <h3>Install &amp; Forget</h3>
+                    <p>One install, then it runs silently forever. Add projects from the Dashboard or just run <code>backup-now</code> in any directory.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🔄</div>
-                    <h3>Hourly Backups</h3>
-                    <p>Global daemon backs up ALL your projects automatically. One install, all projects covered.</p>
+                    <div class="feature-icon" aria-hidden="true">🔄</div>
+                    <h3>Automatic Backups</h3>
+                    <p>Background daemon backs up all your projects on autopilot. Hourly by default, or set your own schedule — cron expressions, work-hours-only, every 5 minutes, whatever fits. Just works.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🗄️</div>
+                    <div class="feature-icon" aria-hidden="true">🗄️</div>
                     <h3>Database Support</h3>
                     <p>Auto-detects SQLite, PostgreSQL, MySQL, MongoDB — local, remote (Neon, Supabase), and Docker.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🔐</div>
-                    <h3>Encryption at Rest</h3>
-                    <p>Cloud backups encrypted with <code>age</code> before upload. Your keys, your data. Zero-knowledge cloud storage.</p>
+                    <div class="feature-icon" aria-hidden="true">🔐</div>
+                    <h3>Encrypted &amp; Compressed</h3>
+                    <p>Cloud backups compressed with gzip then encrypted with <code>age</code>. Parallel encryption across all CPU cores. Your keys, your data. Zero-knowledge cloud storage.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">☁️</div>
+                    <div class="feature-icon" aria-hidden="true">☁️</div>
                     <h3>Cloud Backup</h3>
                     <p>Encrypted off-site sync via Dropbox, Google Drive, OneDrive, or iCloud. Direct folder sync or rclone API.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">📁</div>
+                    <div class="feature-icon" aria-hidden="true">📁</div>
                     <h3>Version History</h3>
-                    <p>Old file versions preserved in archives. Restore any point in time with the interactive CLI.</p>
+                    <p>Every file version preserved automatically. Browse snapshots, compare changes, and restore any point in time.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🖥️</div>
-                    <h3>Native Dashboard</h3>
-                    <p>SwiftUI menu bar app for macOS. See all projects, live backup progress, settings — no terminal needed.</p>
+                    <div class="feature-icon" aria-hidden="true">🖥️</div>
+                    <h3>Native macOS Integration</h3>
+                    <p>Menu bar dashboard, native desktop notifications on failures, and system-level daemon — all built into macOS. No terminal required.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🐳</div>
+                    <div class="feature-icon" aria-hidden="true">🐳</div>
                     <h3>Docker Support</h3>
                     <p>Auto-detect databases in docker-compose.yml. Docker volume backup. Auto-start Docker Desktop if needed.</p>
                 </div>
                 <div class="feature-card">
-                    <div class="feature-icon">🔍</div>
-                    <h3>Search &amp; Browse</h3>
-                    <p>Search across all backup history. Interactive fzf mode for browsing snapshots and restoring files.</p>
+                    <div class="feature-icon" aria-hidden="true">🔍</div>
+                    <h3>Search, Browse &amp; Restore</h3>
+                    <p>Search across all backup history. Browse and restore from cloud backups with <code>checkpoint cloud browse</code>. Interactive fzf mode for snapshots. Auto-decrypt on download.</p>
                 </div>
             </div>
         </div>
@@ -151,22 +426,22 @@
                     <div class="dashboard-feature">
                         <span class="dashboard-feature-icon">📊</span>
                         <div>
-                            <h4>Live Project Status</h4>
-                            <p>See all registered projects with file counts, sizes, and last backup time at a glance.</p>
+                            <h4>Menu Bar Widget</h4>
+                            <p>Lives in your menu bar. Click to see all projects, backup status, file counts, and last backup time at a glance.</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-feature">
+                        <span class="dashboard-feature-icon">🔔</span>
+                        <div>
+                            <h4>Native Notifications</h4>
+                            <p>macOS desktop notifications alert you when backups fail or haven't run in 24 hours. Configurable: all, failure-only, or off.</p>
                         </div>
                     </div>
                     <div class="dashboard-feature">
                         <span class="dashboard-feature-icon">⚙️</span>
                         <div>
                             <h4>In-App Settings</h4>
-                            <p>Configure schedules, retention, encryption, notifications — all without touching config files.</p>
-                        </div>
-                    </div>
-                    <div class="dashboard-feature">
-                        <span class="dashboard-feature-icon">🔒</span>
-                        <div>
-                            <h4>Encryption Toggle</h4>
-                            <p>Enable or disable cloud encryption with a single switch. Warning prompts protect against accidental disabling.</p>
+                            <p>Configure schedules, retention, encryption, and notifications — all without touching config files. Press ⌘, to open.</p>
                         </div>
                     </div>
                     <div class="dashboard-feature">
@@ -176,9 +451,243 @@
                             <p>Backup All, Pause/Resume, Check for Updates, and per-project context menus — right from the menu bar.</p>
                         </div>
                     </div>
+                    <div class="dashboard-feature">
+                        <span class="dashboard-feature-icon">☁️</span>
+                        <div>
+                            <h4>Cloud Browse &amp; Restore</h4>
+                            <p>Browse cloud backups and download files directly from the dashboard. Auto-decrypted and decompressed on download.</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="dashboard-image-wrapper">
-                    <img src="Dashboard.png" alt="Checkpoint Dashboard - Native macOS menu bar app showing backup status for all projects" class="dashboard-image">
+                    <div class="dash-mock" aria-label="Animated Checkpoint Dashboard preview">
+                        <!-- Window Chrome -->
+                        <div class="dash-chrome">
+                            <span class="dash-dot dash-dot--red"></span>
+                            <span class="dash-dot dash-dot--yellow"></span>
+                            <span class="dash-dot dash-dot--green"></span>
+                        </div>
+
+                        <!-- Header -->
+                        <div class="dash-header">
+                            <div class="dash-title">
+                                <img src="checkpoint-logo-no-text.png" alt="" class="dash-logo">
+                                <span>Checkpoint</span>
+                            </div>
+                            <span class="dash-badge-active"><span class="dash-active-dot"></span> Active</span>
+                        </div>
+
+                        <!-- Active Backup Banner -->
+                        <div class="dash-backup-banner">
+                            <div class="dash-banner-top">
+                                <span class="dash-spinner"></span>
+                                <span class="dash-banner-label">Backing up…</span>
+                            </div>
+                            <div class="dash-banner-project">
+                                <svg class="dash-arrow-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.5 3.75a.75.75 0 0 1 1.5 0v3.69l1.22-1.22a.75.75 0 1 1 1.06 1.06l-2.5 2.5a.75.75 0 0 1-1.06 0l-2.5-2.5a.75.75 0 1 1 1.06-1.06l1.22 1.22V4.75z"/></svg>
+                                FORTUNE 500 SAAS KIT
+                            </div>
+                            <div class="dash-banner-status">
+                                <span class="dash-status-text">Writing manifest…</span>
+                                <span class="dash-status-sep">•</span>
+                                <span class="dash-file-counter">0</span> files
+                            </div>
+                            <div class="dash-progress-track">
+                                <div class="dash-progress-bar"></div>
+                            </div>
+                        </div>
+
+                        <!-- Project List -->
+                        <div class="dash-projects">
+                            <div class="dash-row">
+                                <div class="dash-row-left">
+                                    <div class="dash-row-indicator"></div>
+                                    <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                    <div class="dash-row-info">
+                                        <div class="dash-row-name">
+                                            Revenue Dashboard Pro
+                                            <span class="dash-row-meta">12 files • 48 KB</span>
+                                        </div>
+                                        <div class="dash-row-path">/Volumes/WORK DRIVE/Revenue Dashboard Pro</div>
+                                    </div>
+                                </div>
+                                <div class="dash-row-right">
+                                    <span class="dash-row-time">35 min. ago</span>
+                                    <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                </div>
+                            </div>
+                            <div class="dash-row dash-row--active">
+                                <div class="dash-row-left">
+                                    <div class="dash-row-indicator dash-row-indicator--warm"></div>
+                                    <span class="dash-spinner dash-spinner--small"></span>
+                                    <div class="dash-row-info">
+                                        <div class="dash-row-name dash-row-name--active">
+                                            FORTUNE 500 SAAS KIT
+                                            <span class="dash-row-meta">2,847 files • 156.3 MB</span>
+                                        </div>
+                                        <div class="dash-row-path">/Volumes/WORK DRIVE/FORTUNE 500 SAAS KIT</div>
+                                    </div>
+                                </div>
+                                <div class="dash-row-right">
+                                    <span class="dash-row-backing">Backing up…</span>
+                                    <span class="dash-spinner dash-spinner--small"></span>
+                                </div>
+                            </div>
+                            <div class="dash-row">
+                                <div class="dash-row-left">
+                                    <div class="dash-row-indicator"></div>
+                                    <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                    <div class="dash-row-info">
+                                        <div class="dash-row-name">
+                                            Client Portal - $4K/mo
+                                            <span class="dash-row-meta">324 files • 2.1 MB</span>
+                                        </div>
+                                        <div class="dash-row-path">/Volumes/WORK DRIVE/Client Portal</div>
+                                    </div>
+                                </div>
+                                <div class="dash-row-right">
+                                    <span class="dash-row-time">28 min. ago</span>
+                                    <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                </div>
+                            </div>
+                            <div class="dash-row">
+                                <div class="dash-row-left">
+                                    <div class="dash-row-indicator"></div>
+                                    <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                    <div class="dash-row-info">
+                                        <div class="dash-row-name">
+                                            Retirement Fund Tracker
+                                            <span class="dash-row-meta">1,890 files • 24.7 MB</span>
+                                        </div>
+                                        <div class="dash-row-path">/Volumes/WORK DRIVE/Retirement Fund Tracker</div>
+                                    </div>
+                                </div>
+                                <div class="dash-row-right">
+                                    <span class="dash-row-time">12 min. ago</span>
+                                    <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                </div>
+                            </div>
+                            <div class="dash-row">
+                                <div class="dash-row-left">
+                                    <div class="dash-row-indicator"></div>
+                                    <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                    <div class="dash-row-info">
+                                        <div class="dash-row-name">
+                                            MRR Machine - Shopify App
+                                            <span class="dash-row-meta">5,612 files • 89.4 MB</span>
+                                        </div>
+                                        <div class="dash-row-path">/Volumes/WORK DRIVE/MRR Machine</div>
+                                    </div>
+                                </div>
+                                <div class="dash-row-right">
+                                    <span class="dash-row-time">31 min. ago</span>
+                                    <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                </div>
+                            </div>
+                            <div class="dash-row">
+                                <div class="dash-row-left">
+                                    <div class="dash-row-indicator"></div>
+                                    <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                    <div class="dash-row-info">
+                                        <div class="dash-row-name">
+                                            Passive Income API
+                                            <span class="dash-row-meta">743 files • 5.8 MB</span>
+                                        </div>
+                                        <div class="dash-row-path">/Volumes/WORK DRIVE/Passive Income API</div>
+                                    </div>
+                                </div>
+                                <div class="dash-row-right">
+                                    <span class="dash-row-time">19 min. ago</span>
+                                    <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                </div>
+                            </div>
+                            <div class="dash-row">
+                                <div class="dash-row-left">
+                                    <div class="dash-row-indicator"></div>
+                                    <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                    <div class="dash-row-info">
+                                        <div class="dash-row-name">
+                                            Equity Vesting Calculator
+                                            <span class="dash-row-meta">87 files • 412 KB</span>
+                                        </div>
+                                        <div class="dash-row-path">/Volumes/WORK DRIVE/Equity Vesting Calculator</div>
+                                    </div>
+                                </div>
+                                <div class="dash-row-right">
+                                    <span class="dash-row-time">40 min. ago</span>
+                                    <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                </div>
+                            </div>
+                            <div class="dash-row">
+                                <div class="dash-row-left">
+                                    <div class="dash-row-indicator"></div>
+                                    <svg class="dash-row-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                    <div class="dash-row-info">
+                                        <div class="dash-row-name">
+                                            My Entire Livelihood
+                                            <span class="dash-row-meta">9,234 files • 1.2 GB</span>
+                                        </div>
+                                        <div class="dash-row-path">/Volumes/WORK DRIVE/My Entire Livelihood</div>
+                                    </div>
+                                </div>
+                                <div class="dash-row-right">
+                                    <span class="dash-row-time">8 min. ago</span>
+                                    <svg class="dash-row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bottom Bar -->
+                        <div class="dash-bottom">
+                            <div class="dash-bottom-left">
+                                <button class="dash-btn dash-btn--accent">
+                                    <svg class="dash-btn-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-.75 3.25a.75.75 0 0 1 1.5 0v2.5h2.5a.75.75 0 0 1 0 1.5h-2.5v2.5a.75.75 0 0 1-1.5 0v-2.5h-2.5a.75.75 0 0 1 0-1.5h2.5v-2.5z"/></svg>
+                                    Backup All
+                                </button>
+                                <button class="dash-btn">
+                                    <svg class="dash-btn-icon" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm9-3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM8 6.75a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 6.75z"/></svg>
+                                    Settings
+                                </button>
+                            </div>
+                            <div class="dash-bottom-icons">
+                                <span class="dash-icon-btn">?</span>
+                                <span class="dash-icon-btn">i</span>
+                                <span class="dash-icon-btn">↓</span>
+                                <span class="dash-icon-btn">⟳</span>
+                            </div>
+                            <button class="dash-btn">
+                                <svg class="dash-btn-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 3.5A1.5 1.5 0 0 0 4 5v6a1.5 1.5 0 0 0 3 0V5A1.5 1.5 0 0 0 5.5 3.5zm5 0A1.5 1.5 0 0 0 9 5v6a1.5 1.5 0 0 0 3 0V5a1.5 1.5 0 0 0-1.5-1.5z"/></svg>
+                                Pause
+                            </button>
+                        </div>
+                        <div class="dash-footer-text">A product of <span class="dash-footer-brand">FluxCode.Studio</span></div>
+                    </div>
+
+                    <script>
+                    (function() {
+                        var counter = document.querySelector('.dash-file-counter');
+                        var bar = document.querySelector('.dash-progress-bar');
+                        var statusText = document.querySelector('.dash-status-text');
+                        var phases = ['Initializing…','Scanning for changes…','Preparing files…','Copying files…','Verifying integrity…','Writing manifest…','Finalizing…'];
+                        var totalFiles = 2847;
+                        var phase = 0;
+                        var progress = 0;
+
+                        function tick() {
+                            progress += 0.15 + Math.random() * 0.35;
+                            if (progress >= 100) {
+                                progress = 0;
+                                phase = (phase + 1) % phases.length;
+                            }
+                            var fc = Math.floor((progress / 100) * totalFiles);
+                            counter.textContent = fc.toLocaleString();
+                            bar.style.width = progress + '%';
+                            statusText.textContent = phases[phase];
+                            requestAnimationFrame(function() { setTimeout(tick, 30 + Math.random() * 20); });
+                        }
+                        tick();
+                    })();
+                    </script>
                 </div>
             </div>
         </div>
@@ -192,7 +701,7 @@
             <div class="steps">
                 <div class="step">
                     <div class="step-number">1</div>
-                    <h3>Install globally</h3>
+                    <h3>Install once</h3>
                     <div class="code-block">
                         <code>git clone https://github.com/fluxcodestudio/Checkpoint.git<br>
 cd Checkpoint && ./bin/install-global.sh</code>
@@ -200,16 +709,13 @@ cd Checkpoint && ./bin/install-global.sh</code>
                 </div>
                 <div class="step">
                     <div class="step-number">2</div>
-                    <h3>Run in any project</h3>
-                    <div class="code-block">
-                        <code>cd /your/project<br>
-backup-now</code>
-                    </div>
+                    <h3>Add your projects</h3>
+                    <p>Run <code>backup-now</code> in a project directory — or add projects from the Dashboard. Each one is auto-registered and backed up on your schedule. Hourly by default, or use cron expressions, work-hours presets, and custom intervals.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">3</div>
-                    <h3>Done. Forever.</h3>
-                    <p>Project registered. Hourly backups enabled. Cloud encrypted. Go build something.</p>
+                    <h3>Forget about it.</h3>
+                    <p>That's it. Backups run silently in the background. Add more projects anytime. Cloud sync and encryption just work. Go build something.</p>
                 </div>
             </div>
         </div>
@@ -218,10 +724,10 @@ backup-now</code>
     <section class="backup-structure">
         <div class="container">
             <h2>Organized backup structure</h2>
-            <p class="section-subtitle">Everything in its place</p>
+            <p class="section-subtitle">Every project gets its own backup directory.<br>No shared dumps, no tangled archives —<br>just clean, isolated snapshots you can actually find.</p>
 
             <div class="structure-demo">
-                <pre><code>backups/
+                <pre><code>my-saas-app/backups/
 ├── databases/           <span class="comment"># Compressed timestamped snapshots</span>
 │   ├── MyApp-2025.01.03-10.45.12.db.gz
 │   └── MyApp-2025.01.03-14.30.45.db.gz
@@ -238,7 +744,7 @@ backup-now</code>
 
     <section class="encryption-section">
         <div class="container">
-            <h2>Encryption at rest</h2>
+            <h2>Encrypted &amp; compressed</h2>
             <p class="section-subtitle">Your backups, your keys — zero-knowledge cloud storage</p>
 
             <div class="encryption-grid">
@@ -247,7 +753,21 @@ backup-now</code>
                         <span class="encryption-icon">🔑</span>
                         <h3>age encryption</h3>
                     </div>
-                    <p>Files encrypted with <a href="https://github.com/FiloSottile/age" target="_blank">age</a> — a modern, simple alternative to GPG. Small, auditable, no config files.</p>
+                    <p>Files encrypted with <a href="https://github.com/FiloSottile/age" target="_blank" rel="noopener noreferrer">age</a> — a modern, simple alternative to GPG. Small, auditable, no config files.</p>
+                </div>
+                <div class="encryption-card">
+                    <div class="encryption-header">
+                        <span class="encryption-icon">📦</span>
+                        <h3>Compress then encrypt</h3>
+                    </div>
+                    <p>Text files are gzip-compressed before encryption for smaller cloud storage. Already-compressed formats (images, video, archives) skip compression automatically.</p>
+                </div>
+                <div class="encryption-card">
+                    <div class="encryption-header">
+                        <span class="encryption-icon">⚡</span>
+                        <h3>Parallel &amp; automatic</h3>
+                    </div>
+                    <p>Encryption runs in parallel across all CPU cores when backing up 100+ files. One command setup: <code>checkpoint encrypt setup</code> or toggle in Dashboard settings.</p>
                 </div>
                 <div class="encryption-card">
                     <div class="encryption-header">
@@ -256,12 +776,84 @@ backup-now</code>
                     </div>
                     <p>Local backups stay unencrypted for fast access. Only files synced to cloud storage (Dropbox, iCloud, etc.) get encrypted.</p>
                 </div>
-                <div class="encryption-card">
-                    <div class="encryption-header">
-                        <span class="encryption-icon">⚡</span>
-                        <h3>One command setup</h3>
+            </div>
+        </div>
+    </section>
+
+    <section id="cli" class="cli-section">
+        <div class="container">
+            <h2>Built for the terminal</h2>
+            <p class="section-subtitle">Dashboard optional. Everything works from the command line.</p>
+
+            <div class="cli-layout">
+                <div class="cli-features">
+                    <div class="cli-feature">
+                        <span class="cli-feature-icon">&gt;_</span>
+                        <div>
+                            <h4>Familiar Territory</h4>
+                            <p>No GUI required. Every feature is a simple bash command — backup, restore, search, browse, encrypt, and configure.</p>
+                        </div>
                     </div>
-                    <p><code>checkpoint encrypt setup</code> generates your key and enables encryption. Or toggle it in the Dashboard settings.</p>
+                    <div class="cli-feature">
+                        <span class="cli-feature-icon">&#x1F50D;</span>
+                        <div>
+                            <h4>Search &amp; Browse History</h4>
+                            <p>Find any file across all backups. Browse snapshots interactively with fzf. View full version history for any file.</p>
+                        </div>
+                    </div>
+                    <div class="cli-feature">
+                        <span class="cli-feature-icon">&#x2699;</span>
+                        <div>
+                            <h4>Scriptable &amp; Composable</h4>
+                            <p>Pipe output to other tools. Hook into CI/CD. Trigger backups from cron, git hooks, or any automation you already use.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cli-terminal">
+                    <div class="terminal">
+                        <div class="terminal-header">
+                            <span class="terminal-dot red"></span>
+                            <span class="terminal-dot yellow"></span>
+                            <span class="terminal-dot green"></span>
+                            <span class="terminal-title">Terminal</span>
+                        </div>
+                        <div class="terminal-body">
+                            <pre><code><span class="comment"># First backup — just cd and run</span>
+<span class="prompt">$</span> cd my-saas-app
+<span class="prompt">$</span> backup-now
+
+<span class="success">&#x1F4E6; First time backup - creating configuration...</span>
+   &#x2705; Configuration created
+   &#x2705; Project registered
+
+<span class="success">&#x1F680; Backup complete!</span>
+   Files: 2,847 backed up
+   Encryption: enabled (cloud backups)
+   Next: in 59 minutes (hourly)
+
+<span class="comment"># Check status across all projects</span>
+<span class="prompt">$</span> checkpoint --status
+   Daemon: running (PID 4821)
+   Projects: 8 registered
+   Last backup: 12 min ago
+   Cloud sync: enabled (encrypted)
+   Storage: 1.4 GB local / 890 MB cloud
+
+<span class="comment"># Search across all backups</span>
+<span class="prompt">$</span> checkpoint search "API_KEY"
+   Found in 3 files across 2 projects
+
+<span class="comment"># Restore a file from 3 days ago</span>
+<span class="prompt">$</span> checkpoint restore src/config.js --from "3 days ago"
+   Restored src/config.js (v2025-02-14_10:30)
+
+<span class="comment"># Browse and restore from cloud backups</span>
+<span class="prompt">$</span> checkpoint cloud browse MyProject
+   Feb 17 1:49am - 213 files, 2 databases
+   Select file to download (auto-decrypted)</code></pre>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -274,11 +866,13 @@ backup-now</code>
 
             <div class="download-card">
                 <div class="download-info">
-                    <h3>Checkpoint v2.5.2</h3>
+                    <h3>Checkpoint v2.6.0</h3>
                     <p>For macOS &amp; Linux</p>
                     <ul class="download-features">
                         <li>✓ Global multi-project backups</li>
-                        <li>✓ Encrypted cloud sync</li>
+                        <li>✓ Compressed &amp; encrypted cloud sync</li>
+                        <li>✓ Cloud browse &amp; restore</li>
+                        <li>✓ Parallel encryption (multi-core)</li>
                         <li>✓ Native macOS dashboard</li>
                         <li>✓ Remote &amp; Docker databases</li>
                         <li>✓ Search &amp; browse history</li>
@@ -298,47 +892,109 @@ backup-now</code>
         </div>
     </section>
 
+    <section id="faq" class="faq-section">
+        <div class="container">
+            <h2>Frequently Asked Questions</h2>
+            <p class="section-subtitle">Everything you need to know</p>
+
+            <div class="faq-grid">
+                <details class="faq-item">
+                    <summary>What does Checkpoint back up?</summary>
+                    <p>Everything that matters and nothing that doesn't. Source code, databases (SQLite, Postgres, MySQL, Mongo), your precious .env files, API keys, credentials, IDE configs. It sniffs out databases on its own — local installs, cloud-hosted on Neon or Supabase, even buried inside Docker containers.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Is Checkpoint free?</summary>
+                    <p>For personal projects, side hustles, and open-source work — completely free, no strings. Commercial teams need a license from Fluxcode Studio. That's the deal.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Does it work on Linux?</summary>
+                    <p>First-class. Native systemd units for the daemon, watchdog, and file watcher. If your box doesn't run systemd, there's a cron fallback that works just as well. Same features, different init system.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Why not just use Git for backups?</summary>
+                    <p>Because Git was never designed to be one. Your .env files? Not in Git. Your database? Not in Git. That half-finished feature you haven't committed yet? Gone if your drive dies. Checkpoint backs up the stuff Git was built to ignore.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>How does cloud backup work?</summary>
+                    <p>Your files get encrypted locally with <code>age</code> — a modern, auditable encryption tool — then synced to Dropbox, Google Drive, OneDrive, or iCloud via rclone. The upload happens in the background after each backup. Your cloud provider sees ciphertext. You hold the only key.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Do I need the macOS dashboard?</summary>
+                    <p>Not even a little. Every single feature works from the terminal. The SwiftUI menu bar app is there for people who like a visual pulse check, but CLI-only users aren't missing anything. It's a preference, not a requirement.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>How do I restore a file?</summary>
+                    <p><code>checkpoint restore</code> drops you into an interactive picker. <code>checkpoint search "filename"</code> hunts across every snapshot you've ever taken. Want to browse? <code>checkpoint history --interactive</code> fires up fzf for full-speed time travel through your backup history.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>What happens if a backup fails?</summary>
+                    <p>You'll know. Checkpoint fires a native desktop notification the moment something goes wrong. Behind the scenes, a watchdog process monitors heartbeats and sounds alarms if backups go stale — warning at 24 hours, critical at 72. Crashed daemons restart themselves automatically.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>Can I restore files from cloud backups?</summary>
+                    <p>Yes. <code>checkpoint cloud browse</code> lets you browse all your cloud backups, pick files, and download them — auto-decrypted and decompressed. Works with fzf for interactive browsing or plain numbered lists. Download individual files or everything as a zip.</p>
+                </details>
+                <details class="faq-item">
+                    <summary>What if I lose my encryption key?</summary>
+                    <p>Your encrypted cloud backups become permanently inaccessible. There is no recovery mechanism — that's the point of zero-knowledge encryption. Back up your key file (<code>~/.config/checkpoint/age-key.txt</code>) somewhere safe. Your local backups are always unencrypted and unaffected.</p>
+                </details>
+            </div>
+        </div>
+    </section>
+    </main>
+
     <footer class="footer">
         <div class="container">
             <div class="footer-content">
                 <div class="footer-brand">
                     <div class="footer-logo">
-                        <img src="checkpoint-logo.png" alt="CHECKPOINT" class="logo-img">
+                        <img src="checkpoint-logo-no-text.png" alt="Checkpoint" class="logo-img footer-logo-img">
                         <span class="logo-text">CHECKPOINT</span>
                     </div>
                     <p>A little peace of mind goes a long way.</p>
-                    <p class="footer-company">A product of <a href="https://fluxcode.studio" target="_blank">FluxCode Studio</a></p>
+                    <p class="footer-company">A product of <a href="https://fluxcode.studio" target="_blank" rel="noopener noreferrer">FluxCode Studio</a></p>
                 </div>
                 <div class="footer-links">
-                    <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank">GitHub</a>
-                    <a href="https://github.com/fluxcodestudio/Checkpoint/blob/main/README.md" target="_blank">Documentation</a>
-                    <a href="https://github.com/fluxcodestudio/Checkpoint/issues" target="_blank">Report Issue</a>
+                    <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <a href="docs.html">Documentation</a>
+                    <a href="privacy.html">Privacy Policy</a>
+                    <a href="terms.html">Terms of Service</a>
+                    <a href="legal.html">Legal</a>
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2025 Fluxcode Studio LLC. <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/" target="_blank">Polyform Noncommercial License</a></p>
+                <p>&copy; 2025–2026 Fluxcode Studio LLC. <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/" target="_blank" rel="noopener noreferrer">Polyform Noncommercial License</a></p>
             </div>
         </div>
     </footer>
 
     <!-- Contact Modal -->
-    <div id="contactModal" class="modal" onclick="if(event.target === this) closeContactModal()">
+    <div id="contactModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="contact-modal-title" onclick="if(event.target === this) closeContactModal()">
         <div class="modal-content">
-            <button class="modal-close" onclick="closeContactModal()">&times;</button>
-            <h2>Get in Touch</h2>
+            <button class="modal-close" onclick="closeContactModal()" aria-label="Close contact form">&times;</button>
+            <h2 id="contact-modal-title">Get in Touch</h2>
             <p class="modal-subtitle">Have questions or feedback? We'd love to hear from you.</p>
-            <form id="contactForm" class="modal-form" onsubmit="submitContactForm(event)">
+            <form id="contactForm" class="modal-form" action="https://formspree.io/f/xbdakqkz" method="POST" onsubmit="submitContactForm(event)">
+                <input type="hidden" name="_subject" value="CONTACT: checkpoint.fluxcode.studio">
+                <div style="position:absolute;left:-5000px" aria-hidden="true"><input type="text" name="company_url" tabindex="-1" autocomplete="off"></div>
                 <div class="form-group">
-                    <input type="text" name="name" placeholder="Your Name" required>
+                    <label for="contact-name" class="sr-only">Your Name</label>
+                    <input type="text" id="contact-name" name="name" placeholder="Your Name" required aria-label="Your name">
                 </div>
                 <div class="form-group">
-                    <input type="email" name="email" placeholder="Your Email" required>
+                    <label for="contact-email" class="sr-only">Your Email</label>
+                    <input type="email" id="contact-email" name="email" placeholder="Your Email" required aria-label="Your email">
                 </div>
                 <div class="form-group">
-                    <textarea name="message" placeholder="Your Message" rows="4" required></textarea>
+                    <label for="contact-subject" class="sr-only">Subject</label>
+                    <input type="text" id="contact-subject" name="subject" placeholder="Subject" required aria-label="Subject">
+                </div>
+                <div class="form-group">
+                    <label for="contact-message" class="sr-only">Your Message</label>
+                    <textarea id="contact-message" name="message" placeholder="Your Message" rows="4" required aria-label="Your message"></textarea>
                 </div>
                 <label class="checkbox-group">
-                    <input type="checkbox" name="subscribe" checked>
+                    <input type="checkbox" name="subscribe">
                     <span>Join us for updates and new releases</span>
                 </label>
                 <button type="submit" class="btn btn-primary btn-large">Send Message</button>
@@ -347,17 +1003,22 @@ backup-now</code>
     </div>
 
     <!-- Newsletter Popup Modal -->
-    <div id="newsletterModal" class="modal" onclick="if(event.target === this) closeNewsletterModal()">
+    <div id="newsletterModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="newsletter-modal-title" onclick="if(event.target === this) closeNewsletterModal()">
         <div class="modal-content modal-newsletter">
-            <button class="modal-close" onclick="closeNewsletterModal()">&times;</button>
+            <button class="modal-close" onclick="closeNewsletterModal()" aria-label="Close newsletter signup">&times;</button>
             <div class="newsletter-icon">🚀</div>
-            <h2>Join the Revolution</h2>
+            <h2 id="newsletter-modal-title">Join the Revolution</h2>
             <p class="modal-subtitle">We're building killer apps for coders and society at large. Be first to know when we launch something new — plus get Checkpoint updates and new releases delivered straight to your inbox.</p>
-            <form id="newsletterForm" class="modal-form" action="SENDY_URL_HERE/subscribe" method="POST" onsubmit="submitNewsletterForm(event)">
-                <input type="hidden" name="list" value="SENDY_LIST_ID_HERE">
+            <form id="newsletterForm" class="modal-form" action="https://9starmedia.com/newsletter/subscribe" method="POST" onsubmit="submitNewsletterForm(event)">
+                <input type="hidden" name="list" value="Y763VOC763m5TPirI4wtsQ8y6A">
                 <input type="hidden" name="subform" value="yes">
+                <input type="hidden" name="Source" value="Checkpoint Website - Newsletter Modal">
+                <input type="hidden" name="Referrer" value="">
+                <input type="hidden" name="hp" value="">
+                <div style="position:absolute;left:-5000px" aria-hidden="true"><input type="text" name="last_name" tabindex="-1" autocomplete="off"></div>
                 <div class="form-group">
-                    <input type="email" name="email" placeholder="Enter your email" required>
+                    <label for="newsletter-email" class="sr-only">Email address</label>
+                    <input type="email" id="newsletter-email" name="email" placeholder="Enter your email" required aria-label="Email address">
                 </div>
                 <button type="submit" class="btn btn-primary btn-large btn-full">Join Early Adopters</button>
                 <p class="form-note">No spam, ever. Unsubscribe anytime.</p>
@@ -369,6 +1030,17 @@ backup-now</code>
         // ==========================================
         // MODAL FUNCTIONALITY
         // ==========================================
+
+        // In-form error message (replaces alert())
+        function showFormError(form, message) {
+            var existing = form.querySelector('.form-error');
+            if (existing) existing.remove();
+            var err = document.createElement('div');
+            err.className = 'form-error';
+            err.textContent = message;
+            form.querySelector('button[type="submit"]').before(err);
+            setTimeout(function() { err.remove(); }, 8000);
+        }
 
         // Contact Modal
         function openContactModal() {
@@ -383,29 +1055,57 @@ backup-now</code>
 
         function submitContactForm(e) {
             e.preventDefault();
-            const form = e.target;
-            const formData = new FormData(form);
+            var form = e.target;
+            var formData = new FormData(form);
+            // Honeypot check
+            if (formData.get('company_url')) return;
+            // Set email subject with prefix + user's subject
+            var userSubject = formData.get('subject') || 'General Inquiry';
+            formData.set('_subject', 'CONTACT: checkpoint.fluxcode.studio: ' + userSubject);
+            var btn = form.querySelector('button[type="submit"]');
+            btn.textContent = 'Sending...';
+            btn.disabled = true;
 
             // If subscribe checkbox is checked, also add to Sendy
             if (formData.get('subscribe')) {
-                const sendyData = new FormData();
+                var sendyData = new FormData();
                 sendyData.append('email', formData.get('email'));
-                sendyData.append('list', 'SENDY_LIST_ID_HERE');
+                sendyData.append('list', document.querySelector('#newsletterForm input[name="list"]').value);
                 sendyData.append('subform', 'yes');
-
-                fetch('SENDY_URL_HERE/subscribe', {
+                sendyData.append('Source', 'Checkpoint Website - Contact Form');
+                sendyData.append('Referrer', window.location.href);
+                fetch(document.getElementById('newsletterForm').action, {
                     method: 'POST',
                     body: sendyData,
                     mode: 'no-cors'
-                }).catch(() => {});
+                }).catch(function() {});
             }
 
-            // Send contact message via mailto
-            // TODO: Replace YOUR_EMAIL_HERE with your email
-            const mailtoLink = `mailto:YOUR_EMAIL_HERE?subject=Contact from ${encodeURIComponent(formData.get('name'))}&body=${encodeURIComponent(formData.get('message'))}%0A%0AFrom: ${encodeURIComponent(formData.get('email'))}`;
-            window.location.href = mailtoLink;
+            // Remove subscribe checkbox from Formspree submission
+            formData.delete('subscribe');
 
-            closeContactModal();
+            // Submit to Formspree
+            fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: { 'Accept': 'application/json' }
+            }).then(function(response) {
+                if (response.ok) {
+                    var success = document.createElement('div');
+                    success.className = 'form-success';
+                    success.textContent = "Message sent! We'll get back to you soon.";
+                    form.replaceChildren(success);
+                    setTimeout(closeContactModal, 3000);
+                } else {
+                    btn.textContent = 'Send Message';
+                    btn.disabled = false;
+                    showFormError(form, 'Something went wrong. Please try again or email ' + ['legal', 'fluxcode.studio'].join('@') + ' directly.');
+                }
+            }).catch(function() {
+                btn.textContent = 'Send Message';
+                btn.disabled = false;
+                showFormError(form, 'Network error. Please try again or email ' + ['legal', 'fluxcode.studio'].join('@') + ' directly.');
+            });
         }
 
         // Newsletter Modal
@@ -423,23 +1123,37 @@ backup-now</code>
 
         function submitNewsletterForm(e) {
             e.preventDefault();
-            const form = e.target;
-            const formData = new FormData(form);
+            var form = e.target;
+            var formData = new FormData(form);
+            // Honeypot check — bots fill hidden fields
+            if (formData.get('last_name')) return;
+            var btn = form.querySelector('button[type="submit"]');
+            btn.textContent = 'Subscribing...';
+            btn.disabled = true;
 
             // Submit to Sendy via AJAX
             fetch(form.action, {
                 method: 'POST',
                 body: formData,
                 mode: 'no-cors' // Sendy may not have CORS headers
-            }).then(() => {
+            }).then(function() {
                 // Show success (we can't read response with no-cors)
-                form.innerHTML = '<div class="form-success">🎉 You\'re in! Check your email to confirm.</div>';
+                var success = document.createElement('div');
+                success.className = 'form-success';
+                success.textContent = "You're in! Check your email to confirm.";
+                form.replaceChildren(success);
                 setTimeout(closeNewsletterModal, 3000);
-            }).catch(() => {
+            }).catch(function() {
                 // Fallback: submit normally
                 form.submit();
             });
         }
+
+        // Set referrer field on newsletter form
+        document.addEventListener('DOMContentLoaded', function() {
+            var ref = document.querySelector('#newsletterForm input[name="Referrer"]');
+            if (ref) ref.value = window.location.href;
+        });
 
         // Auto-show newsletter popup after 5 seconds
         document.addEventListener('DOMContentLoaded', function() {

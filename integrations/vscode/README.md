@@ -131,7 +131,7 @@ Set `CLAUDECODE_BACKUP_ROOT` in shell RC:
 
 ```bash
 # ~/.bashrc or ~/.zshrc
-export CLAUDECODE_BACKUP_ROOT="/Volumes/WORK DRIVE - 4TB/WEB DEV/CLAUDE CODE PROJECT BACKUP"
+export CLAUDECODE_BACKUP_ROOT="$HOME/.local/lib/checkpoint"
 ```
 
 Restart VS Code after adding.

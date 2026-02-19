@@ -1,0 +1,37 @@
+# Checkpoint by Fluxcode Studio
+# https://checkpoint.fluxcode.studio
+
+User-agent: *
+Allow: /
+Disallow: /social-card.html
+
+# Sitemap
+Sitemap: https://checkpoint.fluxcode.studio/sitemap.xml
+
+# LLM documentation
+LLMs-txt: https://checkpoint.fluxcode.studio/llms.txt
+
+# LLM-specific crawlers — allowed to read docs and site
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: CCBot
+Allow: /

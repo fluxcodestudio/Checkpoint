@@ -1,0 +1,22 @@
+{
+  "name": "Checkpoint - Automated Backup for Developers",
+  "short_name": "Checkpoint",
+  "description": "Automated, intelligent backup system for developers. Encrypted cloud sync, native dashboard, universal database support.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#a666ff",
+  "background_color": "#16161e",
+  "icons": [
+    {
+      "src": "checkpoint-logo-no-text.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "checkpoint-logo-no-text.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

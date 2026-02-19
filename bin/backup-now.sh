@@ -1466,7 +1466,7 @@ cli_info "State saved to: $state_file"
 
 write_progress 95 "finalizing"
 
-# Write heartbeat for helper app
+# Write heartbeat for helper app (local backup complete)
 HEARTBEAT_DIR="$HOME/.checkpoint"
 HEARTBEAT_FILE="$HEARTBEAT_DIR/daemon.heartbeat"
 mkdir -p "$HEARTBEAT_DIR"
@@ -1546,7 +1546,178 @@ cli_info ""
 
 CLOUD_FOLDER_FAILED=false
 
+# Auto-detect parallel job count (half of CPU cores, minimum 2)
+_ENCRYPT_JOBS=$(( $(sysctl -n hw.ncpu 2>/dev/null || echo 4) / 2 ))
+[[ $_ENCRYPT_JOBS -lt 2 ]] && _ENCRYPT_JOBS=2
+
+# Parallel encrypt helper: encrypts all plaintext files in a directory tree
+# Uses xargs -P for parallelism when file count > 100, otherwise sequential
+# Args: $1 = directory, $2 = age recipient, $3 = log file
+_cloud_parallel_encrypt() {
+    local dir="$1"
+    local recipient="$2"
+    local log_file="${3:-/dev/null}"
+
+    # Count plaintext files
+    local file_count
+    file_count=$(find "$dir" -type f ! -name "*.age" ! -name "*.gz.age" -print0 2>/dev/null | tr -cd '\0' | wc -c | tr -d ' ')
+
+    if [[ $file_count -eq 0 ]]; then
+        echo "0"
+        return 0
+    fi
+
+    if [[ $file_count -gt 100 ]]; then
+        # Parallel mode: write worker script to temp, use xargs -P
+        local _worker_script
+        _worker_script=$(mktemp)
+        cat > "$_worker_script" <<'_ENCRYPT_WORKER'
+#!/usr/bin/env bash
+set -uo pipefail
+_recipient="$1"
+_log="$2"
+_progress_dir="$3"
+src_file="$4"
+
+_skip_gz=false
+case "${src_file,,}" in
+    *.gz|*.tgz|*.zip|*.7z|*.rar|*.bz2|*.xz|*.zst|*.lz4|*.lzma) _skip_gz=true ;;
+    *.jpg|*.jpeg|*.png|*.gif|*.webp|*.avif|*.ico|*.svg) _skip_gz=true ;;
+    *.mp4|*.mp3|*.mov|*.avi|*.mkv|*.webm|*.flac|*.aac|*.ogg) _skip_gz=true ;;
+    *.woff|*.woff2|*.ttf|*.otf) _skip_gz=true ;;
+    *.pdf|*.doc|*.docx|*.xlsx|*.pptx) _skip_gz=true ;;
+    *.jar|*.war|*.ear|*.whl|*.egg) _skip_gz=true ;;
+    *.db.gz.age|*.age) _skip_gz=true ;;
+esac
+
+if [[ "$_skip_gz" == "true" ]]; then
+    if age -r "$_recipient" -o "${src_file}.age" "$src_file" 2>>"$_log"; then
+        rm -f "$src_file"
+        # Clean up stale .gz.age variant
+        [[ -f "${src_file}.gz.age" ]] && rm -f "${src_file}.gz.age"
+        echo "1" >> "$_progress_dir/ok"
+    else
+        echo "1" >> "$_progress_dir/fail"
+    fi
+else
+    if gzip -f "$src_file" 2>>"$_log"; then
+        if age -r "$_recipient" -o "${src_file}.gz.age" "${src_file}.gz" 2>>"$_log"; then
+            rm -f "${src_file}.gz"
+            # Clean up stale .age variant
+            [[ -f "${src_file}.age" ]] && rm -f "${src_file}.age"
+            echo "1" >> "$_progress_dir/ok"
+        else
+            gunzip -f "${src_file}.gz" 2>/dev/null
+            echo "1" >> "$_progress_dir/fail"
+        fi
+    else
+        if age -r "$_recipient" -o "${src_file}.age" "$src_file" 2>>"$_log"; then
+            rm -f "$src_file"
+            echo "1" >> "$_progress_dir/ok"
+        else
+            echo "1" >> "$_progress_dir/fail"
+        fi
+    fi
+fi
+_ENCRYPT_WORKER
+        chmod +x "$_worker_script"
+
+        local _progress_dir
+        _progress_dir=$(mktemp -d)
+        echo -n > "$_progress_dir/ok"
+        echo -n > "$_progress_dir/fail"
+
+        log_info "Parallel encrypt: $file_count files with $_ENCRYPT_JOBS workers"
+
+        find "$dir" -type f ! -name "*.age" ! -name "*.gz.age" -print0 2>/dev/null \
+            | xargs -0 -P "$_ENCRYPT_JOBS" -n1 bash "$_worker_script" "$recipient" "$log_file" "$_progress_dir"
+
+        local _ok_count _fail_count
+        _ok_count=$(wc -l < "$_progress_dir/ok" | tr -d ' ')
+        _fail_count=$(wc -l < "$_progress_dir/fail" | tr -d ' ')
+
+        rm -rf "$_progress_dir" "$_worker_script"
+
+        if [[ $_fail_count -gt 0 ]]; then
+            log_warn "Parallel encrypt: $_fail_count failures out of $file_count files"
+        fi
+
+        echo "$_ok_count"
+        return 0
+    else
+        # Sequential mode (few files — not worth parallelism overhead)
+        local _count=0
+        while IFS= read -r -d '' src_file; do
+            if _cloud_compress_and_encrypt "$src_file" "$recipient" "$log_file"; then
+                _count=$((_count + 1))
+                # Clean up stale variant
+                if [[ -f "${src_file}.gz.age" ]] && [[ -f "${src_file}.age" ]]; then
+                    rm -f "${src_file}.age"
+                elif [[ -f "${src_file}.age" ]] && [[ -f "${src_file}.gz.age" ]]; then
+                    rm -f "${src_file}.gz.age"
+                fi
+            else
+                log_warn "Compress+encrypt failed for: $src_file"
+            fi
+        done < <(find "$dir" -type f ! -name "*.age" ! -name "*.gz.age" -print0 2>/dev/null)
+        echo "$_count"
+        return 0
+    fi
+}
+
+# Helper: compress and encrypt a single file for cloud upload
+# Pipeline: file → gzip (if compressible) → age encrypt → remove original
+# Output: file.gz.age (compressed) or file.age (already compressed formats)
+# Skips gzip for formats that don't benefit from compression
+_cloud_compress_and_encrypt() {
+    local src_file="$1"
+    local recipient="$2"
+    local log_file="${3:-/dev/null}"
+
+    # Check if file type is already compressed (gzip would make it bigger)
+    local _skip_gz=false
+    case "${src_file,,}" in
+        *.gz|*.tgz|*.zip|*.7z|*.rar|*.bz2|*.xz|*.zst|*.lz4|*.lzma) _skip_gz=true ;;
+        *.jpg|*.jpeg|*.png|*.gif|*.webp|*.avif|*.ico|*.svg) _skip_gz=true ;;
+        *.mp4|*.mp3|*.mov|*.avi|*.mkv|*.webm|*.flac|*.aac|*.ogg) _skip_gz=true ;;
+        *.woff|*.woff2|*.ttf|*.otf) _skip_gz=true ;;
+        *.pdf|*.doc|*.docx|*.xlsx|*.pptx) _skip_gz=true ;;
+        *.jar|*.war|*.ear|*.whl|*.egg) _skip_gz=true ;;
+        *.db.gz.age|*.age) _skip_gz=true ;;  # already processed
+    esac
+
+    if [[ "$_skip_gz" == "true" ]]; then
+        # Encrypt without compression
+        if age -r "$recipient" -o "${src_file}.age" "$src_file" 2>>"$log_file"; then
+            rm -f "$src_file"
+            return 0
+        fi
+        return 1
+    else
+        # Compress then encrypt: file → file.gz → file.gz.age
+        if gzip -f "$src_file" 2>>"$log_file"; then
+            # gzip replaces file with file.gz
+            if age -r "$recipient" -o "${src_file}.gz.age" "${src_file}.gz" 2>>"$log_file"; then
+                rm -f "${src_file}.gz"
+                return 0
+            else
+                # Encryption failed — restore from .gz
+                gunzip -f "${src_file}.gz" 2>/dev/null
+                return 1
+            fi
+        else
+            # gzip failed — encrypt without compression
+            if age -r "$recipient" -o "${src_file}.age" "$src_file" 2>>"$log_file"; then
+                rm -f "$src_file"
+                return 0
+            fi
+            return 1
+        fi
+    fi
+}
+
 if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PATH:-}" ]]; then
+    write_progress 96 "cloud_syncing"
     cli_info "Syncing to cloud folder..."
     log_info "Starting cloud folder sync to $CLOUD_FOLDER_PATH"
 
@@ -1556,22 +1727,24 @@ if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PAT
     if [[ -d "$CLOUD_FOLDER_PATH" ]]; then
         # Sync databases
         if [[ -d "$DATABASE_DIR" ]] && [[ "$(ls -A "$DATABASE_DIR" 2>/dev/null)" ]]; then
+            write_progress 96 "cloud_databases"
             if rsync -a --delete "$DATABASE_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/databases/" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                 cli_info "   Databases synced"
                 log_info "Cloud sync: databases synced"
 
                 # Encrypt cloud database backups if encryption enabled
+                # (databases are already .db.gz — no extra compression needed)
                 if encryption_enabled 2>/dev/null; then
+                    write_progress 97 "cloud_encrypting"
                     _cloud_db_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/databases"
                     _age_recipient="$(get_age_recipient)"
                     if [[ -n "$_age_recipient" ]]; then
                         while IFS= read -r -d '' db_file; do
                             if [[ ! -f "${db_file}.age" ]] || [[ "$db_file" -nt "${db_file}.age" ]]; then
-                                if age -r "$_age_recipient" -o "${db_file}.age" "$db_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                                    rm "$db_file"
-                                else
+                                _cloud_compress_and_encrypt "$db_file" "$_age_recipient" "${_CHECKPOINT_LOG_FILE:-/dev/null}" || \
                                     log_warn "Encryption failed for: $db_file"
-                                fi
+                            else
+                                rm -f "$db_file"
                             fi
                         done < <(find "$_cloud_db_dir" -name "*.db.gz" ! -name "*.age" -print0 2>/dev/null)
                         cli_info "   Databases encrypted"
@@ -1586,6 +1759,7 @@ if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PAT
 
         # Sync all project files to cloud (excludes regeneratable dirs)
         if [[ -d "$FILES_DIR" ]]; then
+            write_progress 97 "cloud_files"
             if rsync -a \
                   --exclude='node_modules/' --exclude='.git/' --exclude='.venv/' \
                   --exclude='__pycache__/' --exclude='dist/' --exclude='build/' \
@@ -1597,31 +1771,67 @@ if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PAT
                 cli_info "   Project files synced"
                 log_info "Cloud sync: project files synced"
 
-                # Encrypt cloud file backups if encryption enabled
+                # Compress + encrypt cloud file backups if encryption enabled
                 if encryption_enabled 2>/dev/null; then
+                    write_progress 98 "cloud_encrypting"
                     _cloud_files_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/files"
                     _age_recipient="$(get_age_recipient)"
                     if [[ -n "$_age_recipient" ]]; then
-                        _encrypted_count=0
+                        # Remove plaintext files that already have encrypted counterparts
                         while IFS= read -r -d '' src_file; do
-                            if [[ ! -f "${src_file}.age" ]] || [[ "$src_file" -nt "${src_file}.age" ]]; then
-                                if age -r "$_age_recipient" -o "${src_file}.age" "$src_file" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                                    rm "$src_file"
-                                    _encrypted_count=$((_encrypted_count + 1))
-                                else
-                                    log_warn "Encryption failed for: $src_file"
+                            if [[ -f "${src_file}.age" ]] || [[ -f "${src_file}.gz.age" ]]; then
+                                if [[ ! "$src_file" -nt "${src_file}.age" ]] 2>/dev/null || [[ ! "$src_file" -nt "${src_file}.gz.age" ]] 2>/dev/null; then
+                                    rm -f "$src_file"
                                 fi
                             fi
-                        done < <(find "$_cloud_files_dir" -type f ! -name "*.age" -print0 2>/dev/null)
+                        done < <(find "$_cloud_files_dir" -type f ! -name "*.age" ! -name "*.gz.age" -print0 2>/dev/null)
+                        # Encrypt remaining plaintext files (parallel if 100+)
+                        _encrypted_count=$(_cloud_parallel_encrypt "$_cloud_files_dir" "$_age_recipient" "${_CHECKPOINT_LOG_FILE:-/dev/null}")
                         if [[ $_encrypted_count -gt 0 ]]; then
-                            cli_info "   Files encrypted ($_encrypted_count files)"
-                            log_info "Cloud sync: $_encrypted_count files encrypted"
+                            cli_info "   Files compressed + encrypted ($_encrypted_count files)"
+                            log_info "Cloud sync: $_encrypted_count files compressed and encrypted"
                         fi
                     fi
                 fi
             else
                 cli_warn "   File sync failed"
                 log_warn "Cloud sync: file sync failed"
+            fi
+        fi
+
+        # Sync archived versions (version history) to cloud
+        if [[ -d "$ARCHIVED_DIR" ]] && [[ "$(ls -A "$ARCHIVED_DIR" 2>/dev/null)" ]]; then
+            write_progress 98 "cloud_archives"
+            if rsync -a \
+                  "$ARCHIVED_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/archived/" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                cli_info "   Archives synced"
+                log_info "Cloud sync: archives synced"
+
+                # Compress + encrypt archived files if encryption enabled
+                if encryption_enabled 2>/dev/null; then
+                    write_progress 99 "cloud_encrypting"
+                    _cloud_archived_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/archived"
+                    _age_recipient="$(get_age_recipient)"
+                    if [[ -n "$_age_recipient" ]]; then
+                        # Remove plaintext files that already have encrypted counterparts
+                        while IFS= read -r -d '' arc_file; do
+                            if [[ -f "${arc_file}.age" ]] || [[ -f "${arc_file}.gz.age" ]]; then
+                                if [[ ! "$arc_file" -nt "${arc_file}.age" ]] 2>/dev/null || [[ ! "$arc_file" -nt "${arc_file}.gz.age" ]] 2>/dev/null; then
+                                    rm -f "$arc_file"
+                                fi
+                            fi
+                        done < <(find "$_cloud_archived_dir" -type f ! -name "*.age" ! -name "*.gz.age" -print0 2>/dev/null)
+                        # Encrypt remaining plaintext files (parallel if 100+)
+                        _archived_encrypted=$(_cloud_parallel_encrypt "$_cloud_archived_dir" "$_age_recipient" "${_CHECKPOINT_LOG_FILE:-/dev/null}")
+                        if [[ $_archived_encrypted -gt 0 ]]; then
+                            cli_info "   Archives compressed + encrypted ($_archived_encrypted files)"
+                            log_info "Cloud sync: $_archived_encrypted archived files compressed and encrypted"
+                        fi
+                    fi
+                fi
+            else
+                cli_warn "   Archive sync failed"
+                log_warn "Cloud sync: archive sync failed"
             fi
         fi
 
@@ -1671,19 +1881,60 @@ fi
 if [[ "$USE_RCLONE" == "true" ]] && [[ -n "${CLOUD_RCLONE_REMOTE:-}" ]]; then
     # Check if rclone is available
     if command -v rclone &>/dev/null; then
+        write_progress 96 "cloud_syncing"
         cli_info "Uploading to cloud via rclone..."
         log_info "Starting rclone upload"
 
         rclone_dest="${CLOUD_RCLONE_REMOTE}:${CLOUD_RCLONE_PATH:-Backups/Checkpoint}/$PROJECT_NAME"
 
+        # Determine if we should encrypt before uploading
+        _rclone_encrypt=false
+        _rclone_age_recipient=""
+        if encryption_enabled 2>/dev/null; then
+            _rclone_age_recipient="$(get_age_recipient 2>/dev/null)"
+            if [[ -n "$_rclone_age_recipient" ]]; then
+                _rclone_encrypt=true
+                cli_info "   Encryption enabled for rclone uploads"
+                log_info "rclone: encryption enabled, recipient=$_rclone_age_recipient"
+            fi
+        fi
+
+        # Helper: compress + encrypt files in a directory tree (in-place)
+        # Uses parallel encryption when file count > 100
+        _rclone_encrypt_dir() {
+            local dir="$1"
+            local count
+            count=$(_cloud_parallel_encrypt "$dir" "$_rclone_age_recipient" "${_CHECKPOINT_LOG_FILE:-/dev/null}")
+            log_info "rclone: compressed + encrypted $count files in $dir"
+        }
+
         # Sync databases
         if [[ -d "$DATABASE_DIR" ]] && [[ "$(ls -A "$DATABASE_DIR" 2>/dev/null)" ]]; then
-            if rclone sync "$DATABASE_DIR/" "$rclone_dest/databases/" --quiet 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                cli_info "   Databases uploaded"
-                log_info "rclone: databases uploaded"
+            write_progress 96 "cloud_databases"
+
+            if [[ "$_rclone_encrypt" == "true" ]]; then
+                # Copy to temp dir, encrypt, then upload encrypted versions
+                _rclone_tmp_db=$(mktemp -d)
+                trap "rm -rf '$_rclone_tmp_db'" EXIT INT TERM
+                rsync -a "$DATABASE_DIR/" "$_rclone_tmp_db/" 2>/dev/null
+                write_progress 96 "cloud_encrypting"
+                _rclone_encrypt_dir "$_rclone_tmp_db"
+                if rclone sync "$_rclone_tmp_db/" "$rclone_dest/databases/" --checksum --log-level INFO --log-file "${_CHECKPOINT_LOG_FILE:-/dev/null}" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                    cli_info "   Databases encrypted + uploaded"
+                    log_info "rclone: databases encrypted and uploaded"
+                else
+                    cli_warn "   Database upload failed"
+                    log_warn "rclone: database upload failed"
+                fi
+                rm -rf "$_rclone_tmp_db"
             else
-                cli_warn "   Database upload failed"
-                log_warn "rclone: database upload failed"
+                if rclone sync "$DATABASE_DIR/" "$rclone_dest/databases/" --checksum --log-level INFO --log-file "${_CHECKPOINT_LOG_FILE:-/dev/null}" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                    cli_info "   Databases uploaded"
+                    log_info "rclone: databases uploaded"
+                else
+                    cli_warn "   Database upload failed"
+                    log_warn "rclone: database upload failed"
+                fi
             fi
         fi
 
@@ -1711,23 +1962,79 @@ if [[ "$USE_RCLONE" == "true" ]] && [[ -n "${CLOUD_RCLONE_REMOTE:-}" ]]; then
 - .DS_Store
 RCLONE_FILTER
 
-            if rclone sync "$FILES_DIR/" "$rclone_dest/files/" \
-                --filter-from "$rclone_filter" \
-                --quiet 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                cli_info "   Project files uploaded"
-                log_info "rclone: project files uploaded"
+            write_progress 97 "cloud_files"
+
+            if [[ "$_rclone_encrypt" == "true" ]]; then
+                # Copy to temp dir (with exclusions via rsync), encrypt, then upload
+                _rclone_tmp_files=$(mktemp -d)
+                trap "rm -rf '$_rclone_tmp_files'" EXIT INT TERM
+                rsync -a \
+                    --exclude='node_modules/' --exclude='.git/' --exclude='.venv/' \
+                    --exclude='__pycache__/' --exclude='dist/' --exclude='build/' \
+                    --exclude='.next/' --exclude='.cache/' --exclude='coverage/' \
+                    --exclude='.turbo/' --exclude='target/' --exclude='vendor/' \
+                    --exclude='.nuxt/' --exclude='.output/' --exclude='.svelte-kit/' \
+                    --exclude='*.log' --exclude='.DS_Store' \
+                    "$FILES_DIR/" "$_rclone_tmp_files/" 2>/dev/null
+                write_progress 98 "cloud_encrypting"
+                _rclone_encrypt_dir "$_rclone_tmp_files"
+                if rclone sync "$_rclone_tmp_files/" "$rclone_dest/files/" --checksum --log-level INFO --log-file "${_CHECKPOINT_LOG_FILE:-/dev/null}" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                    cli_info "   Project files encrypted + uploaded"
+                    log_info "rclone: project files encrypted and uploaded"
+                else
+                    cli_warn "   File upload failed"
+                    log_warn "rclone: file upload failed"
+                fi
+                rm -rf "$_rclone_tmp_files"
             else
-                cli_warn "   File upload failed"
-                log_warn "rclone: file upload failed"
+                if rclone sync "$FILES_DIR/" "$rclone_dest/files/" \
+                    --filter-from "$rclone_filter" \
+                    --checksum --log-level INFO --log-file "${_CHECKPOINT_LOG_FILE:-/dev/null}" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                    cli_info "   Project files uploaded"
+                    log_info "rclone: project files uploaded"
+                else
+                    cli_warn "   File upload failed"
+                    log_warn "rclone: file upload failed"
+                fi
             fi
 
             rm -f "$rclone_filter"
         fi
 
+        # Sync archived versions (version history)
+        if [[ -d "$ARCHIVED_DIR" ]] && [[ "$(ls -A "$ARCHIVED_DIR" 2>/dev/null)" ]]; then
+            write_progress 98 "cloud_archives"
+
+            if [[ "$_rclone_encrypt" == "true" ]]; then
+                _rclone_tmp_arc=$(mktemp -d)
+                trap "rm -rf '$_rclone_tmp_arc'" EXIT INT TERM
+                rsync -a "$ARCHIVED_DIR/" "$_rclone_tmp_arc/" 2>/dev/null
+                write_progress 99 "cloud_encrypting"
+                _rclone_encrypt_dir "$_rclone_tmp_arc"
+                if rclone sync "$_rclone_tmp_arc/" "$rclone_dest/archived/" --checksum --log-level INFO --log-file "${_CHECKPOINT_LOG_FILE:-/dev/null}" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                    cli_info "   Archives encrypted + uploaded"
+                    log_info "rclone: archives encrypted and uploaded"
+                else
+                    cli_warn "   Archive upload failed"
+                    log_warn "rclone: archive upload failed"
+                fi
+                rm -rf "$_rclone_tmp_arc"
+            else
+                if rclone sync "$ARCHIVED_DIR/" "$rclone_dest/archived/" --checksum --log-level INFO --log-file "${_CHECKPOINT_LOG_FILE:-/dev/null}" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                    cli_info "   Archives uploaded"
+                    log_info "rclone: archives uploaded"
+                else
+                    cli_warn "   Archive upload failed"
+                    log_warn "rclone: archive upload failed"
+                fi
+            fi
+        fi
+
         # Upload state file (for cross-computer portability)
         portable_state="${BACKUP_DIR:-$PROJECT_DIR/backups}/.checkpoint-state.json"
         if [[ -f "$portable_state" ]]; then
-            if rclone copyto "$portable_state" "$rclone_dest/.checkpoint-state.json" --quiet 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+            write_progress 99 "cloud_syncing"
+            if rclone copyto "$portable_state" "$rclone_dest/.checkpoint-state.json" --checksum --log-level INFO --log-file "${_CHECKPOINT_LOG_FILE:-/dev/null}" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
                 cli_info "   State file uploaded"
                 log_info "rclone: state file uploaded"
             else
@@ -1740,6 +2047,28 @@ RCLONE_FILTER
     else
         cli_warn "   rclone not installed - skipping cloud upload"
         log_warn "rclone not installed, skipping cloud upload"
+    fi
+fi
+
+# ==============================================================================
+# CLOUD MANIFEST UPLOAD
+# ==============================================================================
+# Upload manifest to cloud for restore/browse functionality.
+# Runs after cloud sync so the manifest is available alongside backup files.
+# ==============================================================================
+
+if [[ -f "$BACKUP_DIR/.checkpoint-manifest.json" ]]; then
+    if [[ -f "$LIB_DIR/features/cloud-restore.sh" ]]; then
+        source "$LIB_DIR/features/cloud-restore.sh" 2>/dev/null || true
+        if type cloud_upload_manifest &>/dev/null; then
+            _manifest_backup_id=$(date +%Y%m%d_%H%M%S)
+            if cloud_upload_manifest "$PROJECT_NAME" "$_manifest_backup_id" "$BACKUP_DIR/.checkpoint-manifest.json" 2>/dev/null; then
+                cli_verbose "   Cloud manifest uploaded"
+                log_info "Cloud manifest uploaded for backup $_manifest_backup_id"
+            else
+                log_debug "Cloud manifest upload skipped (no cloud configured or upload failed)"
+            fi
+        fi
     fi
 fi
 

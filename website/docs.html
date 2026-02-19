@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - Checkpoint</title>
+    <meta name="description" content="Checkpoint documentation — installation, project management, cloud backup, encryption, CLI commands, and dashboard guide.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://checkpoint.fluxcode.studio/docs.html">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://checkpoint.fluxcode.studio/docs.html">
+    <meta property="og:title" content="Documentation - Checkpoint">
+    <meta property="og:description" content="Complete documentation for Checkpoint backup software — installation, cloud sync, encryption, CLI commands, and dashboard guide.">
+    <meta property="og:image" content="https://checkpoint.fluxcode.studio/Dashboard.png">
+    <meta property="og:site_name" content="Checkpoint">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Documentation - Checkpoint">
+    <meta name="twitter:description" content="Complete documentation for Checkpoint backup software.">
+    <meta name="twitter:image" content="https://checkpoint.fluxcode.studio/Dashboard.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <link rel="icon" type="image/png" href="checkpoint-logo-no-text.png">
+    <link rel="apple-touch-icon" href="checkpoint-logo-no-text.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#a666ff">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="fonts/fonts.css">
+</head>
+<body class="docs-page">
+    <a href="#docs-main" class="skip-link">Skip to main content</a>
+    <!-- Aurora Borealis Background -->
+    <div class="aurora" aria-hidden="true">
+        <div class="aurora__layer aurora__layer--1"></div>
+        <div class="aurora__layer aurora__layer--2"></div>
+        <div class="aurora__layer aurora__layer--3"></div>
+        <div class="aurora__layer aurora__layer--4"></div>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-container">
+            <a href="index.html" class="logo">
+                <img src="checkpoint-logo-no-text.png" alt="Checkpoint" class="logo-img">
+                <span class="logo-text">CHECKPOINT</span>
+            </a>
+            <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle navigation">☰</button>
+            <div class="nav-links">
+                <a href="index.html#features">Features</a>
+                <a href="index.html#dashboard">Dashboard</a>
+                <a href="docs.html" class="active">Docs</a>
+                <a href="compare.html">Compare</a>
+                <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <a href="index.html#contact" onclick="if(window.openContactModal){openContactModal();return false;}">Contact</a>
+                <a href="index.html#newsletter" onclick="if(window.openNewsletterModal){openNewsletterModal();return false;}">Join Us</a>
+                <a href="index.html#download" class="btn btn-primary">Download Free</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="docs-layout">
+        <aside class="docs-sidebar">
+            <nav class="docs-nav">
+                <h4>Getting Started</h4>
+                <a href="#installation">Installation</a>
+                <a href="#first-backup">Your First Backup</a>
+                <a href="#how-it-runs">How It Runs</a>
+
+                <h4>Managing Projects</h4>
+                <a href="#add-projects">Adding Projects</a>
+                <a href="#remove-projects">Removing Projects</a>
+                <a href="#project-settings">Per-Project Settings</a>
+                <a href="#global-settings">Global Settings</a>
+
+                <h4>Cloud Backup</h4>
+                <a href="#cloud-setup">Setting Up Cloud Sync</a>
+                <a href="#cloud-providers">Supported Providers</a>
+                <a href="#encryption">Encryption &amp; Compression</a>
+                <a href="#cloud-restore">Cloud Restore</a>
+
+                <h4>Dashboard</h4>
+                <a href="#dashboard-overview">Menu Bar App</a>
+                <a href="#dashboard-settings">Dashboard Settings</a>
+
+                <h4>CLI Reference</h4>
+                <a href="#cli-commands">Commands</a>
+                <a href="#search-browse">Search &amp; Browse</a>
+                <a href="#restore">Restoring Files</a>
+
+                <h4>Advanced</h4>
+                <a href="#databases">Database Backup</a>
+                <a href="#docker">Docker Support</a>
+                <a href="#linux">Linux Setup</a>
+                <a href="#uninstall">Uninstalling</a>
+            </nav>
+        </aside>
+
+        <main id="docs-main" class="docs-content">
+
+            <!-- GETTING STARTED -->
+
+            <section id="installation">
+                <h1>Getting Started</h1>
+                <h2>Installation</h2>
+                <p>Checkpoint installs globally on your system. One install covers all your projects.</p>
+
+                <div class="code-block docs-code">
+                    <code>git clone https://github.com/fluxcodestudio/Checkpoint.git
+cd Checkpoint
+./bin/install-global.sh</code>
+                </div>
+
+                <p>The installer:</p>
+                <ul>
+                    <li>Adds <code>checkpoint</code> and <code>backup-now</code> to your PATH</li>
+                    <li>Starts a background daemon that runs hourly backups</li>
+                    <li>Creates global config at <code>~/.config/checkpoint/config.sh</code></li>
+                    <li>Installs the macOS menu bar dashboard (macOS only)</li>
+                </ul>
+
+                <div class="docs-callout">
+                    <strong>That's it.</strong> After install, Checkpoint runs silently in the background. You can use the Dashboard or CLI to manage everything — or just let it run.
+                </div>
+            </section>
+
+            <section id="first-backup">
+                <h2>Your First Backup</h2>
+                <p>Navigate to any project directory and run:</p>
+
+                <div class="code-block docs-code">
+                    <code>cd ~/my-project
+backup-now</code>
+                </div>
+
+                <p>On first run, Checkpoint will:</p>
+                <ol>
+                    <li>Auto-create a <code>.backup-config.sh</code> in your project</li>
+                    <li>Register the project for automatic hourly backups</li>
+                    <li>Run an immediate backup of files and any detected databases</li>
+                </ol>
+
+                <p>From this point on, your project is backed up every hour automatically. No further action needed.</p>
+            </section>
+
+            <section id="how-it-runs">
+                <h2>How It Runs</h2>
+                <p>Checkpoint uses a system-level background daemon:</p>
+                <ul>
+                    <li><strong>macOS:</strong> launchd agent — starts on login, runs hourly</li>
+                    <li><strong>Linux:</strong> systemd user service — same behavior</li>
+                    <li><strong>Fallback:</strong> cron job if neither is available</li>
+                </ul>
+                <p>The daemon loops through all registered projects and backs up any that have changed since the last run. No CPU or disk usage when nothing has changed.</p>
+
+                <div class="docs-callout">
+                    <strong>Set it and forget it.</strong> The daemon auto-starts on boot, auto-restarts on crash, and has a built-in watchdog that monitors its health. If no backup runs for 24 hours, you'll get a notification.
+                </div>
+            </section>
+
+            <!-- MANAGING PROJECTS -->
+
+            <section id="add-projects">
+                <h1>Managing Projects</h1>
+                <h2>Adding Projects</h2>
+                <p>There are three ways to add a project to Checkpoint:</p>
+
+                <h3>Option 1: Run backup-now (simplest)</h3>
+                <div class="code-block docs-code">
+                    <code>cd /path/to/your/project
+backup-now</code>
+                </div>
+                <p>The project is automatically registered and will be included in all future hourly backups.</p>
+
+                <h3>Option 2: Dashboard</h3>
+                <p>Open the Checkpoint menu bar app and use the settings to manage registered projects. Projects appear automatically after their first backup.</p>
+
+                <h3>Option 3: Configure manually</h3>
+                <div class="code-block docs-code">
+                    <code>checkpoint --project /path/to/your/project</code>
+                </div>
+                <p>This opens the interactive configuration wizard for that specific project.</p>
+
+                <div class="docs-callout">
+                    <strong>Multiple projects?</strong> Just run <code>backup-now</code> in each project directory once. After that, the daemon handles all of them automatically on the hourly schedule.
+                </div>
+            </section>
+
+            <section id="remove-projects">
+                <h2>Removing Projects</h2>
+                <p>To stop backing up a project, remove it from the registry:</p>
+                <div class="code-block docs-code">
+                    <code># View all registered projects
+checkpoint --status
+
+# Remove a project's .backup-config.sh to unregister
+rm /path/to/project/.backup-config.sh</code>
+                </div>
+                <p>Existing backups are preserved — only future backups stop.</p>
+            </section>
+
+            <section id="project-settings">
+                <h2>Per-Project Settings</h2>
+                <p>Each project has a <code>.backup-config.sh</code> file in its root directory. You can edit it directly or use the wizard:</p>
+                <div class="code-block docs-code">
+                    <code>checkpoint --project</code>
+                </div>
+
+                <p>Common settings:</p>
+                <table class="docs-table">
+                    <thead>
+                        <tr><th>Setting</th><th>Default</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>BACKUP_DIR</code></td><td><code>./backups</code></td><td>Where backups are stored</td></tr>
+                        <tr><td><code>DB_TYPE</code></td><td>auto-detected</td><td>Database engine (sqlite, postgres, mysql, mongodb)</td></tr>
+                        <tr><td><code>BACKUP_CRITICAL_FILES</code></td><td><code>true</code></td><td>Back up .env, credentials, keys</td></tr>
+                        <tr><td><code>RETENTION_DAYS_DB</code></td><td><code>30</code></td><td>Days to keep database backups</td></tr>
+                        <tr><td><code>RETENTION_DAYS_FILES</code></td><td><code>90</code></td><td>Days to keep archived file versions</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="global-settings">
+                <h2>Global Settings</h2>
+                <p>Global defaults apply to all projects unless overridden by per-project config.</p>
+
+                <div class="code-block docs-code">
+                    <code># Edit via CLI
+checkpoint --global
+
+# Or edit directly
+nano ~/.config/checkpoint/config.sh</code>
+                </div>
+
+                <p>Or use the <strong>Dashboard Settings</strong> (⌘,) to change these visually — no config files needed.</p>
+
+                <p>Key global settings:</p>
+                <ul>
+                    <li><strong>Backup interval</strong> — How often the daemon runs (default: 60 min)</li>
+                    <li><strong>Compression level</strong> — gzip level for database backups (1-9)</li>
+                    <li><strong>Desktop notifications</strong> — On/off, failure-only mode</li>
+                    <li><strong>Cloud sync</strong> — Provider, encryption, what to upload</li>
+                    <li><strong>Debug mode</strong> — Verbose logging for troubleshooting</li>
+                </ul>
+            </section>
+
+            <!-- CLOUD BACKUP -->
+
+            <section id="cloud-setup">
+                <h1>Cloud Backup</h1>
+                <h2>Setting Up Cloud Sync</h2>
+                <p>Checkpoint supports two cloud sync methods:</p>
+
+                <h3>Method 1: Direct folder sync (simplest)</h3>
+                <p>Point Checkpoint at a synced cloud folder (Dropbox, iCloud Drive, Google Drive, OneDrive). Files are copied there and your cloud provider handles the upload.</p>
+
+                <div class="code-block docs-code">
+                    <code># In global config (~/.config/checkpoint/config.sh)
+CLOUD_FOLDER_ENABLED=true
+CLOUD_FOLDER_PATH="/Users/you/Dropbox/Backups/Checkpoint"</code>
+                </div>
+
+                <h3>Method 2: rclone (advanced)</h3>
+                <p>Uses <a href="https://rclone.org" target="_blank" rel="noopener noreferrer">rclone</a> for direct API uploads. Supports 40+ cloud providers including S3, Backblaze, and encrypted remotes.</p>
+
+                <div class="code-block docs-code">
+                    <code># Install rclone
+brew install rclone
+
+# Configure a remote
+rclone config
+
+# In global config
+CLOUD_RCLONE_ENABLED=true
+CLOUD_RCLONE_REMOTE="mydropbox"
+CLOUD_RCLONE_PATH="Backups/Checkpoint"</code>
+                </div>
+
+                <div class="docs-callout">
+                    <strong>Recommended:</strong> Direct folder sync is easier. Use rclone if you need S3/Backblaze, bandwidth limiting, or encrypted remotes.
+                </div>
+            </section>
+
+            <section id="cloud-providers">
+                <h2>Supported Cloud Providers</h2>
+                <table class="docs-table">
+                    <thead>
+                        <tr><th>Provider</th><th>Free Tier</th><th>Method</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Dropbox</td><td>2 GB</td><td>Folder sync or rclone</td></tr>
+                        <tr><td>Google Drive</td><td>15 GB</td><td>Folder sync or rclone</td></tr>
+                        <tr><td>iCloud Drive</td><td>5 GB</td><td>Folder sync</td></tr>
+                        <tr><td>OneDrive</td><td>5 GB</td><td>Folder sync or rclone</td></tr>
+                        <tr><td>S3 / Backblaze B2</td><td>Varies</td><td>rclone only</td></tr>
+                    </tbody>
+                </table>
+                <p>A typical project uses ~65 MB/month for database backups and critical files — fits easily in any free tier.</p>
+            </section>
+
+            <section id="encryption">
+                <h2>Encryption &amp; Compression</h2>
+                <p>Cloud backups are compressed and encrypted before upload using <a href="https://github.com/FiloSottile/age" target="_blank" rel="noopener noreferrer">age</a> encryption and gzip compression.</p>
+
+                <div class="code-block docs-code">
+                    <code># One command to set up encryption
+checkpoint encrypt setup</code>
+                </div>
+
+                <p>This generates an encryption key at <code>~/.config/checkpoint/age-key.txt</code> and enables encryption globally.</p>
+
+                <h3>Compression Pipeline</h3>
+                <p>Before encryption, compressible files (text, source code, configs) are gzip-compressed to reduce cloud storage usage. Already-compressed formats (images, video, archives, fonts) skip compression and are encrypted directly.</p>
+                <ul>
+                    <li>Text files: <code>file &rarr; gzip &rarr; age &rarr; .gz.age</code></li>
+                    <li>Binary files: <code>file &rarr; age &rarr; .age</code></li>
+                </ul>
+
+                <h3>Parallel Encryption</h3>
+                <p>When backing up 100+ files, encryption runs in parallel across multiple CPU cores (auto-detected, uses half your cores). Small backups use sequential processing to avoid overhead.</p>
+
+                <ul>
+                    <li><strong>Cloud-only:</strong> Local backups stay unencrypted for fast access. Only cloud-synced files are encrypted.</li>
+                    <li><strong>Zero-knowledge:</strong> Your cloud provider cannot read your backup data.</li>
+                    <li><strong>Toggle anytime:</strong> Enable/disable from the Dashboard settings or CLI.</li>
+                </ul>
+
+                <div class="docs-callout docs-callout-warn">
+                    <strong>Keep your key safe.</strong> If you lose <code>~/.config/checkpoint/age-key.txt</code>, your encrypted cloud backups cannot be recovered. There is no recovery mechanism. Back up this key separately.
+                </div>
+            </section>
+
+            <section id="cloud-restore">
+                <h2>Cloud Restore</h2>
+                <p>Browse, search, and download files from your cloud backups — auto-decrypted and decompressed on download.</p>
+
+                <div class="code-block docs-code">
+                    <code># List all cloud backups for a project
+checkpoint cloud list MyProject
+
+# Browse files interactively (fzf or numbered list)
+checkpoint cloud browse MyProject
+
+# Browse the latest backup directly
+checkpoint cloud browse MyProject --latest
+
+# Download a specific file (auto-decrypted)
+checkpoint cloud download .env --project MyProject --backup-id latest
+
+# Download everything as a zip
+checkpoint cloud download-all --project MyProject --zip</code>
+                </div>
+
+                <p>Downloaded files are automatically decrypted and decompressed. They appear in <code>~/Downloads</code> by default, or specify a directory with <code>--output</code>.</p>
+
+                <div class="docs-callout">
+                    <strong>Cross-computer restore:</strong> Run <code>checkpoint cloud setup</code> on a new machine to import your encryption key and configure cloud access. Then browse and restore any backup from the cloud.
+                </div>
+            </section>
+
+            <!-- DASHBOARD -->
+
+            <section id="dashboard-overview">
+                <h1>Dashboard</h1>
+                <h2>Menu Bar App</h2>
+                <p>The Checkpoint Dashboard is a native SwiftUI app that lives in your macOS menu bar. It's installed automatically during setup.</p>
+
+                <ul>
+                    <li><strong>Menu bar widget</strong> — Click the icon to see all projects, status, file counts, and last backup time</li>
+                    <li><strong>Live progress</strong> — Watch backups run in real-time</li>
+                    <li><strong>Native notifications</strong> — macOS desktop notifications on backup failures and staleness (24h without backup)</li>
+                    <li><strong>One-click actions</strong> — Backup All, Pause/Resume, per-project context menus</li>
+                    <li><strong>Keyboard shortcuts</strong> — ⌘B Backup All, ⌘R Refresh, ⌘, Settings</li>
+                </ul>
+
+                <p>Right-click any project for quick actions: Backup Now, Reveal in Finder, View Backup Folder, View Log, Enable/Disable.</p>
+
+                <h3>Notifications</h3>
+                <p>Checkpoint sends native macOS desktop notifications (via osascript) for:</p>
+                <ul>
+                    <li>Backup failures — immediate alert with error details</li>
+                    <li>Staleness warnings — no successful backup in 24 hours</li>
+                    <li>Critical alerts — no successful backup in 72 hours</li>
+                </ul>
+                <p>Configure in Dashboard settings or global config:</p>
+                <div class="code-block docs-code">
+                    <code>DESKTOP_NOTIFICATIONS=true    # Enable/disable
+NOTIFY_ON_FAILURE_ONLY=false  # Only notify on failures</code>
+                </div>
+                <p>Notification cooldowns prevent alert fatigue (4h for warnings, 2h for critical).</p>
+            </section>
+
+            <section id="dashboard-settings">
+                <h2>Dashboard Settings</h2>
+                <p>Press <strong>⌘,</strong> in the Dashboard to open settings. Everything you can configure in config files, you can configure here:</p>
+                <ul>
+                    <li><strong>Schedule</strong> — Backup interval, idle threshold</li>
+                    <li><strong>Retention</strong> — Database and file retention periods</li>
+                    <li><strong>What to Backup</strong> — Toggle .env files, credentials, IDE settings</li>
+                    <li><strong>Cloud Encryption</strong> — Enable/disable with one switch</li>
+                    <li><strong>Notifications</strong> — Desktop notifications, failure-only mode</li>
+                    <li><strong>Advanced</strong> — Compression level, debug logging</li>
+                </ul>
+                <p>Changes are saved to <code>~/.config/checkpoint/config.sh</code> and take effect on the next backup cycle.</p>
+            </section>
+
+            <!-- CLI REFERENCE -->
+
+            <section id="cli-commands">
+                <h1>CLI Reference</h1>
+                <h2>Commands</h2>
+                <table class="docs-table">
+                    <thead>
+                        <tr><th>Command</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>backup-now</code></td><td>Run an immediate backup in the current directory</td></tr>
+                        <tr><td><code>checkpoint</code></td><td>Open the interactive TUI dashboard</td></tr>
+                        <tr><td><code>checkpoint --status</code></td><td>Show status of all registered projects</td></tr>
+                        <tr><td><code>checkpoint --global</code></td><td>Edit global settings</td></tr>
+                        <tr><td><code>checkpoint --project</code></td><td>Configure the current project</td></tr>
+                        <tr><td><code>checkpoint --update</code></td><td>Check for Checkpoint updates</td></tr>
+                        <tr><td><code>checkpoint verify</code></td><td>Verify backup integrity</td></tr>
+                        <tr><td><code>checkpoint diff</code></td><td>Compare working directory with last backup</td></tr>
+                        <tr><td><code>checkpoint encrypt setup</code></td><td>Generate key and enable encryption</td></tr>
+                        <tr><td><code>checkpoint encrypt status</code></td><td>Show encryption status</td></tr>
+                        <tr><td><code>checkpoint cloud list [PROJECT]</code></td><td>List available cloud backups</td></tr>
+                        <tr><td><code>checkpoint cloud browse PROJECT</code></td><td>Browse and download cloud backup files</td></tr>
+                        <tr><td><code>checkpoint cloud download FILE</code></td><td>Download a file from cloud (auto-decrypted)</td></tr>
+                        <tr><td><code>checkpoint cloud download-all</code></td><td>Download entire backup (optional --zip)</td></tr>
+                        <tr><td><code>checkpoint cloud setup</code></td><td>Configure cloud access on a new machine</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="search-browse">
+                <h2>Search &amp; Browse</h2>
+                <div class="code-block docs-code">
+                    <code># Search backup history for a file path or pattern
+checkpoint search "app.py"
+
+# Browse backup snapshots interactively (requires fzf)
+checkpoint browse
+
+# View all versions of a specific file
+checkpoint history src/app.py
+
+# Interactive version picker
+checkpoint history -i src/app.py</code>
+                </div>
+            </section>
+
+            <section id="restore">
+                <h2>Restoring Files</h2>
+                <p>Restore files from the most recent backup or a specific version:</p>
+                <div class="code-block docs-code">
+                    <code># Browse and restore interactively
+checkpoint browse
+
+# Restore from a specific backup
+cp backups/archived/src/app.py.20250215_104500 src/app.py
+
+# Restore a database
+gunzip -k backups/databases/MyApp-2025.02.15-10.45.12.db.gz</code>
+                </div>
+                <p>Local backups are unencrypted and stored in plain files — you can always access them directly without any special tools.</p>
+            </section>
+
+            <!-- ADVANCED -->
+
+            <section id="databases">
+                <h1>Advanced</h1>
+                <h2>Database Backup</h2>
+                <p>Checkpoint auto-detects databases in your project and uses the proper dump tool:</p>
+                <table class="docs-table">
+                    <thead>
+                        <tr><th>Database</th><th>Detection</th><th>Tool Used</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>SQLite</td><td><code>.db</code>, <code>.sqlite</code> files</td><td><code>sqlite3 .dump</code></td></tr>
+                        <tr><td>PostgreSQL</td><td>Connection string in .env</td><td><code>pg_dump</code></td></tr>
+                        <tr><td>MySQL</td><td>Connection string in .env</td><td><code>mysqldump</code></td></tr>
+                        <tr><td>MongoDB</td><td>Connection string in .env</td><td><code>mongodump</code></td></tr>
+                    </tbody>
+                </table>
+                <p>Remote databases (Neon, Supabase, PlanetScale, MongoDB Atlas) are supported — Checkpoint reads connection details from your <code>.env</code> file.</p>
+            </section>
+
+            <section id="docker">
+                <h2>Docker Support</h2>
+                <div class="code-block docs-code">
+                    <code># List detected Docker databases
+checkpoint docker-volumes list
+
+# Backup Docker volumes
+checkpoint docker-volumes backup
+
+# Restore a Docker volume
+checkpoint docker-volumes restore</code>
+                </div>
+                <p>Checkpoint reads your <code>docker-compose.yml</code> to find database containers. It can auto-start Docker Desktop if it's not running, and stop it after backup if needed.</p>
+            </section>
+
+            <section id="linux">
+                <h2>Linux Setup</h2>
+                <p>On Linux, Checkpoint uses systemd user services instead of launchd:</p>
+                <div class="code-block docs-code">
+                    <code># Installation is identical
+./bin/install-global.sh
+
+# Manage the daemon via systemctl
+systemctl --user status checkpoint-daemon
+systemctl --user restart checkpoint-daemon</code>
+                </div>
+                <p>If systemd isn't available, Checkpoint falls back to a cron job.</p>
+            </section>
+
+            <section id="uninstall">
+                <h2>Uninstalling</h2>
+                <div class="code-block docs-code">
+                    <code>./bin/uninstall-global.sh</code>
+                </div>
+                <p>This removes the daemon, PATH entries, and the menu bar app. Your existing backups and project configs are <strong>not</strong> deleted — you can re-install later and pick up where you left off.</p>
+            </section>
+
+        </main>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="footer-logo">
+                        <img src="checkpoint-logo-no-text.png" alt="Checkpoint" class="logo-img footer-logo-img">
+                        <span class="logo-text">CHECKPOINT</span>
+                    </div>
+                    <p>A little peace of mind goes a long way.</p>
+                    <p class="footer-company">A product of <a href="https://fluxcode.studio" target="_blank" rel="noopener noreferrer">FluxCode Studio</a></p>
+                </div>
+                <div class="footer-links">
+                    <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank" rel="noopener noreferrer">GitHub</a>
+                    <a href="docs.html">Documentation</a>
+                    <a href="privacy.html">Privacy Policy</a>
+                    <a href="terms.html">Terms of Service</a>
+                    <a href="legal.html">Legal</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025–2026 Fluxcode Studio LLC. <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/" target="_blank" rel="noopener noreferrer">Polyform Noncommercial License</a></p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,66 @@
+# Checkpoint — Automated Backup for Developers
+# https://checkpoint.fluxcode.studio
+# By Fluxcode Studio LLC
+
+> Checkpoint is a free, open-source automated backup system for developers.
+> It runs as a background daemon on macOS and Linux, creating hourly snapshots
+> of your project files and databases with optional encrypted cloud sync.
+
+## Product Overview
+- Name: Checkpoint
+- Version: 2.6.0
+- License: Polyform Noncommercial 1.0.0 (free for personal use, commercial license available)
+- Platforms: macOS, Linux
+- Source: https://github.com/fluxcodestudio/Checkpoint
+- Company: Fluxcode Studio LLC
+- Website: https://checkpoint.fluxcode.studio
+
+## Key Features
+- Automated hourly backups running as a background daemon
+- Native macOS menu bar dashboard (SwiftUI)
+- Encrypted cloud sync via rclone (Dropbox, Google Drive, OneDrive, iCloud, S3)
+- Compression + encryption pipeline (gzip then age) for cloud backups
+- Parallel encryption across multiple CPU cores (auto-detected)
+- Cloud browse and restore with auto-decrypt (checkpoint cloud browse/download)
+- Database support: SQLite, PostgreSQL, MySQL, MongoDB (local, remote, Docker)
+- File encryption at rest using age (https://github.com/FiloSottile/age)
+- Version history with search and restore via fzf
+- Docker container volume backup with auto-start
+- Storage monitoring and automatic cleanup
+
+## Documentation
+- Full docs: https://checkpoint.fluxcode.studio/docs.html
+- Detailed docs for LLMs: https://checkpoint.fluxcode.studio/llms-full.txt
+
+## Pages
+- Homepage: https://checkpoint.fluxcode.studio/
+- Documentation: https://checkpoint.fluxcode.studio/docs.html
+- Compare: https://checkpoint.fluxcode.studio/compare.html
+- Privacy Policy: https://checkpoint.fluxcode.studio/privacy.html
+- Terms of Service: https://checkpoint.fluxcode.studio/terms.html
+- Legal: https://checkpoint.fluxcode.studio/legal.html
+
+## Installation
+```bash
+git clone https://github.com/fluxcodestudio/Checkpoint.git
+cd Checkpoint && ./bin/install-global.sh
+```
+
+## Quick Start
+```bash
+# Run first backup in any project directory
+backup-now
+
+# Check status
+checkpoint --status
+
+# Search backup history
+checkpoint search "filename"
+
+# Restore a file
+checkpoint restore
+```
+
+## Contact
+- Email: legal@fluxcode.studio
+- GitHub: https://github.com/fluxcodestudio/Checkpoint

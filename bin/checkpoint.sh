@@ -616,6 +616,7 @@ case "${1:-}" in
         echo "  history <file>      Show all versions of a file (-i for interactive)"
         echo "  search <pattern>    Search backup file paths and content"
         echo "  browse              Interactive backup snapshot browser"
+        echo "  cloud               Cloud restore (list, browse, download, setup)"
         echo "  encrypt             Manage backup encryption (setup, status, test)"
         echo "  docker-volumes      Manage Docker volume backups (list, backup, restore)"
         echo "  --help, -h          Show this help"
@@ -660,6 +661,16 @@ case "${1:-}" in
             exec "$CHECKPOINT_LIB/bin/checkpoint-docker-volumes.sh" "$@"
         else
             echo "Error: checkpoint-docker-volumes.sh not found" >&2
+            exit 1
+        fi
+        ;;
+    cloud|--cloud)
+        # Cloud restore: browse, download, restore from cloud backups
+        if [[ -x "$CHECKPOINT_LIB/bin/checkpoint-cloud.sh" ]]; then
+            shift
+            exec "$CHECKPOINT_LIB/bin/checkpoint-cloud.sh" "$@"
+        else
+            echo "Error: checkpoint-cloud.sh not found" >&2
             exit 1
         fi
         ;;

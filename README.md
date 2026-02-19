@@ -4,22 +4,78 @@
 
 # Checkpoint
 
-**A code guardian for developing projects. A little peace of mind goes a long way.**
+**Automated backup tool for developers — protect your source code, databases, and project files.**
 
-Automated, intelligent backup system for any development environment. Battle-tested with comprehensive test coverage, cloud backup support, and multi-platform integrations.
+A set-and-forget backup system that runs in the background on macOS and Linux. Checkpoint automatically backs up your project files, databases (SQLite, PostgreSQL, MySQL, MongoDB), and critical configs (.env, credentials, keys) every hour. Includes encrypted cloud sync, a native macOS dashboard, and full restore/search capabilities.
 
-**Version:** 2.5.2
-**Test Coverage:** 164/164 (100%)
-**License:** [Polyform Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0/)
-**By:** [FluxCode Studio](https://fluxcode.studio)
+**Version:** 2.6.0 &nbsp;|&nbsp; **Tests:** 164/164 (100%) &nbsp;|&nbsp; **License:** [Polyform Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0/) &nbsp;|&nbsp; **By:** [FluxCode Studio](https://fluxcode.studio)
+
+[Website](https://checkpoint.fluxcode.studio) &nbsp;·&nbsp; [Documentation](https://checkpoint.fluxcode.studio/docs.html) &nbsp;·&nbsp; [Download](https://github.com/fluxcodestudio/Checkpoint/archive/refs/heads/main.zip)
 
 </div>
 
+> **TL;DR:** Install once, run `backup-now` in any project directory, forget about it. Your code, databases, and secrets are backed up hourly with optional encrypted cloud sync. Think of it as Time Machine for your development projects.
+
 ---
 
-## What's New in v2.5.1
+## Why Checkpoint?
+
+Most backup solutions aren't built for developers. Checkpoint is:
+
+- **Git isn't backup** — Git doesn't protect .env files, databases, untracked files, or work-in-progress code you haven't committed
+- **Time Machine is too broad** — It backs up everything, not just what matters for your projects
+- **Cloud sync isn't versioned** — Dropbox/iCloud sync your current state but don't keep historical versions
+- **Cron scripts are fragile** — They break silently, have no monitoring, and require maintenance
+
+Checkpoint handles all of this: automatic hourly backups of files + databases, encrypted cloud upload, version history, search/restore, health monitoring, and a native macOS dashboard — all from one `backup-now` command.
+
+---
+
+## What's New in v2.6.0
 
 <details open>
+<summary><strong>v2.6.0 — Encrypted Cloud Sync, Compression & Cloud Restore</strong></summary>
+
+**End-to-End Encrypted Cloud Backups**
+- All cloud files encrypted with `age` before upload — zero plaintext on cloud storage
+- Compressible files (source code, JSON, text) compressed before encryption: `file → gzip → age → .gz.age`
+- Already-compressed formats (images, video, archives) encrypted without compression: `file → age → .age`
+- Automatic stale variant cleanup — no duplicate `.age` / `.gz.age` files
+
+**Parallel Encryption Engine**
+- Auto-detects CPU cores, uses half for encryption (e.g., 12 workers on 24-core machine)
+- Activates automatically when 100+ files need encrypting (first-time backups, large projects)
+- Falls back to sequential for small batches (typical hourly incremental backups)
+- 10-12x speedup for initial project backups
+
+**Cloud Browse & Restore (`checkpoint cloud`)**
+- `checkpoint cloud list` — list all cloud backups with timestamps and file counts
+- `checkpoint cloud browse PROJECT` — interactive file browser with fzf support
+- `checkpoint cloud download FILE` — download and auto-decrypt individual files
+- `checkpoint cloud download-all` — download entire backup with optional zip output
+- `checkpoint cloud sync-index` — refresh cloud inventory cache
+- `checkpoint cloud setup` — interactive setup wizard for new machines
+- All commands support `--json` flag for programmatic use
+
+**Cloud Manifest System**
+- Each backup uploads a manifest (`.checkpoint-manifests/{backup_id}.json`) for instant inventory
+- Cloud index (`.checkpoint-cloud-index.json`) tracks all backups per project
+- Local caching at `~/.checkpoint/cloud-cache/` — fast repeat access without re-downloading
+
+**Dashboard Cloud Features**
+- Cloud Browse modal — visual file browser with search, download buttons, and progress
+- Cloud upload phase indicators — distinct "Uploading to cloud..." and "Encrypting..." banners
+- Blue tint during cloud phases to distinguish from local backup progress
+- Version history (`archived/`) now synced to cloud alongside current files
+
+**Bulk Operations**
+- `encrypt-cloud-bulk.sh` — parallel encrypt all plaintext files on cloud (12 workers)
+- `compress-cloud-bulk.sh` — convert existing `.age` to `.gz.age` for compressible formats
+- Both scripts support `--dry-run`, `--project NAME`, and `--jobs N` flags
+
+</details>
+
+<details>
 <summary><strong>v2.5.1 — Dashboard UX Overhaul & Global Settings</strong></summary>
 
 **Menu Bar Dashboard**
@@ -152,11 +208,14 @@ Automated, intelligent backup system for any development environment. Battle-tes
 - **Multi-Computer Support** — Graceful handling when databases don't exist on current machine
 - **Version Archiving** — Old versions preserved when files change
 - **Critical File Coverage** — .env, credentials, cloud configs, Terraform secrets, IDE settings
-- **Cloud Backup** — Off-site protection via rclone (Dropbox, Google Drive, OneDrive, iCloud)
+- **Cloud Backup** — Off-site protection via cloud folder (Dropbox) or rclone (Google Drive, OneDrive, iCloud)
+- **Cloud Encryption** — All cloud files encrypted with `age` before upload, with gzip compression for compressible formats
+- **Parallel Encryption** — Auto-scales to half CPU cores when 100+ files need encrypting (10-12x speedup)
+- **Cloud Browse & Restore** — Browse, search, and download files from cloud backups via CLI or dashboard
+- **Cloud Manifests** — Instant cloud inventory without downloading files
 - **Backup Verification** — Post-backup integrity checks
 - **Native File Watcher** — Real-time change detection via fswatch/inotifywait
 - **Daemon Health Monitoring** — Watchdog process with heartbeat tracking and auto-restart
-- **Encryption at Rest** — Cloud backups encrypted with `age` (modern GPG alternative)
 - **Storage Monitoring** — Pre-backup disk space checks with warnings and cleanup suggestions
 - **Search & Browse** — CLI search across all backup history with interactive fzf mode
 - **Native macOS Dashboard** — SwiftUI menu bar app with project status, settings, and live progress
@@ -280,6 +339,7 @@ ls -la backups/files/
 | `backup-pause` | yes | `./bin/backup-pause.sh` | Pause/resume automatic backups |
 | `backup-verify` | yes | `./bin/backup-verify.sh` | Verify backup integrity |
 | `backup-cloud-config` | yes | `./bin/backup-cloud-config.sh` | Configure cloud backup |
+| `checkpoint cloud` | yes | `./bin/checkpoint-cloud.sh` | Cloud browse, download, restore |
 | `backup-watch` | yes | `./bin/backup-watch.sh` | Start native file watcher |
 | `install.sh` | N/A | `./bin/install.sh` | Install per-project |
 | `uninstall.sh` | yes | `./bin/uninstall.sh` | Uninstall Checkpoint |
@@ -316,6 +376,16 @@ backup-pause --status       # Check if paused
 ```bash
 backup-restore              # Interactive menu
 backup-restore --help       # See all options
+```
+
+**Cloud Browse & Restore:**
+```bash
+checkpoint cloud list                    # List all cloud backups
+checkpoint cloud browse MyProject        # Interactive file browser
+checkpoint cloud browse MyProject --latest  # Browse latest backup
+checkpoint cloud download .env -p MyProject  # Download + auto-decrypt
+checkpoint cloud download-all -p MyProject --zip  # Download all as zip
+checkpoint cloud sync-index              # Refresh cloud cache
 ```
 
 **Cleanup:**
@@ -383,6 +453,38 @@ CLOUD_SYNC_CRITICAL=true         # Upload .env, credentials
 CLOUD_SYNC_FILES=false           # Skip large files
 ```
 
+### Encryption & Compression
+
+Cloud backups are **always encrypted** using [age](https://age-encryption.org/) (a modern, audited encryption tool). No plaintext files are ever stored on cloud storage.
+
+```
+Source file → gzip (if compressible) → age encrypt → upload
+   .env     →  .env.gz              →  .env.gz.age → Dropbox ✓
+   photo.jpg → (skip gzip)          →  photo.jpg.age → Dropbox ✓
+```
+
+- **Compressible files** (code, text, JSON, config): `file → gzip → age → .gz.age`
+- **Already-compressed files** (images, video, archives, fonts): `file → age → .age`
+- Encryption key stored locally at `~/.config/checkpoint/age-key.txt`
+- **Parallel encryption** kicks in automatically when 100+ files need processing
+
+### Cloud Restore
+
+Download and auto-decrypt files from any cloud backup:
+
+```bash
+# Browse and download interactively
+checkpoint cloud browse MyProject
+
+# Download a single file (auto-decrypts)
+checkpoint cloud download .env --project MyProject --backup-id latest
+
+# Download everything as a decrypted zip
+checkpoint cloud download-all --project MyProject --zip
+```
+
+The dashboard also provides a visual Cloud Browse modal for point-and-click file download.
+
 ### Usage
 
 Cloud uploads happen **automatically** after each local backup (in background).
@@ -396,6 +498,9 @@ backup-now --local-only
 
 # Check cloud status
 backup-status
+
+# Browse cloud backups
+checkpoint cloud list
 ```
 
 See [docs/CLOUD-BACKUP.md](docs/CLOUD-BACKUP.md) for complete guide.
@@ -592,7 +697,9 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for all integrations.
 | `git` | Yes | Change detection | `brew install git` / `apt install git` |
 | `sqlite3` | Conditional | Database backups | `brew install sqlite3` / `apt install sqlite3` |
 | `gzip` | Yes | Compression | Pre-installed |
-| `rclone` | Optional | Cloud backups | Auto-installed when enabled |
+| `rclone` | Optional | Cloud backups (API mode) | Auto-installed when enabled |
+| `age` | Optional | Cloud encryption | `brew install age` / auto-installed |
+| `fzf` | Optional | Interactive browsing | `brew install fzf` / `apt install fzf` |
 | `fswatch` | Optional | File watcher (macOS) | `brew install fswatch` |
 | `inotify-tools` | Optional | File watcher (Linux) | `apt install inotify-tools` |
 
@@ -621,9 +728,11 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for all integrations.
    - Validate backup completeness
 
 5. **Cloud Upload** (if enabled)
-   - Upload in background (doesn't block)
-   - Retry on failure
-   - Track upload time
+   - Sync files to cloud folder or via rclone
+   - Compress compressible files with gzip
+   - Encrypt all files with `age` (parallel when 100+ files)
+   - Upload manifest and update cloud index
+   - Clean up plaintext and stale encrypted variants
 
 6. **Cleanup**
    - Remove old database backups (>30 days)
@@ -713,6 +822,15 @@ A: Local backups continue normally. Cloud uploads queue and retry when connectio
 **Q: How much does cloud storage cost?**
 A: Free tier works for most projects! Google Drive: 15GB free, Dropbox: 2GB free.
 
+**Q: Are cloud backups encrypted?**
+A: Yes. All cloud files are encrypted with `age` before upload. Compressible files are also gzipped first for smaller uploads. No plaintext is ever stored on cloud storage. Your encryption key stays local at `~/.config/checkpoint/age-key.txt`.
+
+**Q: How do I restore from cloud?**
+A: Use `checkpoint cloud browse PROJECT` for an interactive file browser (with fzf support), or `checkpoint cloud download FILE` for individual files. Files are automatically decrypted and decompressed on download. You can also use the Cloud Browse modal in the dashboard.
+
+**Q: What if I lose my encryption key?**
+A: Without the key, cloud backups cannot be decrypted. Back up `~/.config/checkpoint/age-key.txt` securely (password manager, printed copy, etc.). Local backups are not encrypted and remain accessible.
+
 **Q: Can I use this without Claude Code?**
 A: Yes! Hourly daemon + integrations work standalone. Claude Code is not required.
 
@@ -779,6 +897,9 @@ Checkpoint/
 │   ├── backup-verify.sh              # Backup integrity checks
 │   ├── backup-watch.sh               # Native file watcher
 │   ├── backup-cloud-config.sh        # Cloud setup
+│   ├── checkpoint-cloud.sh           # Cloud browse/download/restore
+│   ├── encrypt-cloud-bulk.sh         # Bulk encrypt cloud files (parallel)
+│   ├── compress-cloud-bulk.sh        # Bulk compress .age → .gz.age (parallel)
 │   ├── backup-daemon.sh              # Hourly backup daemon
 │   ├── backup-all-projects.sh        # Multi-project backup
 │   ├── checkpoint-watchdog.sh         # Daemon health monitor
@@ -802,6 +923,9 @@ Checkpoint/
 │   │   ├── health-stats.sh           # Health statistics
 │   │   ├── restore.sh                # Restore operations
 │   │   ├── verification.sh           # Backup verification
+│   │   ├── encryption.sh            # age encryption helpers
+│   │   ├── cloud-restore.sh         # Cloud download/decrypt/restore
+│   │   ├── cloud-destinations.sh    # Three-tier cloud transport
 │   │   └── ...
 │   ├── platform/                     # Platform abstraction
 │   │   ├── daemon-manager.sh         # launchd/systemd/cron
