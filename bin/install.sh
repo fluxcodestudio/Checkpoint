@@ -919,7 +919,7 @@ FILE_RETENTION_DAYS=$file_retention
 # ==============================================================================
 
 BACKUP_INTERVAL=3600
-SESSION_IDLE_THRESHOLD=600
+BACKUP_SCHEDULE="@hourly"
 
 # ==============================================================================
 # DRIVE VERIFICATION
@@ -1203,6 +1203,9 @@ echo "  ✅ Checkpoint Installed Successfully!"
 echo "══════════════════════════════════════════════════════════"
 echo ""
 echo "  Commands:"
+echo "    checkpoint list             List all registered projects"
+echo "    checkpoint add <path>       Register a new project"
+echo "    checkpoint remove <path>    Unregister a project"
 echo "    ./bin/backup-now.sh         Run backup now"
 echo "    ./bin/backup-status.sh      View backup status"
 echo "    ./bin/backup-restore.sh     Restore from backup"

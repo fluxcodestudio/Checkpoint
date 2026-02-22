@@ -136,7 +136,7 @@ resume_backups() {
 
 show_status() {
     if [[ -f "$PAUSE_FILE" ]]; then
-        paused_at=$(grep "paused_at=" "$PAUSE_FILE" | cut -d'=' -f2)
+        paused_at=$(grep "paused_at=" "$PAUSE_FILE" | cut -d'=' -f2 || echo "unknown")
         echo "Status: ⏸️  PAUSED"
         echo "Paused at: $paused_at"
         echo ""

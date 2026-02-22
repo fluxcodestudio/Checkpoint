@@ -161,6 +161,16 @@ AI_ARTIFACT_EXTRA_DIRS=""
 # Extra files to include (comma-separated, relative to project root)
 AI_ARTIFACT_EXTRA_FILES=""
 
+# Follow symlinks and backup the target file (true/false)
+# When true: resolves symlinks (e.g. .env -> ../shared/.env) and backs up target
+# Dangling and circular symlinks are always skipped
+BACKUP_SYMLINK_TARGETS=true
+
+# Extra file patterns to always include (space-separated globs)
+# These are backed up regardless of .gitignore
+# Example: BACKUP_EXTRA_PATTERNS="config/local.* data/*.json *.secret"
+# BACKUP_EXTRA_PATTERNS=""
+
 # ==============================================================================
 # STORAGE MONITORING
 # ==============================================================================

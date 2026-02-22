@@ -206,6 +206,7 @@ create_symlink "install-helper.sh" "install-helper"
 create_symlink "uninstall-helper.sh" "uninstall-helper"
 
 # Bootstrap file (sourced by all bin/ scripts for path resolution)
+rm -f "$BIN_DIR/bootstrap.sh"
 ln -s "$LIB_DIR/bin/bootstrap.sh" "$BIN_DIR/bootstrap.sh"
 echo "  ✅ bootstrap.sh → $LIB_DIR/bin/bootstrap.sh"
 
@@ -287,6 +288,9 @@ echo "  Libraries: $LIB_DIR"
 echo ""
 echo "Available commands (system-wide):"
 echo "  checkpoint              Interactive command center"
+echo "  checkpoint list         List all registered projects"
+echo "  checkpoint add <path>   Register a new project"
+echo "  checkpoint remove <path> Unregister a project"
 echo "  backup-now              Run backup (auto-creates config for new projects)"
 echo "  backup-all              Backup all registered projects"
 echo "  backup-status           View backup status"

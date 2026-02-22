@@ -205,6 +205,12 @@ class DaemonController {
     // MARK: - Dashboard
 
     static func openDashboard() {
+        DispatchQueue.main.async {
+            DashboardWindowController.shared.showDashboard()
+        }
+    }
+
+    static func openTerminal() {
         let possiblePaths = [
             "/usr/local/bin/checkpoint",
             FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/checkpoint").path
@@ -212,11 +218,14 @@ class DaemonController {
 
         for path in possiblePaths {
             if FileManager.default.fileExists(atPath: path) {
-                // Open in Terminal
+                // Open in Terminal — escape path to prevent AppleScript injection
+                let sanitizedPath = path
+                    .replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "\"", with: "\\\"")
                 let script = """
                 tell application "Terminal"
                     activate
-                    do script "\(path)"
+                    do script "\(sanitizedPath)"
                 end tell
                 """
                 if let appleScript = NSAppleScript(source: script) {

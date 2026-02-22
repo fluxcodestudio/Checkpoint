@@ -143,7 +143,8 @@ should_keep_as_representative() {
     esac
 
     # Find oldest in this group (first occurrence = oldest)
-    local oldest=$(grep "^$key " "$group_file" 2>/dev/null | head -1 | cut -d' ' -f2)
+    local oldest
+    oldest=$(grep "^$key " "$group_file" 2>/dev/null | head -1 | cut -d' ' -f2 || true)
 
     [[ "$timestamp" == "$oldest" ]]
 }

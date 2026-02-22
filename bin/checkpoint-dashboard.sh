@@ -55,11 +55,13 @@ refresh_status() {
         source "$GLOBAL_CONFIG_FILE" 2>/dev/null
     fi
 
-    # Collect all status data using eval for Bash 3.2 compatibility
+    # Collect all status data into associative-style cache
+    # Uses printf -v for safe dynamic variable assignment (no eval)
     while IFS='=' read -r key value; do
+        [[ -z "$key" ]] && continue
         # Sanitize key for variable name (replace non-alphanumeric with _)
         local safe_key="${key//[^a-zA-Z0-9_]/_}"
-        eval "_STATUS_CACHE_${safe_key}=\"\$value\""
+        printf -v "_STATUS_CACHE_${safe_key}" '%s' "$value"
     done < <(get_all_status)
 }
 
@@ -68,7 +70,7 @@ get_status() {
     local key="$1"
     local safe_key="${key//[^a-zA-Z0-9_]/_}"
     local var_name="_STATUS_CACHE_${safe_key}"
-    eval "echo \"\${$var_name:-Unknown}\""
+    echo "${!var_name:-Unknown}"
 }
 
 # ==============================================================================

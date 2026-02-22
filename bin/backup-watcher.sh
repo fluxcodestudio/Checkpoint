@@ -34,6 +34,11 @@ fi
 
 source "$CONFIG_FILE"
 
+# Core backup library (provides get_project_state_id via ops/state.sh)
+if [ -f "$LIB_DIR/backup-lib.sh" ]; then
+    source "$LIB_DIR/backup-lib.sh"
+fi
+
 # Load cross-platform file watcher abstraction
 source "$LIB_DIR/platform/file-watcher.sh"
 
@@ -50,7 +55,8 @@ DEBOUNCE_SECONDS="${DEBOUNCE_SECONDS:-60}"
 # State management
 STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
 PROJECT_NAME="${PROJECT_NAME:-$(basename "$PROJECT_DIR")}"
-PROJECT_STATE_DIR="$STATE_DIR/$PROJECT_NAME"
+_PROJECT_STATE_ID=$(get_project_state_id "${PROJECT_DIR:-$PWD}" "${PROJECT_NAME:-}")
+PROJECT_STATE_DIR="$STATE_DIR/$_PROJECT_STATE_ID"
 TIMER_PID_FILE="$PROJECT_STATE_DIR/.watcher-timer.pid"
 WATCHER_LOG="$PROJECT_STATE_DIR/watcher.log"
 LAST_TRIGGER_FILE="$PROJECT_STATE_DIR/.watcher-last-trigger"

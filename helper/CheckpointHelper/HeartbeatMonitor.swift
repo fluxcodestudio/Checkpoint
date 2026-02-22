@@ -118,6 +118,20 @@ class HeartbeatMonitor {
         }
 
         do {
+            // Guard against oversized heartbeat files (>1MB) to prevent resource exhaustion
+            let attrs = try FileManager.default.attributesOfItem(atPath: heartbeatPath.path)
+            if let fileSize = attrs[.size] as? UInt64, fileSize > 1_048_576 {
+                return HeartbeatData(
+                    timestamp: Date(),
+                    status: .error,
+                    project: nil,
+                    lastBackup: nil,
+                    lastBackupFiles: 0,
+                    error: "Heartbeat file too large (\(fileSize) bytes)",
+                    pid: nil
+                )
+            }
+
             let data = try Data(contentsOf: heartbeatPath)
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 return HeartbeatData(

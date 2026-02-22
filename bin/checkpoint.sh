@@ -57,6 +57,11 @@ load_global_config() {
 load_project_config() {
     local config_file="$PWD/.backup-config.sh"
     if [[ -f "$config_file" ]]; then
+        # Security: Reject symlinks (could point to attacker-controlled file)
+        if [[ -L "$config_file" ]]; then
+            echo "⚠️  Warning: Config file is a symlink. Skipping for security." >&2
+            return 1
+        fi
         # Security: Check file ownership matches current user
         local file_owner
         file_owner=$(get_file_owner_uid "$config_file")
@@ -64,6 +69,19 @@ load_project_config() {
         current_user=$(id -u)
         if [[ "$file_owner" != "$current_user" ]]; then
             echo "⚠️  Warning: Config file not owned by you. Skipping for security." >&2
+            return 1
+        fi
+        # Security: Reject world-writable or group-writable config files
+        local file_perms
+        if [[ "$(uname)" == "Darwin" ]]; then
+            file_perms=$(stat -f '%Lp' "$config_file")
+        else
+            file_perms=$(stat -c '%a' "$config_file")
+        fi
+        # Check if group-write (bit 2 of middle octal) or other-write (bit 2 of last octal)
+        if [[ $((file_perms % 100 / 10 & 2)) -ne 0 ]] || [[ $((file_perms % 10 & 2)) -ne 0 ]]; then
+            echo "⚠️  Warning: Config file is group/world-writable (mode $file_perms). Skipping for security." >&2
+            echo "   Fix with: chmod go-w $config_file" >&2
             return 1
         fi
         source "$config_file"
@@ -495,6 +513,19 @@ check_updates() {
 show_commands() {
     echo "━━━ Available Commands ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
+    echo "  checkpoint              This command center"
+    echo "  checkpoint add <path>   Register a project for backup"
+    echo "  checkpoint remove <path> Unregister a project"
+    echo "  checkpoint list         List all registered projects"
+    echo "  checkpoint verify       Verify backup integrity"
+    echo "  checkpoint diff         Compare working dir to backup"
+    echo "  checkpoint history      Per-file version history"
+    echo "  checkpoint search       Search backup files"
+    echo "  checkpoint browse       Interactive snapshot browser"
+    echo "  checkpoint cloud        Cloud backup operations"
+    echo "  checkpoint encrypt      Encryption setup/status"
+    echo "  checkpoint docker-volumes Docker volume backup"
+    echo ""
     echo "  backup-now              Run backup immediately"
     echo "  backup-status           View backup status"
     echo "  backup-restore          Restore from backups"
@@ -502,7 +533,6 @@ show_commands() {
     echo "  backup-cloud-config     Configure cloud storage"
     echo "  backup-update           Update Checkpoint"
     echo "  backup-pause            Pause/resume automatic backups"
-    echo "  checkpoint              This command center"
     echo ""
     echo "Claude Code skills (if installed):"
     echo "  /checkpoint             Command center"
@@ -513,6 +543,153 @@ show_commands() {
     echo "  /uninstall              Uninstall Checkpoint"
     echo ""
     read -p "Press Enter to continue..."
+}
+
+# ==============================================================================
+# CLI Commands: add, remove, list
+# ==============================================================================
+
+# Source projects registry
+source "$CHECKPOINT_LIB/lib/projects-registry.sh"
+
+cmd_add() {
+    local target="${1:-.}"
+
+    # Resolve to absolute path
+    local abs_path
+    abs_path="$(cd "$target" 2>/dev/null && pwd)" || {
+        echo "Error: Directory does not exist: $target" >&2
+        exit 1
+    }
+
+    # Generate config if none exists
+    if [[ ! -f "$abs_path/.backup-config.sh" ]]; then
+        echo "No backup config found — auto-generating..."
+        # Source logging stubs so auto-configure's dependencies don't fail
+        source "$CHECKPOINT_LIB/lib/core/logging.sh" 2>/dev/null || true
+        source "$CHECKPOINT_LIB/lib/auto-configure.sh" 2>/dev/null || true
+        generate_config "$abs_path" >/dev/null 2>&1 || true
+    fi
+
+    # Register the project
+    register_project "$abs_path"
+    echo "Project added: $(basename "$abs_path")  $abs_path"
+}
+
+cmd_remove() {
+    local target="${1:-.}"
+    local delete_config=false
+
+    # Parse flags
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --delete-config) delete_config=true; shift ;;
+            --keep-config) delete_config=false; shift ;;
+            *) target="$1"; shift ;;
+        esac
+    done
+
+    # Resolve to absolute path
+    local abs_path
+    if [[ -d "$target" ]]; then
+        abs_path="$(cd "$target" && pwd)"
+    else
+        abs_path="$target"
+    fi
+
+    # Unregister
+    unregister_project "$abs_path"
+
+    # Optionally remove config
+    if [[ "$delete_config" == "true" ]] && [[ -f "$abs_path/.backup-config.sh" ]]; then
+        rm -f "$abs_path/.backup-config.sh"
+        echo "Removed .backup-config.sh"
+    fi
+
+    echo "Project removed: $(basename "$abs_path")  $abs_path"
+}
+
+cmd_list() {
+    local json_mode=false
+
+    for arg in "$@"; do
+        case "$arg" in
+            --json) json_mode=true ;;
+        esac
+    done
+
+    init_registry
+
+    if [[ "$json_mode" == "true" ]]; then
+        # Machine-readable JSON output
+        python3 -c "
+import json, sys, os, time
+
+registry_file = sys.argv[1]
+with open(registry_file) as f:
+    data = json.load(f)
+
+result = []
+for p in data.get('projects', []):
+    path = p['path']
+    name = os.path.basename(path)
+    enabled = p.get('enabled', True)
+    last_backup = p.get('last_backup')
+
+    # Calculate relative time
+    age = None
+    if last_backup and isinstance(last_backup, (int, float)) and last_backup > 0:
+        age = int(time.time() - last_backup)
+
+    result.append({
+        'name': name,
+        'path': path,
+        'enabled': enabled,
+        'last_backup': last_backup,
+        'age_seconds': age
+    })
+
+print(json.dumps(result, indent=2))
+" "$REGISTRY_FILE"
+    else
+        # Human-readable output
+        python3 -c "
+import json, sys, os, time
+
+registry_file = sys.argv[1]
+with open(registry_file) as f:
+    data = json.load(f)
+
+projects = data.get('projects', [])
+if not projects:
+    print('No projects registered.')
+    print('  Add one with: checkpoint add /path/to/project')
+    sys.exit(0)
+
+for p in projects:
+    path = p['path']
+    name = os.path.basename(path)
+    enabled = p.get('enabled', True)
+    last_backup = p.get('last_backup')
+
+    # Format last backup time
+    if last_backup and isinstance(last_backup, (int, float)) and last_backup > 0:
+        age = time.time() - last_backup
+        if age < 3600:
+            age_str = f'{int(age/60)}m ago'
+        elif age < 86400:
+            age_str = f'{int(age/3600)}h ago'
+        else:
+            age_str = f'{int(age/86400)}d ago'
+        status = age_str
+    else:
+        status = 'Never'
+
+    marker = ' ' if enabled else '~'
+    state_icon = chr(0x2713) if enabled else chr(0x23F8)
+    print(f'  {state_icon} {name:<24} {path:<50} Last: {status}')
+" "$REGISTRY_FILE"
+    fi
 }
 
 # Main menu loop
@@ -606,6 +783,9 @@ case "${1:-}" in
         echo "Usage: checkpoint [OPTIONS]"
         echo ""
         echo "Options:"
+        echo "  add <path>          Register a project for backup"
+        echo "  remove <path>       Unregister a project"
+        echo "  list                List all registered projects"
         echo "  --status, --info    Show status only (no menu)"
         echo "  --global            Edit global settings"
         echo "  --project           Edit/configure project settings"
@@ -622,6 +802,21 @@ case "${1:-}" in
         echo "  --help, -h          Show this help"
         echo ""
         echo "No options:           Launch interactive TUI dashboard"
+        exit 0
+        ;;
+    add)
+        shift
+        cmd_add "$@"
+        exit 0
+        ;;
+    remove)
+        shift
+        cmd_remove "$@"
+        exit 0
+        ;;
+    list|projects)
+        shift
+        cmd_list "$@"
         exit 0
         ;;
     verify|--verify)

@@ -6,8 +6,15 @@ set -euo pipefail
 PROJECT_DIR="${PWD}"
 PROJECT_NAME=$(basename "$PROJECT_DIR")
 
+# Compute unique state ID (same logic as lib/ops/state.sh:get_project_state_id)
+_PROJECT_STATE_ID="$PROJECT_NAME"
+if [ -f "$PROJECT_DIR/.checkpoint-id" ]; then
+    _ckpt_id=$(cat "$PROJECT_DIR/.checkpoint-id" 2>/dev/null)
+    [ -n "$_ckpt_id" ] && _PROJECT_STATE_ID="${PROJECT_NAME}-${_ckpt_id:0:8}"
+fi
+
 # State file location
-STATE_DIR="$HOME/.claudecode-backups/state/${PROJECT_NAME}"
+STATE_DIR="$HOME/.claudecode-backups/state/${_PROJECT_STATE_ID}"
 PAUSE_FILE="$STATE_DIR/.backup-paused"
 
 mkdir -p "$STATE_DIR"

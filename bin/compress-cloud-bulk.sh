@@ -189,9 +189,9 @@ echo ""
 (
     while true; do
         sleep 10
-        converted=$(wc -l < "$PROGRESS_DIR/converted" 2>/dev/null | tr -d ' ')
-        skipped=$(wc -l < "$PROGRESS_DIR/skipped" 2>/dev/null | tr -d ' ')
-        failed=$(wc -l < "$PROGRESS_DIR/failed" 2>/dev/null | tr -d ' ')
+        converted=$(wc -l < "$PROGRESS_DIR/converted" 2>/dev/null | tr -d ' ' || echo "0")
+        skipped=$(wc -l < "$PROGRESS_DIR/skipped" 2>/dev/null | tr -d ' ' || echo "0")
+        failed=$(wc -l < "$PROGRESS_DIR/failed" 2>/dev/null | tr -d ' ' || echo "0")
         done_count=$((converted + skipped + failed))
         if [[ $TOTAL -gt 0 ]]; then
             pct=$((done_count * 100 / TOTAL))
@@ -216,9 +216,9 @@ kill $MONITOR_PID 2>/dev/null || true
 wait $MONITOR_PID 2>/dev/null || true
 
 # Final counts
-converted=$(wc -l < "$PROGRESS_DIR/converted" | tr -d ' ')
-skipped=$(wc -l < "$PROGRESS_DIR/skipped" | tr -d ' ')
-failed=$(wc -l < "$PROGRESS_DIR/failed" | tr -d ' ')
+converted=$(wc -l < "$PROGRESS_DIR/converted" 2>/dev/null | tr -d ' ' || echo "0")
+skipped=$(wc -l < "$PROGRESS_DIR/skipped" 2>/dev/null | tr -d ' ' || echo "0")
+failed=$(wc -l < "$PROGRESS_DIR/failed" 2>/dev/null | tr -d ' ' || echo "0")
 
 echo ""
 echo "=============================================="

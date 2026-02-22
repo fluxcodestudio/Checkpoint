@@ -188,9 +188,9 @@ echo ""
 (
     while true; do
         sleep 10
-        _enc=$(wc -l < "$PROGRESS_DIR/encrypted" 2>/dev/null | tr -d ' ')
-        _skip=$(wc -l < "$PROGRESS_DIR/skipped" 2>/dev/null | tr -d ' ')
-        _fail=$(wc -l < "$PROGRESS_DIR/failed" 2>/dev/null | tr -d ' ')
+        _enc=$(wc -l < "$PROGRESS_DIR/encrypted" 2>/dev/null | tr -d ' ' || echo "0")
+        _skip=$(wc -l < "$PROGRESS_DIR/skipped" 2>/dev/null | tr -d ' ' || echo "0")
+        _fail=$(wc -l < "$PROGRESS_DIR/failed" 2>/dev/null | tr -d ' ' || echo "0")
         _done=$((_enc + _skip + _fail))
         if [[ $TOTAL -gt 0 ]]; then
             _pct=$((_done * 100 / TOTAL))
@@ -213,9 +213,9 @@ kill $MONITOR_PID 2>/dev/null || true
 wait $MONITOR_PID 2>/dev/null || true
 
 # Final counts
-_enc=$(wc -l < "$PROGRESS_DIR/encrypted" | tr -d ' ')
-_skip=$(wc -l < "$PROGRESS_DIR/skipped" | tr -d ' ')
-_fail=$(wc -l < "$PROGRESS_DIR/failed" | tr -d ' ')
+_enc=$(wc -l < "$PROGRESS_DIR/encrypted" 2>/dev/null | tr -d ' ' || echo "0")
+_skip=$(wc -l < "$PROGRESS_DIR/skipped" 2>/dev/null | tr -d ' ' || echo "0")
+_fail=$(wc -l < "$PROGRESS_DIR/failed" 2>/dev/null | tr -d ' ' || echo "0")
 
 echo ""
 echo "=============================================="

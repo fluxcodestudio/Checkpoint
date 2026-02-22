@@ -173,7 +173,8 @@ esac
 # SAVE VERIFICATION STATE
 # ==============================================================================
 
-state_project_dir="$STATE_DIR/$PROJECT_NAME"
+_PROJECT_STATE_ID=$(get_project_state_id "${PROJECT_DIR:-$PWD}" "${PROJECT_NAME:-}")
+state_project_dir="$STATE_DIR/$_PROJECT_STATE_ID"
 mkdir -p "$state_project_dir" 2>/dev/null || true
 
 ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date +%Y-%m-%dT%H:%M:%SZ)

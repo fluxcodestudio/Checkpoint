@@ -21,6 +21,11 @@ if [[ -f "$SCRIPT_DIR/database-detector.sh" ]]; then
     source "$SCRIPT_DIR/database-detector.sh"
 fi
 
+# Source projects registry (canonical register_project implementation)
+if [[ -f "$SCRIPT_DIR/projects-registry.sh" ]]; then
+    source "$SCRIPT_DIR/projects-registry.sh"
+fi
+
 # Source cross-platform daemon manager
 if [[ -f "$SCRIPT_DIR/platform/daemon-manager.sh" ]]; then
     source "$SCRIPT_DIR/platform/daemon-manager.sh"
@@ -74,6 +79,20 @@ PROJECT_INDICATORS=(
     "Makefile"
     "CMakeLists.txt"
     ".project"
+    "Dockerfile"
+    "docker-compose.yml"
+    "docker-compose.yaml"
+    "Pipfile"
+    "poetry.lock"
+    "mix.exs"
+    "deno.json"
+    "deno.jsonc"
+    "bun.lockb"
+    "Package.swift"
+    ".sln"
+    "Podfile"
+    "stack.yaml"
+    "tsconfig.json"
 )
 
 # Directories to skip during scanning
@@ -303,6 +322,8 @@ should_skip_dir() {
 discover_projects() {
     local search_dirs=("${@:-${DEFAULT_PROJECT_DIRS[@]}}")
     local found_projects=()
+    local _discover_stderr
+    _discover_stderr=$(mktemp)
 
     for base_dir in "${search_dirs[@]}"; do
         [[ ! -d "$base_dir" ]] && continue
@@ -337,13 +358,10 @@ discover_projects() {
                 found_projects+=("$real_path")
                 echo "$real_path"
             fi
-        done < <(find "$base_dir" -maxdepth 4 -type d -name ".git" -print0 2>/dev/null)
+        done < <(find "$base_dir" -maxdepth 6 -type d -name ".git" -print0 2>"$_discover_stderr")
 
-        # PASS 2: Find top-level directories with project indicators but NO .git
-        # (These are the direct children of the search directory)
-        for subdir in "$base_dir"/*/; do
-            [[ ! -d "$subdir" ]] && continue
-
+        # PASS 2: Find non-git projects with indicators (up to depth 3)
+        while IFS= read -r -d '' subdir; do
             local real_path
             real_path=$(cd "$subdir" 2>/dev/null && pwd -P) || continue
 
@@ -363,6 +381,9 @@ discover_projects() {
             # Skip known non-project directories
             should_skip_dir "$real_path" && continue
 
+            # Skip if it's a git repo (already handled in Pass 1)
+            [[ -d "$real_path/.git" ]] && continue
+
             # Check if it has a project indicator
             local has_indicator=false
             for indicator in "${PROJECT_INDICATORS[@]}"; do
@@ -376,8 +397,68 @@ discover_projects() {
                 found_projects+=("$real_path")
                 echo "$real_path"
             fi
-        done
+        done < <(find "$base_dir" -maxdepth 4 -type d -print0 2>>"$_discover_stderr")
     done
+
+    # PASS 3: Check common external volume paths (macOS)
+    local _extra_dirs=(
+        "$HOME/Desktop"
+        "$HOME/Documents"
+    )
+    # Add external volume developer paths that actually exist
+    if [[ -d "/Volumes" ]]; then
+        for _vol_dir in /Volumes/*/; do
+            [[ ! -d "$_vol_dir" ]] && continue
+            for _dev_name in Developer Projects Code; do
+                [[ -d "$_vol_dir$_dev_name" ]] && _extra_dirs+=("$_vol_dir$_dev_name")
+            done
+        done
+    fi
+
+    for _extra in "${_extra_dirs[@]}"; do
+        [[ ! -d "$_extra" ]] && continue
+        # Skip if already in the search_dirs list
+        local _already_searched=false
+        for _sd in "${search_dirs[@]}"; do
+            if [[ "$_extra" == "$_sd" ]]; then
+                _already_searched=true
+                break
+            fi
+        done
+        [[ "$_already_searched" == "true" ]] && continue
+
+        while IFS= read -r -d '' git_dir; do
+            local project_dir
+            project_dir=$(dirname "$git_dir")
+            should_skip_dir "$project_dir" && continue
+            local real_path
+            real_path=$(cd "$project_dir" 2>/dev/null && pwd -P) || continue
+            local already_found=false
+            for found in "${found_projects[@]:-}"; do
+                [[ -z "$found" ]] && continue
+                if [[ "$found" == "$real_path" ]] || [[ "$real_path" == "$found"/* ]] || [[ "$found" == "$real_path"/* ]]; then
+                    already_found=true
+                    break
+                fi
+            done
+            if [[ "$already_found" == "false" ]]; then
+                found_projects+=("$real_path")
+                echo "$real_path"
+            fi
+        done < <(find "$_extra" -maxdepth 6 -type d -name ".git" -print0 2>>"$_discover_stderr")
+    done
+
+    # Fix 14: Warn about permission errors during discovery
+    if [[ -s "$_discover_stderr" ]]; then
+        if grep -q "Permission denied" "$_discover_stderr" 2>/dev/null; then
+            local _denied_dirs
+            _denied_dirs=$(grep "Permission denied" "$_discover_stderr" | head -5)
+            echo "Warning: Some directories were inaccessible during discovery:" >&2
+            echo "$_denied_dirs" >&2
+            echo "(Run with sudo or fix permissions to include these paths)" >&2
+        fi
+    fi
+    rm -f "$_discover_stderr"
 }
 
 # ==============================================================================
@@ -456,7 +537,7 @@ analyze_project() {
         # SQLite
         if grep -qE "DATABASE_URL.*sqlite|DB_CONNECTION.*sqlite" "$env_file" 2>/dev/null; then
             local sqlite_path
-            sqlite_path=$(grep -oE "sqlite:.*\.db|sqlite:.*\.sqlite" "$env_file" 2>/dev/null | sed 's/sqlite://' | head -1)
+            sqlite_path=$(grep -oE "sqlite:.*\.db|sqlite:.*\.sqlite" "$env_file" 2>/dev/null | sed 's/sqlite://' | head -1 || true)
             if [[ -n "$sqlite_path" ]]; then
                 detected_dbs+=("sqlite|$sqlite_path")
             fi
@@ -465,7 +546,7 @@ analyze_project() {
         # PostgreSQL
         if grep -qE "DATABASE_URL.*postgres|DB_CONNECTION.*pgsql|POSTGRES_" "$env_file" 2>/dev/null; then
             local pg_host
-            pg_host=$(grep -oE "(localhost|127\.0\.0\.1|postgres://localhost)" "$env_file" 2>/dev/null | head -1)
+            pg_host=$(grep -oE "(localhost|127\.0\.0\.1|postgres://localhost)" "$env_file" 2>/dev/null | head -1 || true)
             if [[ -n "$pg_host" ]]; then
                 detected_dbs+=("postgresql|local")
             else
@@ -476,7 +557,7 @@ analyze_project() {
         # MySQL
         if grep -qE "DATABASE_URL.*mysql|DB_CONNECTION.*mysql|MYSQL_" "$env_file" 2>/dev/null; then
             local mysql_host
-            mysql_host=$(grep -oE "(localhost|127\.0\.0\.1|mysql://localhost)" "$env_file" 2>/dev/null | head -1)
+            mysql_host=$(grep -oE "(localhost|127\.0\.0\.1|mysql://localhost)" "$env_file" 2>/dev/null | head -1 || true)
             if [[ -n "$mysql_host" ]]; then
                 detected_dbs+=("mysql|local")
             else
@@ -487,7 +568,7 @@ analyze_project() {
         # MongoDB
         if grep -qE "MONGO|mongodb://" "$env_file" 2>/dev/null; then
             local mongo_host
-            mongo_host=$(grep -oE "(localhost|127\.0\.0\.1|mongodb://localhost)" "$env_file" 2>/dev/null | head -1)
+            mongo_host=$(grep -oE "(localhost|127\.0\.0\.1|mongodb://localhost)" "$env_file" 2>/dev/null | head -1 || true)
             if [[ -n "$mongo_host" ]]; then
                 detected_dbs+=("mongodb|local")
             else
@@ -598,10 +679,19 @@ generate_config() {
     local project_name
     project_name=$(basename "$project_dir")
 
-    # Analyze project
+    # Analyze project — parse key=value output safely (no eval)
     local analysis
     analysis=$(analyze_project "$project_dir")
-    eval "$analysis"
+    local PROJECT_DIR="" PROJECT_NAME="" PROJECT_TYPE="" HAS_GIT="" DB_TYPE="" DB_PATH=""
+    local DB_IS_LOCAL="" PROJECT_SIZE_MB="" IS_CLOUD_SYNCED="" CLOUD_PROVIDER=""
+    local NEEDS_INPUT="" NEEDS_INPUT_REASON="" LOCAL_DB_COUNT="" REMOTE_DB_COUNT=""
+    while IFS='=' read -r _key _val; do
+        [[ -z "$_key" ]] && continue
+        # Strip surrounding quotes from value
+        _val="${_val%\"}"
+        _val="${_val#\"}"
+        printf -v "$_key" '%s' "$_val"
+    done <<< "$analysis"
 
     # Generate config file
     cat > "$output_file" << CONFIGEOF
@@ -646,7 +736,7 @@ FILE_RETENTION_DAYS=$DEFAULT_FILE_RETENTION
 # ==============================================================================
 
 BACKUP_INTERVAL=$DEFAULT_BACKUP_INTERVAL
-SESSION_IDLE_THRESHOLD=600
+BACKUP_SCHEDULE="@hourly"
 
 # ==============================================================================
 # FILE BACKUP OPTIONS
@@ -657,6 +747,9 @@ BACKUP_CREDENTIALS=true
 BACKUP_IDE_SETTINGS=true
 BACKUP_LOCAL_NOTES=true
 BACKUP_LOCAL_DATABASES=true
+BACKUP_AI_ARTIFACTS=true
+BACKUP_SYMLINK_TARGETS=true
+# BACKUP_EXTRA_PATTERNS=""
 
 # ==============================================================================
 # OPTIONAL FEATURES
@@ -677,66 +770,6 @@ CONFIGEOF
 
     chmod +x "$output_file"
     echo "$output_file"
-}
-
-# ==============================================================================
-# PROJECT REGISTRATION
-# ==============================================================================
-
-# Register a project in the global registry
-# Args: $1 = project directory
-register_project() {
-    local project_dir="$1"
-    local project_name
-    project_name=$(basename "$project_dir")
-    local registry="$HOME/.config/checkpoint/projects.json"
-
-    # Ensure registry directory exists
-    mkdir -p "$(dirname "$registry")"
-
-    # Initialize registry if not exists
-    if [[ ! -f "$registry" ]]; then
-        echo '{"version": 1, "projects": []}' > "$registry"
-    fi
-
-    # Check if already registered
-    if grep -q "\"path\": \"$project_dir\"" "$registry" 2>/dev/null; then
-        return 0  # Already registered
-    fi
-
-    # Add project to registry using Python (more reliable JSON handling)
-    if command -v python3 &>/dev/null; then
-        python3 << PYEOF
-import json
-import os
-from datetime import datetime
-
-registry_path = os.path.expanduser("$registry")
-project_dir = "$project_dir"
-project_name = "$project_name"
-
-with open(registry_path, 'r') as f:
-    data = json.load(f)
-
-# Add new project
-data['projects'].append({
-    'name': project_name,
-    'path': project_dir,
-    'added': datetime.now().isoformat(),
-    'enabled': True
-})
-
-with open(registry_path, 'w') as f:
-    json.dump(data, f, indent=2)
-PYEOF
-    else
-        # Fallback: simple append (less elegant but works)
-        local temp_file
-        temp_file=$(mktemp)
-        sed 's/\]$//' "$registry" > "$temp_file"
-        echo ",{\"name\":\"$project_name\",\"path\":\"$project_dir\",\"enabled\":true}]}" >> "$temp_file"
-        mv "$temp_file" "$registry"
-    fi
 }
 
 # ==============================================================================
@@ -789,10 +822,18 @@ auto_configure_all() {
             continue
         fi
 
-        # Analyze project
+        # Analyze project — parse key=value output safely (no eval)
         local analysis
         analysis=$(analyze_project "$project_dir")
-        eval "$analysis"
+        local PROJECT_DIR="" PROJECT_NAME="" PROJECT_TYPE="" HAS_GIT="" DB_TYPE="" DB_PATH=""
+        local DB_IS_LOCAL="" PROJECT_SIZE_MB="" IS_CLOUD_SYNCED="" CLOUD_PROVIDER=""
+        local NEEDS_INPUT="" NEEDS_INPUT_REASON="" LOCAL_DB_COUNT="" REMOTE_DB_COUNT=""
+        while IFS='=' read -r _key _val; do
+            [[ -z "$_key" ]] && continue
+            _val="${_val%\"}"
+            _val="${_val#\"}"
+            printf -v "$_key" '%s' "$_val"
+        done <<< "$analysis"
 
         if [[ "$NEEDS_INPUT" == "true" ]]; then
             echo "  ⚠  $project_name (needs input: $NEEDS_INPUT_REASON)"

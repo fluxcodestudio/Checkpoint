@@ -111,8 +111,9 @@ FILE_RETENTION_DAYS="${FILE_RETENTION_DAYS:-60}"
 # State management defaults
 STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
 PROJECT_NAME="${PROJECT_NAME:-$(basename "$PROJECT_DIR")}"
-BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/$PROJECT_NAME/.last-backup-time}"
-SESSION_FILE="${SESSION_FILE:-$STATE_DIR/$PROJECT_NAME/.current-session-time}"
+_PROJECT_STATE_ID=$(get_project_state_id "${PROJECT_DIR:-$PWD}" "${PROJECT_NAME:-}")
+BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/$_PROJECT_STATE_ID/.last-backup-time}"
+SESSION_FILE="${SESSION_FILE:-$STATE_DIR/$_PROJECT_STATE_ID/.current-session-time}"
 
 # Feature flags defaults
 DRIVE_VERIFICATION_ENABLED="${DRIVE_VERIFICATION_ENABLED:-false}"

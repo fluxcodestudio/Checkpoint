@@ -21,6 +21,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var syncCurrentProjectMenuItem: NSMenuItem!
     var syncCountersMenuItem: NSMenuItem!
 
+    // New menu items
+    var projectCountMenuItem: NSMenuItem!
+    var pauseResumeMenuItem: NSMenuItem!
+
+    // Float on top toggle (synced via menu item)
+    var floatOnTopMenuItem: NSMenuItem!
+
+    // Track previous sync state to detect completion
+    private var wasSyncing = false
+    private var greenFlashTimer: Timer?
+
     // Cache last-known sync progress to handle heartbeat write gaps
     private var cachedSyncIndex: Int = 0
     private var cachedSyncTotal: Int = 0
@@ -49,6 +60,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Check daemon status immediately
         updateDaemonStatus()
 
+        // Listen for daemon state changes from the dashboard
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDaemonStateChanged),
+            name: NSNotification.Name("CheckpointDaemonStateChanged"),
+            object: nil
+        )
+
         // Auto-start daemon if not running
         DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
             if !DaemonController.isRunning() {
@@ -58,28 +77,60 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+
+        // Listen for float-on-top changes from settings sheet
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleFloatOnTopChanged),
+            name: NSNotification.Name("CheckpointFloatOnTopChanged"),
+            object: nil
+        )
+
+        // Auto-open dashboard on first launch (with onboarding)
+        if !UserDefaults.standard.bool(forKey: "hasLaunchedBefore") {
+            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                DashboardWindowController.shared.showDashboard()
+                // Trigger onboarding via the view model's published property
+                // The DashboardView observes showingOnboarding and presents the sheet
+                NotificationCenter.default.post(name: NSNotification.Name("CheckpointShowOnboarding"), object: nil)
+            }
+        }
     }
 
     private func setStatusBarIcon(tint: NSColor?) {
         guard let button = statusItem.button else { return }
 
-        // Load custom Checkpoint logo icon (white on transparent, not template)
-        if let image = Self.loadStatusBarIcon() {
-            image.isTemplate = false
-            image.size = NSSize(width: 18, height: 18)
-            button.image = image
+        // Load custom Checkpoint logo icon
+        if let baseImage = Self.loadStatusBarIcon() {
+            baseImage.size = NSSize(width: 18, height: 18)
+
+            if let tintColor = tint, tintColor != .white {
+                // Tint the image by drawing it with a color overlay
+                let tinted = NSImage(size: baseImage.size)
+                tinted.lockFocus()
+                baseImage.draw(in: NSRect(origin: .zero, size: baseImage.size),
+                               from: .zero, operation: .sourceOver, fraction: 1.0)
+                tintColor.withAlphaComponent(0.85).set()
+                NSRect(origin: .zero, size: baseImage.size).fill(using: .sourceAtop)
+                tinted.unlockFocus()
+                tinted.isTemplate = false
+                button.image = tinted
+            } else {
+                baseImage.isTemplate = false
+                button.image = baseImage
+            }
         } else {
             // Fallback to SF Symbol if custom icon not found
             if let image = NSImage(systemSymbolName: "checkmark.shield.fill", accessibilityDescription: "Checkpoint") {
                 let config = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
                 let configuredImage = image.withSymbolConfiguration(config) ?? image
                 button.image = configuredImage
+                button.contentTintColor = tint
             } else {
                 button.title = "CP"
             }
         }
-
-        // Tint not used with non-template image — color is baked into the PNG
     }
 
     /// Find the status bar icon from bundle Resources, using multiple search strategies
@@ -148,24 +199,46 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         stalenessMenuItem.isHidden = true
         menu.addItem(stalenessMenuItem)
 
+        // Project count
+        projectCountMenuItem = NSMenuItem(title: "Projects: --", action: nil, keyEquivalent: "")
+        projectCountMenuItem.isEnabled = false
+        menu.addItem(projectCountMenuItem)
+
         menu.addItem(NSMenuItem.separator())
 
         // Actions
-        let backupItem = NSMenuItem(title: "Backup Now", action: #selector(backupNow), keyEquivalent: "b")
+        let backupItem = NSMenuItem(title: "Backup All", action: #selector(backupNow), keyEquivalent: "b")
         backupItem.target = self
         menu.addItem(backupItem)
+
+        let addProjectItem = NSMenuItem(title: "Add Project\u{2026}", action: #selector(addProject), keyEquivalent: "a")
+        addProjectItem.target = self
+        menu.addItem(addProjectItem)
 
         let dashboardItem = NSMenuItem(title: "Show Dashboard", action: #selector(showDashboard), keyEquivalent: "d")
         dashboardItem.target = self
         menu.addItem(dashboardItem)
 
+        menu.addItem(NSMenuItem.separator())
+
+        // Pause / Resume (matches dashboard)
+        pauseResumeMenuItem = NSMenuItem(title: "Pause Backups", action: #selector(togglePauseResume), keyEquivalent: "p")
+        pauseResumeMenuItem.target = self
+        menu.addItem(pauseResumeMenuItem)
+
         let terminalItem = NSMenuItem(title: "Open in Terminal", action: #selector(openTerminal), keyEquivalent: "t")
         terminalItem.target = self
         menu.addItem(terminalItem)
 
+        // Float on top toggle
+        floatOnTopMenuItem = NSMenuItem(title: "Float on Top", action: #selector(toggleFloatOnTop), keyEquivalent: "f")
+        floatOnTopMenuItem.target = self
+        floatOnTopMenuItem.state = UserDefaults.standard.bool(forKey: "floatOnTop") ? .on : .off
+        menu.addItem(floatOnTopMenuItem)
+
         menu.addItem(NSMenuItem.separator())
 
-        // Daemon control submenu
+        // Daemon control submenu (advanced)
         let controlMenu = NSMenu()
 
         let startItem = NSMenuItem(title: "Start Daemon", action: #selector(startDaemon), keyEquivalent: "")
@@ -251,13 +324,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openTerminal() {
-        DaemonController.openDashboard()
+        DaemonController.openTerminal()
     }
 
     @objc func startDaemon() {
         if DaemonController.start() {
             notificationManager.showNotification(title: "Daemon Started", body: "Backup daemon is now running")
             updateDaemonStatus()
+            updatePauseResumeTitle()
+            notifyDaemonStateChanged()
         }
     }
 
@@ -265,6 +340,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if DaemonController.stop() {
             notificationManager.showNotification(title: "Daemon Stopped", body: "Backup daemon has been stopped")
             updateDaemonStatus()
+            updatePauseResumeTitle()
+            notifyDaemonStateChanged()
         }
     }
 
@@ -272,7 +349,93 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if DaemonController.restart() {
             notificationManager.showNotification(title: "Daemon Restarted", body: "Backup daemon has been restarted")
             updateDaemonStatus()
+            updatePauseResumeTitle()
+            notifyDaemonStateChanged()
         }
+    }
+
+    @objc func addProject() {
+        // Open dashboard and trigger add project flow
+        DashboardWindowController.shared.showDashboard()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            NotificationCenter.default.post(name: NSNotification.Name("CheckpointAddProject"), object: nil)
+        }
+    }
+
+    @objc func togglePauseResume() {
+        if DaemonController.isRunning() {
+            if DaemonController.stop() {
+                notificationManager.showNotification(title: "Backups Paused", body: "Automatic backups are paused")
+                updateDaemonStatus()
+                updatePauseResumeTitle()
+                notifyDaemonStateChanged()
+            }
+        } else {
+            if DaemonController.start() {
+                notificationManager.showNotification(title: "Backups Resumed", body: "Automatic backups are active")
+                updateDaemonStatus()
+                updatePauseResumeTitle()
+                notifyDaemonStateChanged()
+            }
+        }
+    }
+
+    private func notifyDaemonStateChanged() {
+        NotificationCenter.default.post(name: NSNotification.Name("CheckpointDaemonStateChanged"), object: nil)
+    }
+
+    @objc private func handleDaemonStateChanged() {
+        DispatchQueue.main.async {
+            self.updateDaemonStatus()
+            self.updatePauseResumeTitle()
+        }
+    }
+
+    @objc private func handleFloatOnTopChanged() {
+        DispatchQueue.main.async {
+            let enabled = UserDefaults.standard.bool(forKey: "floatOnTop")
+            self.floatOnTopMenuItem.state = enabled ? .on : .off
+            self.applyFloatOnTop(enabled)
+        }
+    }
+
+    private func updatePauseResumeTitle() {
+        let running = DaemonController.isRunning()
+        pauseResumeMenuItem?.title = running ? "Pause Backups" : "Resume Backups"
+    }
+
+    private func updateProjectCount() {
+        let registryPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/checkpoint/projects.json")
+
+        guard let data = try? Data(contentsOf: registryPath),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let projects = json["projects"] as? [[String: Any]] else {
+            projectCountMenuItem?.title = "Projects: 0"
+            return
+        }
+
+        let enabled = projects.filter { ($0["enabled"] as? Bool) ?? true }.count
+        let total = projects.count
+        if enabled == total {
+            projectCountMenuItem?.title = "Projects: \(total)"
+        } else {
+            projectCountMenuItem?.title = "Projects: \(enabled) of \(total) active"
+        }
+    }
+
+    @objc func toggleFloatOnTop() {
+        let current = UserDefaults.standard.bool(forKey: "floatOnTop")
+        let newValue = !current
+        UserDefaults.standard.set(newValue, forKey: "floatOnTop")
+        floatOnTopMenuItem.state = newValue ? .on : .off
+        applyFloatOnTop(newValue)
+        // Notify settings sheet so toggle stays in sync
+        NotificationCenter.default.post(name: NSNotification.Name("CheckpointFloatOnTopChanged"), object: nil)
+    }
+
+    func applyFloatOnTop(_ enabled: Bool) {
+        DashboardWindowController.shared.window?.level = enabled ? .floating : .normal
     }
 
     @objc func quitApp() {
@@ -325,14 +488,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Icon Updates
 
     func updateStatusIcon(for status: HeartbeatMonitor.DaemonStatus) {
-        // nil = system default (white on dark, black on light menu bar)
-        // Only tint for warning/error states
         let color: NSColor?
         switch status {
         case .healthy:
             color = .white
         case .syncing:
-            color = .systemBlue
+            // Dashboard orange (cpAccentWarm: 1.0, 0.55, 0.25)
+            color = NSColor(red: 1.0, green: 0.55, blue: 0.25, alpha: 1.0)
         case .error:
             color = .systemRed
         case .stale:
@@ -380,6 +542,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: HeartbeatMonitorDelegate {
     func heartbeatUpdated(data: HeartbeatMonitor.HeartbeatData) {
         DispatchQueue.main.async {
+            // Track sync state transitions for green flash
+            let currentlySyncing = data.isSyncing
+            if self.wasSyncing && !currentlySyncing {
+                self.flashGreenIcon()
+            }
+            self.wasSyncing = currentlySyncing
+
             // Update sync progress (may override status title during sync)
             self.updateSyncProgress(data: data)
 
@@ -396,8 +565,25 @@ extension AppDelegate: HeartbeatMonitorDelegate {
             }
 
             self.updateStalenessDisplay(data: data)
-            self.updateStatusIcon(for: data.status)
+            // Don't override green flash with normal color
+            if self.greenFlashTimer == nil {
+                self.updateStatusIcon(for: data.status)
+            }
             self.updateDaemonStatus()
+            self.updatePauseResumeTitle()
+            self.updateProjectCount()
+        }
+    }
+
+    /// Flash icon green for 30 seconds after sync completes, then revert
+    private func flashGreenIcon() {
+        greenFlashTimer?.invalidate()
+        setStatusBarIcon(tint: .systemGreen)
+        greenFlashTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
+            DispatchQueue.main.async {
+                self?.greenFlashTimer = nil
+                self?.setStatusBarIcon(tint: .white) // revert to normal
+            }
         }
     }
 
@@ -406,12 +592,8 @@ extension AppDelegate: HeartbeatMonitorDelegate {
                                  data: HeartbeatMonitor.HeartbeatData) {
         switch newStatus {
         case .healthy, .syncing:
-            // Auto-open dashboard when daemon starts (transitions from inactive to active)
-            if oldStatus == .missing || oldStatus == .stopped || oldStatus == .stale {
-                DispatchQueue.main.async {
-                    DashboardWindowController.shared.showDashboard()
-                }
-            }
+            // Don't auto-open dashboard — just let the icon color change speak for itself
+            break
         case .error:
             notificationManager.showNotification(title: "Checkpoint Error", body: data.error ?? "Daemon error")
         case .stale:
@@ -426,6 +608,13 @@ extension AppDelegate: HeartbeatMonitorDelegate {
             notificationManager.showNotification(title: "Checkpoint Stopped", body: "Daemon has stopped")
         default:
             break
+        }
+
+        // Detect sync completion: was syncing → now healthy/not syncing
+        if wasSyncing && !data.isSyncing && (newStatus == .healthy || oldStatus == .syncing) {
+            DispatchQueue.main.async {
+                self.flashGreenIcon()
+            }
         }
     }
 }

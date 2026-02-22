@@ -64,7 +64,8 @@ read_queue_entry() {
 increment_retry_count() {
     local queue_file="$1"
     if [[ -f "$queue_file" ]]; then
-        local current_count=$(grep "^RETRY_COUNT=" "$queue_file" | cut -d= -f2)
+        local current_count
+        current_count=$(grep "^RETRY_COUNT=" "$queue_file" | cut -d= -f2 || echo "0")
         local new_count=$((current_count + 1))
         sed -i '' "s/^RETRY_COUNT=.*/RETRY_COUNT=$new_count/" "$queue_file"
     fi
@@ -126,7 +127,8 @@ process_backup_queue() {
             ((failed++))
 
             # Max 5 retries, then give up (but keep in queue for manual review)
-            local retry_count=$(grep "^RETRY_COUNT=" "$queue_file" | cut -d= -f2)
+            local retry_count
+            retry_count=$(grep "^RETRY_COUNT=" "$queue_file" | cut -d= -f2 || echo "0")
             if [[ $retry_count -ge 5 ]]; then
                 mv "$queue_file" "${queue_file}.failed"
             fi

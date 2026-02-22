@@ -16,6 +16,9 @@ Complete reference for Checkpoint command system.
 - [`/backup-cleanup` - Space Management](#backup-cleanup---space-management)
 - [`/backup-update` - System Updates](#backup-update---system-updates)
 - [`/backup-pause` - Pause/Resume](#backup-pause---pauseresume)
+- [`checkpoint add` - Register Project](#checkpoint-add---register-project)
+- [`checkpoint remove` - Unregister Project](#checkpoint-remove---unregister-project)
+- [`checkpoint list` - List Projects](#checkpoint-list---list-projects)
 - [`/uninstall` - Uninstall Checkpoint](#uninstall---uninstall-checkpoint)
 - [Configuration Schema](#configuration-schema)
 - [Use Case Examples](#use-case-examples)
@@ -25,7 +28,7 @@ Complete reference for Checkpoint command system.
 
 ## Overview
 
-Checkpoint v2.2.1 introduces a comprehensive command system for managing backups through an intuitive CLI. All commands support both interactive (TUI) and programmatic modes.
+Checkpoint v2.6.0 provides a comprehensive command system for managing backups through an intuitive CLI. All commands support both interactive (TUI) and programmatic modes.
 
 ### Quick Start
 
@@ -72,6 +75,9 @@ Commands are installed to:
 | `/backup-cleanup` | Manage disk space | ✅ Preview mode | `--preview`, `--force`, `--recommend` |
 | `/backup-update` | Update from GitHub | ❌ No | `--check-only`, `--force` |
 | `/backup-pause` | Pause/resume backups | ❌ No | `--resume`, `--status` |
+| `checkpoint add` | Register a project | ❌ No | — |
+| `checkpoint remove` | Unregister a project | ❌ No | `--delete-config`, `--keep-config` |
+| `checkpoint list` | List registered projects | ❌ No | `--json` |
 | `/uninstall` | Uninstall Checkpoint | ✅ Confirmation | `--keep-backups`, `--force` |
 
 ---
@@ -1214,6 +1220,116 @@ Type 'DELETE' to confirm: DELETE
 - All configuration files
 - Database snapshots
 - Archived files
+
+---
+
+## `checkpoint add` - Register Project
+
+### Synopsis
+
+```bash
+checkpoint add <path>
+```
+
+### Description
+
+Register a project directory for automatic backup. Auto-generates a `.backup-config.sh` if one doesn't exist.
+
+### Examples
+
+```bash
+# Add a project
+checkpoint add /path/to/my-project
+
+# Add current directory
+checkpoint add .
+```
+
+### Behavior
+
+1. Resolves path to absolute
+2. If no `.backup-config.sh` exists, auto-generates one (detects languages, databases, frameworks)
+3. Registers the project in `~/.config/checkpoint/projects.json`
+4. Project will be included in all future daemon backup cycles
+
+---
+
+## `checkpoint remove` - Unregister Project
+
+### Synopsis
+
+```bash
+checkpoint remove <path> [--delete-config] [--keep-config]
+```
+
+### Description
+
+Remove a project from the Checkpoint registry. Existing backups are preserved.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--keep-config` | Keep `.backup-config.sh` (default) |
+| `--delete-config` | Remove `.backup-config.sh` from the project directory |
+
+### Examples
+
+```bash
+# Remove a project (keeps config)
+checkpoint remove /path/to/my-project
+
+# Remove and delete config
+checkpoint remove /path/to/my-project --delete-config
+```
+
+---
+
+## `checkpoint list` - List Projects
+
+### Synopsis
+
+```bash
+checkpoint list [--json]
+```
+
+### Description
+
+List all registered projects with their backup status and last backup time.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON (machine-readable) |
+
+### Default Output
+
+```
+  ✓ MyProject                 /Users/dev/MyProject                              Last: 2h ago
+  ✓ WebApp                    /Users/dev/WebApp                                 Last: 45m ago
+  ⏸ OldProject                /Users/dev/OldProject                             Last: 3d ago
+```
+
+- ✓ = enabled, ⏸ = disabled
+
+### JSON Output
+
+```bash
+checkpoint list --json
+```
+
+```json
+[
+  {
+    "name": "MyProject",
+    "path": "/Users/dev/MyProject",
+    "enabled": true,
+    "last_backup": 1708387200,
+    "age_seconds": 7200
+  }
+]
+```
 
 ---
 

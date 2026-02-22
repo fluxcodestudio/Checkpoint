@@ -180,8 +180,8 @@ cleanup_single_pass() {
             mtime="${line##*|}"
             [ -n "$mtime" ] && [ "$mtime" -lt "$db_cutoff" ] 2>/dev/null && CLEANUP_EXPIRED_DBS+=("$file")
         done < <(case "${_COMPAT_OS:-$(uname -s)}" in
-            Darwin) find "$database_dir" -name "*.db.gz" -type f -exec stat -f "%N|%m" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
-            *) find "$database_dir" -name "*.db.gz" -type f -exec stat -c "%n|%Y" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
+            (Darwin) find "$database_dir" -name "*.db.gz" -type f -exec stat -f "%N|%m" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
+            (*) find "$database_dir" -name "*.db.gz" -type f -exec stat -c "%n|%Y" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
         esac)
     fi
 
@@ -205,8 +205,8 @@ cleanup_single_pass() {
                 fi
             fi
         done < <(case "${_COMPAT_OS:-$(uname -s)}" in
-            Darwin) find "$archived_dir" \( -type f -o -type d \) -exec stat -f "%N|%HT|%m" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
-            *) find "$archived_dir" \( -type f -o -type d \) -exec stat -c "%n|%F|%Y" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
+            (Darwin) find "$archived_dir" \( -type f -o -type d \) -exec stat -f "%N|%HT|%m" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
+            (*) find "$archived_dir" \( -type f -o -type d \) -exec stat -c "%n|%F|%Y" {} \; 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" ;;
         esac)
     fi
 

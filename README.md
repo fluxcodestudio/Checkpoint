@@ -340,6 +340,9 @@ ls -la backups/files/
 | `backup-verify` | yes | `./bin/backup-verify.sh` | Verify backup integrity |
 | `backup-cloud-config` | yes | `./bin/backup-cloud-config.sh` | Configure cloud backup |
 | `checkpoint cloud` | yes | `./bin/checkpoint-cloud.sh` | Cloud browse, download, restore |
+| `checkpoint add <path>` | yes | — | Register a project for backup |
+| `checkpoint remove <path>` | yes | — | Unregister a project |
+| `checkpoint list` | yes | — | List all registered projects |
 | `backup-watch` | yes | `./bin/backup-watch.sh` | Start native file watcher |
 | `install.sh` | N/A | `./bin/install.sh` | Install per-project |
 | `uninstall.sh` | yes | `./bin/uninstall.sh` | Uninstall Checkpoint |
@@ -376,6 +379,14 @@ backup-pause --status       # Check if paused
 ```bash
 backup-restore              # Interactive menu
 backup-restore --help       # See all options
+```
+
+**Project Management:**
+```bash
+checkpoint add /path/to/project   # Register a new project
+checkpoint list                   # List all projects with status
+checkpoint list --json            # Machine-readable output
+checkpoint remove /path/to/project  # Unregister a project
 ```
 
 **Cloud Browse & Restore:**
@@ -649,12 +660,17 @@ open /Applications/CheckpointHelper.app
 **Features:**
 - Status indicator in menu bar (green = active, red = paused)
 - Dashboard shows all projects with backup status and last result
-- Right-click any project: Backup Now, Reveal in Finder, View Log, Enable/Disable
+- Add Project button — select a folder from the GUI, no terminal needed
+- Right-click any project: Backup Now, Reveal in Finder, View Log, Remove Project, Enable/Disable
+- In-app log viewer with filtering (All / Errors / Warnings) and "Copy for AI Help" button
+- Error detail display — failed file counts shown inline with one-click LLM prompt copy
+- First-launch onboarding wizard — guided 3-step setup for new users
 - Double-click project to open in Finder
 - Settings modal (`⌘,`) for global configuration
 - Keyboard shortcuts: `⌘B` Backup All, `⌘R` Refresh
 - Live progress during backups with phase descriptions
 - Pause/Resume automatic backups
+- Notification taps open the SwiftUI dashboard (not Terminal)
 
 ### Shell Integration
 
@@ -706,6 +722,29 @@ See [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) for all integrations.
 ---
 
 ## How It Works
+
+### Project Discovery
+
+When you run `checkpoint --auto` or the installer's auto-configure, Checkpoint scans your system for projects:
+
+| Pass | What | Max Depth | How |
+|------|------|-----------|-----|
+| **Git repos** | Directories containing `.git` | 5 levels | `find -name .git` (maxdepth 6 to reach `.git` inside the project) |
+| **Non-git projects** | Directories with project indicators (package.json, Cargo.toml, Dockerfile, etc.) | 4 levels | Checks for 28 file indicators |
+| **External volumes** | `/Volumes/*/Developer`, `/Volumes/*/Projects`, `/Volumes/*/Code` | 5 levels | macOS only, git repos |
+| **Desktop/Documents** | `~/Desktop`, `~/Documents` | 5 levels | git repos only |
+
+**Depth limits explained:** A depth of 5 means Checkpoint will find `~/Projects/clients/acme/2025/webapp/.git` but **not** projects nested 6+ levels deep. Non-git projects use depth 4 because indicators like `Makefile` become ambiguous deeper in a directory tree (they could appear inside build artifacts or submodules rather than at a project root).
+
+**If your project isn't discovered automatically:**
+```bash
+# Manually add any project regardless of depth
+checkpoint add /path/to/deeply/nested/project
+# Or just run backup-now from the project directory
+cd /path/to/deeply/nested/project && backup-now
+```
+
+Manually added projects work identically to auto-discovered ones — they're registered in the global registry and included in all future hourly backups.
 
 ### Backup Process
 
@@ -866,6 +905,9 @@ A: Global: `./bin/uninstall-global.sh`. Per-project: `./bin/uninstall.sh`. Backu
 
 **Q: What about orphaned daemons from deleted projects?**
 A: Run `uninstall.sh --cleanup-orphans` to find and remove daemons for projects that no longer exist.
+
+**Q: Why wasn't my project auto-discovered?**
+A: Auto-discovery scans up to 5 levels deep for git repos and 4 levels for non-git projects. Projects nested deeper than this aren't found automatically — use `checkpoint add /path/to/project` or run `backup-now` from the project directory to register it manually.
 
 ---
 

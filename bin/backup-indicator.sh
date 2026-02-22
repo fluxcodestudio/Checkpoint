@@ -155,7 +155,7 @@ daemon_status() {
                 if command -v python3 &>/dev/null; then
                     updated=$(python3 -c "import json; print(json.load(open('$STATUS_FILE'))['updated'])" 2>/dev/null)
                 else
-                    updated=$(grep -o '"updated": [0-9]*' "$STATUS_FILE" | grep -o '[0-9]*')
+                    updated=$(grep -o '"updated": [0-9]*' "$STATUS_FILE" | grep -o '[0-9]*' || true)
                 fi
 
                 if [[ -n "$updated" ]]; then

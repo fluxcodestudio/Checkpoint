@@ -169,9 +169,8 @@ _watcher_poll() {
     shift
 
     local poll_interval="${POLL_INTERVAL:-30}"
-    local marker="/tmp/.backup-poll-marker-$$"
-
-    touch "$marker"
+    local marker
+    marker="$(mktemp "${TMPDIR:-/tmp}/.backup-poll-marker.XXXXXXXXXX")"
 
     # Clean up marker file when function returns
     trap "rm -f '$marker'" RETURN

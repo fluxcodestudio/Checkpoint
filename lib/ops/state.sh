@@ -19,6 +19,31 @@
 _CHECKPOINT_LIB_DIR="${_CHECKPOINT_LIB_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # ==============================================================================
+# PROJECT STATE IDENTITY (Fix: same-basename collision prevention)
+# ==============================================================================
+# Returns a unique state subdirectory name for the current project.
+# Uses PROJECT_NAME + first 8 chars of .checkpoint-id (if it exists) to avoid
+# collisions between projects with the same basename in different directories.
+# Falls back to PROJECT_NAME alone for backward compatibility.
+get_project_state_id() {
+    local project_dir="${1:-${PROJECT_DIR:-$PWD}}"
+    local project_name="${2:-${PROJECT_NAME:-$(basename "$project_dir")}}"
+    local id_file="$project_dir/.checkpoint-id"
+
+    if [ -f "$id_file" ]; then
+        local project_id
+        project_id=$(cat "$id_file" 2>/dev/null)
+        if [ -n "$project_id" ]; then
+            local short_id="${project_id:0:8}"
+            echo "${project_name}-${short_id}"
+            return 0
+        fi
+    fi
+    # Fallback: use project name only (backward compatible)
+    echo "$project_name"
+}
+
+# ==============================================================================
 # NOTIFICATION SYSTEM
 # ==============================================================================
 
@@ -419,9 +444,12 @@ write_backup_state() {
     # Generate LLM prompt
     local llm_prompt="Fix these Checkpoint backup failures:\\n\\n"
     for failure in "${BACKUP_STATE_FAILURES[@]}"; do
-        local file=$(echo "$failure" | grep -o '"path":"[^"]*"' | cut -d'"' -f4)
-        local error_code=$(echo "$failure" | grep -o '"error_code":"[^"]*"' | cut -d'"' -f4)
-        local fix=$(echo "$failure" | grep -o '"suggested_fix":"[^"]*"' | cut -d'"' -f4)
+        local file
+        file=$(echo "$failure" | grep -o '"path":"[^"]*"' | cut -d'"' -f4 || true)
+        local error_code
+        error_code=$(echo "$failure" | grep -o '"error_code":"[^"]*"' | cut -d'"' -f4 || true)
+        local fix
+        fix=$(echo "$failure" | grep -o '"suggested_fix":"[^"]*"' | cut -d'"' -f4 || true)
 
         llm_prompt+="File: $file\\nError: $error_code\\nFix: $fix\\n\\n"
     done
@@ -512,9 +540,12 @@ show_backup_failures() {
     fi
 
     # Read JSON state (using grep to avoid requiring jq)
-    local exit_code=$(grep -o '"exit_code": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
-    local backup_status=$(grep -o '"status": *"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
-    local timestamp=$(grep -o '"timestamp": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
+    local exit_code
+    exit_code=$(grep -o '"exit_code": *[0-9]*' "$state_file" | grep -o '[0-9]*$' || true)
+    local backup_status
+    backup_status=$(grep -o '"status": *"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4 || true)
+    local timestamp
+    timestamp=$(grep -o '"timestamp": *[0-9]*' "$state_file" | grep -o '[0-9]*$' || true)
 
     # If exit code is 0, no failures
     if [ "$exit_code" = "0" ]; then
@@ -527,14 +558,20 @@ show_backup_failures() {
     fi
 
     # Extract summary
-    local total_files=$(grep -o '"total_files": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
-    local succeeded_files=$(grep -o '"succeeded_files": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
-    local failed_files=$(grep -o '"failed_files": *[0-9]*' "$state_file" | grep -o '[0-9]*$')
+    local total_files
+    total_files=$(grep -o '"total_files": *[0-9]*' "$state_file" | grep -o '[0-9]*$' || echo "0")
+    local succeeded_files
+    succeeded_files=$(grep -o '"succeeded_files": *[0-9]*' "$state_file" | grep -o '[0-9]*$' || echo "0")
+    local failed_files
+    failed_files=$(grep -o '"failed_files": *[0-9]*' "$state_file" | grep -o '[0-9]*$' || echo "0")
 
     # Extract severity
-    local severity=$(grep -o '"level": *"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
-    local reason=$(grep -o '"reason": *"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4)
-    local immediate=$(grep -o '"requires_immediate_action": *[^,}]*' "$state_file" | grep -o '[a-z]*$')
+    local severity
+    severity=$(grep -o '"level": *"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4 || true)
+    local reason
+    reason=$(grep -o '"reason": *"[^"]*"' "$state_file" | head -1 | cut -d'"' -f4 || true)
+    local immediate
+    immediate=$(grep -o '"requires_immediate_action": *[^,}]*' "$state_file" | grep -o '[a-z]*$' || true)
 
     local time_ago=$(format_time_ago "$timestamp")
 
@@ -544,7 +581,11 @@ show_backup_failures() {
     echo "Project: ${PROJECT_NAME:-Unknown}"
     echo "Status: $backup_status"
     echo "Failed: $time_ago ($failed_files errors)"
-    echo "Success Rate: $succeeded_files/$total_files files ($(( succeeded_files * 100 / total_files ))%)"
+    if [ "${total_files:-0}" -gt 0 ]; then
+        echo "Success Rate: $succeeded_files/$total_files files ($(( succeeded_files * 100 / total_files ))%)"
+    else
+        echo "Success Rate: $succeeded_files/$total_files files"
+    fi
     echo ""
     echo "Severity: $(echo $severity | tr '[:lower:]' '[:upper:]')"
     echo "Reason: $reason"
@@ -568,9 +609,12 @@ show_backup_failures() {
         count=$((count + 1))
 
         # Extract fields from each failure object
-        local file_path=$(echo "$failure_obj" | grep -o '"path": *"[^"]*"' | cut -d'"' -f4)
-        local error_code=$(echo "$failure_obj" | grep -o '"error_code": *"[^"]*"' | cut -d'"' -f4)
-        local suggested_fix=$(echo "$failure_obj" | grep -o '"suggested_fix": *"[^"]*"' | cut -d'"' -f4)
+        local file_path
+        file_path=$(echo "$failure_obj" | grep -o '"path": *"[^"]*"' | cut -d'"' -f4 || true)
+        local error_code
+        error_code=$(echo "$failure_obj" | grep -o '"error_code": *"[^"]*"' | cut -d'"' -f4 || true)
+        local suggested_fix
+        suggested_fix=$(echo "$failure_obj" | grep -o '"suggested_fix": *"[^"]*"' | cut -d'"' -f4 || true)
 
         # Display failure
         if [ -n "$file_path" ]; then
@@ -588,7 +632,8 @@ show_backup_failures() {
     echo ""
 
     # Extract and display LLM prompt
-    local llm_prompt=$(grep -o '"llm_prompt": *"[^"]*"' "$state_file" | cut -d'"' -f4)
+    local llm_prompt
+    llm_prompt=$(grep -o '"llm_prompt": *"[^"]*"' "$state_file" | cut -d'"' -f4 || true)
     # Unescape newlines
     echo "$llm_prompt" | sed 's/\\n/\n/g'
 
@@ -601,8 +646,10 @@ show_backup_failures() {
     echo ""
 
     # Show actions
-    local stop_daemon=$(grep -o '"stop_daemon": *[^,}]*' "$state_file" | grep -o '[a-z]*$')
-    local block_cloud=$(grep -o '"block_cloud_upload": *[^,}]*' "$state_file" | grep -o '[a-z]*$')
+    local stop_daemon
+    stop_daemon=$(grep -o '"stop_daemon": *[^,}]*' "$state_file" | grep -o '[a-z]*$' || true)
+    local block_cloud
+    block_cloud=$(grep -o '"block_cloud_upload": *[^,}]*' "$state_file" | grep -o '[a-z]*$' || true)
 
     if [ "$stop_daemon" = "true" ]; then
         echo "⚠️  WARNING: Daemon stopped due to critical failure"

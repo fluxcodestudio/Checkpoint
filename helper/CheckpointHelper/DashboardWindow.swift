@@ -34,6 +34,9 @@ class DashboardWindowController: NSWindowController {
     }
 
     func showDashboard() {
+        // Apply float-on-top preference
+        let floatOnTop = UserDefaults.standard.bool(forKey: "floatOnTop")
+        window?.level = floatOnTop ? .floating : .normal
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -123,6 +126,12 @@ struct DashboardView: View {
             viewModel.refresh()
             viewModel.startHeartbeatPolling()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CheckpointShowOnboarding"))) { _ in
+            viewModel.showingOnboarding = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("CheckpointAddProject"))) { _ in
+            viewModel.addProject()
+        }
         .onDisappear {
             viewModel.stopHeartbeatPolling()
         }
@@ -157,6 +166,27 @@ struct DashboardView: View {
             if let project = viewModel.cloudBrowseProject {
                 CloudBrowseView(isPresented: $viewModel.showingCloudBrowse, projectName: project.name)
             }
+        }
+        .sheet(isPresented: $viewModel.showingLogViewer) {
+            if let project = viewModel.logViewerProject {
+                LogViewerView(isPresented: $viewModel.showingLogViewer, project: project)
+            }
+        }
+        .sheet(isPresented: $viewModel.showingOnboarding) {
+            OnboardingView(isPresented: $viewModel.showingOnboarding, onAddProject: {
+                viewModel.showingOnboarding = false
+                viewModel.addProject()
+            })
+        }
+        .alert("Remove Project", isPresented: $viewModel.showingRemoveConfirm) {
+            Button("Cancel", role: .cancel) {
+                viewModel.removeTargetProject = nil
+            }
+            Button("Remove", role: .destructive) {
+                viewModel.confirmRemoveProject()
+            }
+        } message: {
+            Text("Remove \(viewModel.removeTargetProject?.name ?? "") from Checkpoint? Backups will not be deleted.")
         }
     }
 
@@ -320,9 +350,21 @@ struct DashboardView: View {
             Text("No projects configured")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundColor(.cpTextSecondary)
-            Text("Run backup-now in a project directory")
+            Text("Add a project folder to start backing up")
                 .font(.system(size: 12))
                 .foregroundColor(.cpTextTertiary)
+
+            Button(action: viewModel.addProject) {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder.badge.plus")
+                        .font(.system(size: 13))
+                    Text("Add Project")
+                        .font(.system(size: 13, weight: .medium))
+                }
+            }
+            .buttonStyle(CPButtonStyle(accent: .cpAccent, filled: true))
+            .padding(.top, 4)
+
             Spacer()
         }
     }
@@ -344,7 +386,8 @@ struct DashboardView: View {
                         onViewBackupFolder: { viewModel.viewBackupFolder(project) },
                         onViewLog: { viewModel.viewLog(project) },
                         onToggleEnabled: { viewModel.toggleEnabled(project) },
-                        onBrowseCloud: { viewModel.browseCloud(project) }
+                        onBrowseCloud: { viewModel.browseCloud(project) },
+                        onRemove: { viewModel.removeProject(project) }
                     )
                 }
             }
@@ -371,6 +414,17 @@ struct DashboardView: View {
                 .buttonStyle(CPButtonStyle(accent: .cpAccent))
                 .disabled(viewModel.isBackingUp)
                 .keyboardShortcut("b", modifiers: .command)
+
+                // Add Project
+                Button(action: viewModel.addProject) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Add")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                }
+                .buttonStyle(CPButtonStyle(accent: .cpAccent))
 
                 // Settings
                 Button(action: { viewModel.dismissAllModals(); viewModel.showingSettings = true }) {
@@ -502,6 +556,7 @@ struct ProjectRow: View {
     let onViewLog: () -> Void
     let onToggleEnabled: () -> Void
     var onBrowseCloud: (() -> Void)? = nil
+    var onRemove: (() -> Void)? = nil
 
     @State private var isHovered = false
 
@@ -569,6 +624,34 @@ struct ProjectRow: View {
                     .foregroundColor(.cpTextTertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+
+                if project.lastBackupResult == .failed && project.failureCount > 0 {
+                    HStack(spacing: 4) {
+                        Text("\(project.failureCount) file(s) failed")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.cpDanger)
+                            .onTapGesture { onViewLog() }
+                        if project.llmPrompt != nil {
+                            Button(action: {
+                                if let prompt = project.llmPrompt {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(prompt, forType: .string)
+                                }
+                            }) {
+                                Text("Copy for AI")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundColor(.cpAccent)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(Color.cpAccent.opacity(0.1))
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
 
             Spacer(minLength: 8)
@@ -664,6 +747,14 @@ struct ProjectRow: View {
                     systemImage: project.enabled ? "pause.circle" : "play.circle"
                 )
             }
+
+            if let remove = onRemove {
+                Divider()
+
+                Button(role: .destructive, action: remove) {
+                    Label("Remove Project", systemImage: "trash")
+                }
+            }
         }
     }
 
@@ -735,6 +826,21 @@ enum BackupResult {
     case unknown
 }
 
+// MARK: - Schedule Helpers
+
+private func scheduleDescription(_ schedule: String) -> String {
+    switch schedule {
+    case "@every-30min": return "Backs up every 30 minutes, all day"
+    case "@hourly": return "Backs up once per hour, all day"
+    case "@every-2h": return "Backs up every 2 hours, all day"
+    case "@every-4h": return "Backs up every 4 hours, all day"
+    case "@workhours": return "Every 30 min, Mon-Fri 9 AM - 5 PM"
+    case "@weekdays": return "Hourly on weekdays only"
+    case "@daily": return "Once per day at midnight"
+    default: return "Custom cron schedule"
+    }
+}
+
 // MARK: - Settings View
 
 struct SettingsView: View {
@@ -768,8 +874,31 @@ struct SettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
 
-                        SettingsSection(title: "Schedule", icon: "clock") {
-                            SettingRow(label: "Backup every") {
+                        SettingsSection(title: "Schedule", icon: "clock", tooltip: "Controls when and how often your projects are backed up. Pick a preset that fits your workflow.") {
+                            SettingRow(label: "Schedule preset") {
+                                Picker("", selection: $settings.backupSchedule) {
+                                    Text("Every 30 min").tag("@every-30min")
+                                    Text("Hourly").tag("@hourly")
+                                    Text("Every 2 hours").tag("@every-2h")
+                                    Text("Every 4 hours").tag("@every-4h")
+                                    Text("Work hours (9-5 weekdays)").tag("@workhours")
+                                    Text("Weekdays only").tag("@weekdays")
+                                    Text("Daily").tag("@daily")
+                                }
+                                .labelsHidden()
+                                .frame(width: 200)
+                            }
+
+                            HStack(spacing: 6) {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.cpTextSecondary)
+                                Text(scheduleDescription(settings.backupSchedule))
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.cpTextSecondary)
+                            }
+
+                            SettingRow(label: "Fallback interval") {
                                 Picker("", selection: $settings.backupInterval) {
                                     Text("30 minutes").tag(1800)
                                     Text("1 hour").tag(3600)
@@ -782,19 +911,17 @@ struct SettingsView: View {
                                 .frame(width: 140)
                             }
 
-                            SettingRow(label: "Trigger after idle") {
-                                Picker("", selection: $settings.idleThreshold) {
-                                    Text("5 minutes").tag(300)
-                                    Text("10 minutes").tag(600)
-                                    Text("15 minutes").tag(900)
-                                    Text("30 minutes").tag(1800)
-                                }
-                                .labelsHidden()
-                                .frame(width: 140)
+                            HStack(spacing: 6) {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.cpTextSecondary)
+                                Text("Used when schedule is inactive (e.g., outside work hours)")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.cpTextSecondary)
                             }
                         }
 
-                        SettingsSection(title: "Retention", icon: "calendar.badge.clock") {
+                        SettingsSection(title: "Retention", icon: "calendar.badge.clock", tooltip: "How long old backups are kept before being cleaned up. Longer = more history but more disk space.") {
                             SettingRow(label: "Database backups") {
                                 Picker("", selection: $settings.dbRetentionDays) {
                                     Text("7 days").tag(7)
@@ -820,7 +947,7 @@ struct SettingsView: View {
                             }
                         }
 
-                        SettingsSection(title: "What to Backup", icon: "doc.on.doc") {
+                        SettingsSection(title: "What to Backup", icon: "doc.on.doc", tooltip: "Choose which sensitive file types to include. These are excluded by default in most backup tools.") {
                             Toggle("Environment files (.env)", isOn: $settings.backupEnvFiles)
                                 .toggleStyle(.switch)
                                 .tint(.cpAccent)
@@ -832,7 +959,7 @@ struct SettingsView: View {
                                 .tint(.cpAccent)
                         }
 
-                        SettingsSection(title: "Notifications", icon: "bell") {
+                        SettingsSection(title: "Notifications", icon: "bell", tooltip: "Get macOS notifications when backups complete or fail. Useful for catching issues early.") {
                             Toggle("Desktop notifications", isOn: $settings.desktopNotifications)
                                 .toggleStyle(.switch)
                                 .tint(.cpAccent)
@@ -843,7 +970,7 @@ struct SettingsView: View {
                                 .opacity(settings.desktopNotifications ? 1 : 0.4)
                         }
 
-                        SettingsSection(title: "Cloud Encryption", icon: "lock.shield") {
+                        SettingsSection(title: "Cloud Encryption", icon: "lock.shield", tooltip: "Encrypts files locally before uploading to cloud storage. Your data stays private even if the cloud is compromised.") {
                             Toggle("Encrypt cloud backups", isOn: $settings.encryptionEnabled)
                                 .toggleStyle(.switch)
                                 .tint(.cpAccent)
@@ -875,7 +1002,18 @@ struct SettingsView: View {
                             Text("Disabling encryption means your backup files will be stored in plaintext on cloud storage. Anyone with access to your cloud account could read your source code, credentials, and environment files.")
                         }
 
-                        SettingsSection(title: "Advanced", icon: "gearshape.2") {
+                        SettingsSection(title: "Window", icon: "macwindow", tooltip: "Controls dashboard window behavior. Float on top keeps it visible above other windows.") {
+                            Toggle("Float on top", isOn: $settings.floatOnTop)
+                                .toggleStyle(.switch)
+                                .tint(.cpAccent)
+                                .onChange(of: settings.floatOnTop) { newValue in
+                                    UserDefaults.standard.set(newValue, forKey: "floatOnTop")
+                                    DashboardWindowController.shared.window?.level = newValue ? .floating : .normal
+                                    NotificationCenter.default.post(name: NSNotification.Name("CheckpointFloatOnTopChanged"), object: nil)
+                                }
+                        }
+
+                        SettingsSection(title: "Advanced", icon: "gearshape.2", tooltip: "Fine-tune compression and enable debug logging. Higher compression saves disk space but slows backups.") {
                             SettingRow(label: "Compression") {
                                 Picker("", selection: $settings.compressionLevel) {
                                     Text("Low").tag(1)
@@ -1184,7 +1322,7 @@ struct HelpView: View {
                     helpSection(
                         icon: "folder.badge.plus",
                         title: "Project Registration",
-                        text: "Register any project directory with `checkpoint add /path/to/project`. Each project is tracked independently with its own backup history."
+                        text: "Register projects with the + Add button in the dashboard, or `checkpoint add /path/to/project` from the CLI. Remove with right-click \u{2192} Remove Project, or `checkpoint remove`. Use `checkpoint list` to see all projects."
                     )
 
                     helpSection(
@@ -1214,13 +1352,13 @@ struct HelpView: View {
                     helpSection(
                         icon: "play.circle",
                         title: "Dashboard Controls",
-                        text: "Use Backup All to trigger an immediate backup of all projects. Pause/Resume controls the background daemon. The status indicator shows if the daemon is running."
+                        text: "Use + Add to register a new project folder. Backup All triggers an immediate backup. Pause/Resume controls the daemon. Right-click any project for actions including Remove Project and View Log."
                     )
 
                     helpSection(
                         icon: "terminal",
                         title: "CLI Commands",
-                        text: "`checkpoint status` \u{2014} view backup status\n`checkpoint history` \u{2014} browse backup history\n`checkpoint search` \u{2014} search across backups\n`checkpoint restore` \u{2014} restore files from backup\n`checkpoint cloud browse` \u{2014} browse cloud backups\n`checkpoint cloud download` \u{2014} download from cloud"
+                        text: "`checkpoint add <path>` \u{2014} register a project\n`checkpoint remove <path>` \u{2014} unregister a project\n`checkpoint list` \u{2014} list all projects\n`checkpoint status` \u{2014} view backup status\n`checkpoint history` \u{2014} browse backup history\n`checkpoint search` \u{2014} search across backups\n`checkpoint cloud browse` \u{2014} browse cloud backups"
                     )
 
                     // Link to repo
@@ -1920,20 +2058,28 @@ private func formatSize(_ bytes: Int) -> String {
 struct SettingsSection<Content: View>: View {
     let title: String
     let icon: String
+    var tooltip: String? = nil
     @ViewBuilder let content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label {
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.cpTextSecondary)
-                    .textCase(.uppercase)
-
-            } icon: {
-                Image(systemName: icon)
-                    .font(.system(size: 11))
-                    .foregroundColor(.cpAccent)
+            HStack(spacing: 6) {
+                Label {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.cpTextSecondary)
+                        .textCase(.uppercase)
+                } icon: {
+                    Image(systemName: icon)
+                        .font(.system(size: 11))
+                        .foregroundColor(.cpAccent)
+                }
+                if let tip = tooltip {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 11))
+                        .foregroundColor(.cpTextSecondary.opacity(0.6))
+                        .help(tip)
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -1972,7 +2118,7 @@ struct SettingRow<Content: View>: View {
 class SettingsViewModel: ObservableObject {
     // Schedule
     @Published var backupInterval: Int = 3600
-    @Published var idleThreshold: Int = 600
+    @Published var backupSchedule: String = ""
 
     // Retention
     @Published var dbRetentionDays: Int = 30
@@ -1991,6 +2137,9 @@ class SettingsViewModel: ObservableObject {
     @Published var encryptionEnabled: Bool = true
     @Published var showEncryptionWarning: Bool = false
 
+    // Window
+    @Published var floatOnTop: Bool = false
+
     // Advanced
     @Published var compressionLevel: Int = 6
     @Published var debugMode: Bool = false
@@ -2005,16 +2154,36 @@ class SettingsViewModel: ObservableObject {
 
     init() {
         load()
+
+        // Sync float-on-top from menu bar toggle
+        NotificationCenter.default.addObserver(forName: NSNotification.Name("CheckpointFloatOnTopChanged"),
+                                               object: nil, queue: .main) { [weak self] _ in
+            self?.floatOnTop = UserDefaults.standard.bool(forKey: "floatOnTop")
+        }
     }
 
     func load() {
+        // Float on top is stored in UserDefaults (not config.sh) for instant access
+        floatOnTop = UserDefaults.standard.bool(forKey: "floatOnTop")
+
         guard let contents = try? String(contentsOf: configURL, encoding: .utf8) else { return }
         rawLines = contents.components(separatedBy: "\n")
 
         let values = parseShellConfig(contents)
 
         if let v = values["DEFAULT_BACKUP_INTERVAL"], let n = Int(v) { backupInterval = n }
-        if let v = values["DEFAULT_SESSION_IDLE_THRESHOLD"], let n = Int(v) { idleThreshold = n }
+        if let v = values["DEFAULT_BACKUP_SCHEDULE"], !v.isEmpty {
+            backupSchedule = v
+        } else {
+            // Infer schedule from interval for existing configs without a schedule
+            switch backupInterval {
+            case ...1800: backupSchedule = "@every-30min"
+            case ...3600: backupSchedule = "@hourly"
+            case ...7200: backupSchedule = "@every-2h"
+            case ...14400: backupSchedule = "@every-4h"
+            default: backupSchedule = "@hourly"
+            }
+        }
         if let v = values["DEFAULT_DB_RETENTION_DAYS"], let n = Int(v) { dbRetentionDays = n }
         if let v = values["DEFAULT_FILE_RETENTION_DAYS"], let n = Int(v) { fileRetentionDays = n }
         if let v = values["DEFAULT_BACKUP_ENV_FILES"] { backupEnvFiles = v == "true" }
@@ -2030,7 +2199,7 @@ class SettingsViewModel: ObservableObject {
     func save() {
         let updates: [(String, String)] = [
             ("DEFAULT_BACKUP_INTERVAL", "\(backupInterval)"),
-            ("DEFAULT_SESSION_IDLE_THRESHOLD", "\(idleThreshold)"),
+            ("DEFAULT_BACKUP_SCHEDULE", backupSchedule.isEmpty ? "@hourly" : backupSchedule),
             ("DEFAULT_DB_RETENTION_DAYS", "\(dbRetentionDays)"),
             ("DEFAULT_FILE_RETENTION_DAYS", "\(fileRetentionDays)"),
             ("DEFAULT_BACKUP_ENV_FILES", backupEnvFiles ? "true" : "false"),
@@ -2049,6 +2218,11 @@ class SettingsViewModel: ObservableObject {
 
         let output = rawLines.joined(separator: "\n")
         try? output.write(to: configURL, atomically: true, encoding: .utf8)
+        // Restrict config file permissions to owner-only read/write (0600)
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: configURL.path
+        )
     }
 
     private func parseShellConfig(_ contents: String) -> [String: String] {
@@ -2096,6 +2270,11 @@ class DashboardViewModel: ObservableObject {
     @Published var showingCloudBrowse = false
     @Published var cloudBrowseProject: ProjectInfo?
     @Published var updateCheckResult: UpdateCheckResult?
+    @Published var showingLogViewer = false
+    @Published var logViewerProject: ProjectInfo?
+    @Published var showingOnboarding = false
+    @Published var showingRemoveConfirm = false
+    @Published var removeTargetProject: ProjectInfo?
 
     func dismissAllModals() {
         showingSettings = false
@@ -2103,6 +2282,9 @@ class DashboardViewModel: ObservableObject {
         showingUpdateCheck = false
         showingCloudBrowse = false
         cloudBrowseProject = nil
+        showingLogViewer = false
+        logViewerProject = nil
+        showingOnboarding = false
         if showingAbout {
             showingAbout = false
             AboutPanelController.shared.close()
@@ -2113,6 +2295,85 @@ class DashboardViewModel: ObservableObject {
         dismissAllModals()
         cloudBrowseProject = project
         showingCloudBrowse = true
+    }
+
+    func addProject() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Select a project directory to back up"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let projectPath = url.path
+        backingUpProjects.insert(projectPath)
+        startProgressPolling()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            let possiblePaths = [
+                "\(home)/.local/bin/backup-now",
+                "/usr/local/bin/backup-now"
+            ]
+            let backupCommand = possiblePaths.first { FileManager.default.fileExists(atPath: $0) }
+
+            guard let command = backupCommand else {
+                DispatchQueue.main.async {
+                    self.backingUpProjects.remove(projectPath)
+                    self.stopProgressPolling()
+                    self.daemonError = "backup-now command not found. Is Checkpoint installed?"
+                }
+                return
+            }
+
+            let task = Process()
+            task.launchPath = command
+            task.arguments = ["--force", projectPath]
+            task.standardOutput = FileHandle.nullDevice
+            task.standardError = FileHandle.nullDevice
+
+            do {
+                try task.run()
+                task.waitUntilExit()
+            } catch {
+                NSLog("CheckpointHelper: addProject backup failed: %@", error.localizedDescription)
+            }
+
+            DispatchQueue.main.async {
+                self.backingUpProjects.remove(projectPath)
+                self.stopProgressPolling()
+                self.refresh()
+            }
+        }
+    }
+
+    func removeProject(_ project: ProjectInfo) {
+        removeTargetProject = project
+        showingRemoveConfirm = true
+    }
+
+    func confirmRemoveProject() {
+        guard let project = removeTargetProject else { return }
+
+        let registryURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/checkpoint/projects.json")
+
+        guard let data = try? Data(contentsOf: registryURL),
+              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var projectsArray = json["projects"] as? [[String: Any]] else {
+            return
+        }
+
+        projectsArray.removeAll { ($0["path"] as? String) == project.path }
+        json["projects"] = projectsArray
+
+        if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+            try? updatedData.write(to: registryURL)
+        }
+
+        removeTargetProject = nil
+        showingRemoveConfirm = false
+        refresh()
     }
 
     enum UpdateCheckResult {
@@ -2177,8 +2438,18 @@ class DashboardViewModel: ObservableObject {
     /// Maximum time to poll progress before auto-stopping (30 minutes)
     private let progressTimeoutInterval: TimeInterval = 30 * 60
 
+    private var stateChangeObserver: Any?
+
     init() {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            self?.refresh()
+        }
+        // Listen for daemon state changes from the menu bar widget
+        stateChangeObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("CheckpointDaemonStateChanged"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
             self?.refresh()
         }
     }
@@ -2187,6 +2458,9 @@ class DashboardViewModel: ObservableObject {
         refreshTimer?.invalidate()
         heartbeatTimer?.invalidate()
         progressTimer?.invalidate()
+        if let obs = stateChangeObserver {
+            NotificationCenter.default.removeObserver(obs)
+        }
     }
 
     func startHeartbeatPolling() {
@@ -2278,6 +2552,7 @@ class DashboardViewModel: ObservableObject {
             )
 
             info.loadBackupStats()
+            info.loadErrorData()
 
             return info
         }).sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -2384,7 +2659,9 @@ class DashboardViewModel: ObservableObject {
         let success = DaemonController.start()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             self.refresh()
-            if !success {
+            if success {
+                NotificationCenter.default.post(name: NSNotification.Name("CheckpointDaemonStateChanged"), object: nil)
+            } else {
                 self.daemonError = "Could not resume automatic backups. The background service may not be installed yet.\n\nRun 'checkpoint install' in Terminal to set it up."
             }
         }
@@ -2394,7 +2671,9 @@ class DashboardViewModel: ObservableObject {
         let success = DaemonController.stop()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             self.refresh()
-            if !success {
+            if success {
+                NotificationCenter.default.post(name: NSNotification.Name("CheckpointDaemonStateChanged"), object: nil)
+            } else {
                 self.daemonError = "Could not pause automatic backups. They may already be paused."
             }
         }
@@ -2416,10 +2695,9 @@ class DashboardViewModel: ObservableObject {
     }
 
     func viewLog(_ project: ProjectInfo) {
-        let logPath = "\(project.path)/backups/backup.log"
-        if FileManager.default.fileExists(atPath: logPath) {
-            NSWorkspace.shared.open(URL(fileURLWithPath: logPath))
-        }
+        dismissAllModals()
+        logViewerProject = project
+        showingLogViewer = true
     }
 
     func toggleEnabled(_ project: ProjectInfo) {
@@ -2620,6 +2898,10 @@ struct ProjectInfo: Identifiable {
     var backupSize: String? = nil
     var fileCount: Int? = nil
     var lastBackupResult: BackupResult = .unknown
+    var lastError: String? = nil
+    var failureCount: Int = 0
+    var llmPrompt: String? = nil
+    var recentErrors: [(date: String, count: Int)] = []
 
     var lastBackupText: String {
         guard let date = lastBackup else { return "Never" }
@@ -2731,6 +3013,40 @@ struct ProjectInfo: Identifiable {
         }
     }
 
+    mutating func loadErrorData() {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let stateDir = "\(home)/.claudecode-backups/state/\(name)"
+
+        // Read failure sentinel
+        let failedPath = "\(stateDir)/.last-backup-failed"
+        if let contents = try? String(contentsOfFile: failedPath, encoding: .utf8) {
+            let parts = contents.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "|")
+            if parts.count >= 2, let count = Int(parts[1]) {
+                failureCount = count
+                lastError = "\(count) file(s) failed"
+            }
+        }
+
+        // Read LLM prompt
+        let llmPath = "\(stateDir)/.last-backup-llm-prompt"
+        if let contents = try? String(contentsOfFile: llmPath, encoding: .utf8) {
+            llmPrompt = contents
+        }
+
+        // Read error history
+        let historyPath = "\(stateDir)/error-history.log"
+        if let contents = try? String(contentsOfFile: historyPath, encoding: .utf8) {
+            let lines = contents.split(separator: "\n").suffix(10)
+            recentErrors = lines.compactMap { line in
+                let parts = line.split(separator: "|")
+                guard parts.count >= 3 else { return nil }
+                let dateStr = String(parts[0])
+                let count = Int(parts[2]) ?? 0
+                return (date: dateStr, count: count)
+            }
+        }
+    }
+
     private func formatBytes(_ bytes: Int64) -> String {
         if bytes < 1024 { return "\(bytes) B" }
         let kb = Double(bytes) / 1024
@@ -2739,5 +3055,534 @@ struct ProjectInfo: Identifiable {
         if mb < 1024 { return String(format: "%.1f MB", mb) }
         let gb = mb / 1024
         return String(format: "%.1f GB", gb)
+    }
+}
+
+// MARK: - Log Viewer View
+
+struct LogViewerView: View {
+    @Binding var isPresented: Bool
+    let project: ProjectInfo
+    @StateObject private var viewModel = LogViewerViewModel()
+
+    var body: some View {
+        ZStack {
+            Color.cpBg.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Title bar
+                HStack {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 14))
+                        .foregroundColor(.cpAccent)
+                    Text("Backup Log")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.cpTextPrimary)
+                    Text("\u{2014} \(project.name)")
+                        .font(.system(size: 14))
+                        .foregroundColor(.cpTextSecondary)
+                    Spacer()
+                    Button("Done") { isPresented = false }
+                        .buttonStyle(CPButtonStyle(accent: .cpAccent, filled: true))
+                        .keyboardShortcut(.cancelAction)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color.cpBorder).frame(height: 0.5)
+                }
+
+                // Filter bar
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 12))
+                        .foregroundColor(.cpTextTertiary)
+                    TextField("Filter\u{2026}", text: $viewModel.searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .foregroundColor(.cpTextPrimary)
+
+                    Spacer()
+
+                    Picker("", selection: $viewModel.filterLevel) {
+                        Text("All").tag(LogViewerViewModel.FilterLevel.all)
+                        Text("Errors").tag(LogViewerViewModel.FilterLevel.errors)
+                        Text("Warnings").tag(LogViewerViewModel.FilterLevel.warnings)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+
+                // Error history tab (if available)
+                if !project.recentErrors.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(Array(project.recentErrors.enumerated()), id: \.offset) { _, entry in
+                                VStack(spacing: 1) {
+                                    Text("\(entry.count)")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(entry.count > 0 ? .cpDanger : .cpAccent)
+                                    Text(String(entry.date.prefix(10)))
+                                        .font(.system(size: 9))
+                                        .foregroundColor(.cpTextTertiary)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.cpSurface)
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    .padding(.bottom, 4)
+                }
+
+                // Log lines
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 1) {
+                            ForEach(Array(viewModel.filteredLines.enumerated()), id: \.offset) { index, line in
+                                logLineRow(line)
+                                    .id(index)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                }
+
+                // Footer
+                VStack(spacing: 0) {
+                    Rectangle().fill(Color.cpBorder).frame(height: 0.5)
+                    HStack {
+                        Button(action: viewModel.copyForAIHelp) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "doc.on.clipboard")
+                                    .font(.system(size: 11))
+                                Text("Copy for AI Help")
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                        }
+                        .buttonStyle(CPButtonStyle(accent: .cpAccent))
+
+                        Spacer()
+
+                        Text("Showing \(viewModel.filteredLines.count) lines")
+                            .font(.system(size: 11))
+                            .foregroundColor(.cpTextTertiary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                }
+                .background(Color.cpSurface.opacity(0.7))
+            }
+        }
+        .frame(width: 560, height: 500)
+        .onAppear {
+            viewModel.loadLog(for: project)
+        }
+    }
+
+    private func logLineRow(_ line: LogViewerViewModel.LogLine) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(line.timestamp)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(.cpTextTertiary)
+                .frame(width: 120, alignment: .leading)
+
+            Text(line.level)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundColor(line.levelColor)
+                .frame(width: 48, alignment: .leading)
+
+            Text(line.message)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundColor(.cpTextPrimary)
+                .lineLimit(3)
+                .textSelection(.enabled)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 3)
+                .fill(line.level == "ERROR" ? Color.cpDanger.opacity(0.08) :
+                      line.level == "WARN" ? Color.cpWarning.opacity(0.06) : Color.clear)
+        )
+    }
+}
+
+class LogViewerViewModel: ObservableObject {
+    enum FilterLevel {
+        case all, errors, warnings
+    }
+
+    struct LogLine {
+        let timestamp: String
+        let level: String
+        let message: String
+
+        var levelColor: Color {
+            switch level {
+            case "ERROR": return .cpDanger
+            case "WARN": return .cpWarning
+            case "INFO": return .cpAccent
+            case "DEBUG": return .cpTextTertiary
+            default: return .cpTextSecondary
+            }
+        }
+    }
+
+    @Published var lines: [LogLine] = []
+    @Published var searchText: String = ""
+    @Published var filterLevel: FilterLevel = .all
+
+    private var projectPath: String = ""
+
+    var filteredLines: [LogLine] {
+        var result = lines
+
+        switch filterLevel {
+        case .all: break
+        case .errors:
+            result = result.filter { $0.level == "ERROR" }
+        case .warnings:
+            result = result.filter { $0.level == "ERROR" || $0.level == "WARN" }
+        }
+
+        if !searchText.isEmpty {
+            let query = searchText.lowercased()
+            result = result.filter { $0.message.lowercased().contains(query) }
+        }
+
+        return result
+    }
+
+    func loadLog(for project: ProjectInfo) {
+        projectPath = project.path
+        let logPath = "\(project.path)/backups/backup.log"
+
+        guard let fileHandle = FileHandle(forReadingAtPath: logPath) else {
+            lines = [LogLine(timestamp: "", level: "INFO", message: "No log file found.")]
+            return
+        }
+        defer { fileHandle.closeFile() }
+
+        // Read last ~64KB (up to ~500 lines)
+        let fileSize = fileHandle.seekToEndOfFile()
+        let maxRead: UInt64 = 65536
+        let readOffset: UInt64 = fileSize > maxRead ? fileSize - maxRead : 0
+        fileHandle.seek(toFileOffset: readOffset)
+        let data = fileHandle.readDataToEndOfFile()
+        guard let contents = String(data: data, encoding: .utf8) else { return }
+
+        let rawLines = contents.components(separatedBy: "\n")
+        // If we started mid-line, skip the first partial line
+        let startIndex = readOffset > 0 ? 1 : 0
+
+        lines = rawLines.dropFirst(startIndex).compactMap { rawLine in
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty else { return nil }
+
+            // Parse: [YYYY-MM-DD HH:MM:SS] [LEVEL] message
+            var timestamp = ""
+            var level = "INFO"
+            var message = line
+
+            if line.hasPrefix("[") {
+                if let tsEnd = line.firstIndex(of: "]") {
+                    timestamp = String(line[line.index(after: line.startIndex)..<tsEnd])
+                    let rest = String(line[line.index(tsEnd, offsetBy: 2)...]).trimmingCharacters(in: .whitespaces)
+
+                    if rest.hasPrefix("[") {
+                        if let lvlEnd = rest.firstIndex(of: "]") {
+                            level = String(rest[rest.index(after: rest.startIndex)..<lvlEnd])
+                            message = String(rest[rest.index(lvlEnd, offsetBy: 2)...]).trimmingCharacters(in: .whitespaces)
+                        }
+                    } else {
+                        message = rest
+                    }
+                }
+            }
+
+            return LogLine(timestamp: timestamp, level: level, message: message)
+        }
+    }
+
+    func copyForAIHelp() {
+        let errorLines = lines.filter { $0.level == "ERROR" || $0.level == "WARN" }
+        let text: String
+        if errorLines.isEmpty {
+            text = "No errors or warnings found in backup log for: \(projectPath)"
+        } else {
+            let header = "Backup errors for: \(projectPath)\n\n"
+            let body = errorLines.map { "[\($0.timestamp)] [\($0.level)] \($0.message)" }.joined(separator: "\n")
+            text = header + body
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+}
+
+// MARK: - Onboarding View
+
+struct OnboardingView: View {
+    @Binding var isPresented: Bool
+    let onAddProject: () -> Void
+    @State private var step: Int = 1
+    @State private var selectedPath: String? = nil
+    @State private var backupInterval: Int = 3600
+    @State private var notificationsEnabled: Bool = true
+    @State private var isRunningBackup: Bool = false
+    @State private var backupComplete: Bool = false
+
+    var body: some View {
+        ZStack {
+            Color.cpBg.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 8) {
+                    CheckpointShield(size: 48)
+                        .padding(.top, 24)
+
+                    Text("Welcome to Checkpoint")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.cpTextPrimary)
+
+                    Text("Let\u{2019}s set up your first backup in under a minute.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.cpTextSecondary)
+
+                    Text("Step \(step) of 3")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.cpTextTertiary)
+                        .padding(.top, 4)
+                }
+                .padding(.bottom, 16)
+
+                Divider().background(Color.cpBorder)
+
+                // Step content
+                Group {
+                    switch step {
+                    case 1:
+                        step1View
+                    case 2:
+                        step2View
+                    case 3:
+                        step3View
+                    default:
+                        EmptyView()
+                    }
+                }
+                .frame(maxHeight: .infinity)
+
+                Divider().background(Color.cpBorder)
+
+                // Footer
+                HStack {
+                    Button("Skip") { isPresented = false }
+                        .buttonStyle(CPButtonStyle(accent: .cpTextSecondary))
+
+                    Spacer()
+
+                    if step < 3 {
+                        Button(action: nextStep) {
+                            Text("Continue")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .buttonStyle(CPButtonStyle(accent: .cpAccent, filled: true))
+                        .disabled(step == 1 && selectedPath == nil)
+                    } else {
+                        Button(action: { isPresented = false }) {
+                            Text("Open Dashboard")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .buttonStyle(CPButtonStyle(accent: .cpAccent, filled: true))
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+            }
+        }
+        .frame(width: 420, height: 440)
+    }
+
+    // MARK: - Step 1: Select Project
+
+    private var step1View: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 36, weight: .light))
+                .foregroundColor(.cpAccent)
+
+            Text("Select a project to protect")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.cpTextPrimary)
+
+            if let path = selectedPath {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.cpAccent)
+                        .font(.system(size: 12))
+                    Text((path as NSString).lastPathComponent)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.cpTextPrimary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.cpAccent.opacity(0.1))
+                )
+
+                Text(path)
+                    .font(.system(size: 11))
+                    .foregroundColor(.cpTextTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            Button(action: chooseFolder) {
+                HStack(spacing: 6) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 12))
+                    Text(selectedPath == nil ? "Choose Project Folder" : "Change Folder")
+                        .font(.system(size: 13, weight: .medium))
+                }
+            }
+            .buttonStyle(CPButtonStyle(accent: .cpAccent, filled: selectedPath == nil))
+
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+    }
+
+    // MARK: - Step 2: Preferences
+
+    private var step2View: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Spacer()
+
+            HStack {
+                Text("Backup interval")
+                    .font(.system(size: 13))
+                    .foregroundColor(.cpTextPrimary)
+                Spacer()
+                Picker("", selection: $backupInterval) {
+                    Text("30 minutes").tag(1800)
+                    Text("1 hour").tag(3600)
+                    Text("2 hours").tag(7200)
+                    Text("4 hours").tag(14400)
+                }
+                .labelsHidden()
+                .frame(width: 140)
+            }
+
+            HStack {
+                Toggle("Enable notifications", isOn: $notificationsEnabled)
+                    .toggleStyle(.switch)
+                    .tint(.cpAccent)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 32)
+    }
+
+    // MARK: - Step 3: Complete
+
+    private var step3View: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            if isRunningBackup {
+                ProgressView()
+                    .controlSize(.regular)
+                Text("Running first backup\u{2026}")
+                    .font(.system(size: 13))
+                    .foregroundColor(.cpTextSecondary)
+            } else if backupComplete {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(.cpAccent)
+                Text("All set!")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.cpTextPrimary)
+                Text("Your project is now protected by Checkpoint.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.cpTextSecondary)
+            } else {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(.cpAccent)
+                Text("Ready to go!")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.cpTextPrimary)
+                Text("Your first backup will start automatically.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.cpTextSecondary)
+            }
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Actions
+
+    private func chooseFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.message = "Select a project directory to back up"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        selectedPath = url.path
+    }
+
+    private func nextStep() {
+        if step == 1 && selectedPath != nil {
+            step = 2
+        } else if step == 2 {
+            step = 3
+            runFirstBackup()
+        }
+    }
+
+    private func runFirstBackup() {
+        guard let path = selectedPath else { return }
+        isRunningBackup = true
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            let possiblePaths = [
+                "\(home)/.local/bin/backup-now",
+                "/usr/local/bin/backup-now"
+            ]
+            if let command = possiblePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) {
+                let task = Process()
+                task.launchPath = command
+                task.arguments = ["--force", path]
+                task.standardOutput = FileHandle.nullDevice
+                task.standardError = FileHandle.nullDevice
+                do {
+                    try task.run()
+                    task.waitUntilExit()
+                } catch {
+                    NSLog("Onboarding backup failed: %@", error.localizedDescription)
+                }
+            }
+
+            DispatchQueue.main.async {
+                isRunningBackup = false
+                backupComplete = true
+            }
+        }
     }
 }

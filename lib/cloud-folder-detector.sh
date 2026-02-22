@@ -31,7 +31,7 @@ detect_dropbox_folder() {
     # Method 1: Parse ~/.dropbox/info.json (most reliable for custom locations)
     if [[ -f "$HOME/.dropbox/info.json" ]]; then
         # Extract path from JSON (handles both personal and business accounts)
-        dropbox_path=$(grep -o '"path"[[:space:]]*:[[:space:]]*"[^"]*"' "$HOME/.dropbox/info.json" 2>/dev/null | head -1 | sed 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+        dropbox_path=$(grep -o '"path"[[:space:]]*:[[:space:]]*"[^"]*"' "$HOME/.dropbox/info.json" 2>/dev/null | head -1 | sed 's/.*"path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)
         if [[ -n "$dropbox_path" && -d "$dropbox_path" && -w "$dropbox_path" ]]; then
             echo "$dropbox_path"
             return 0

@@ -8,6 +8,11 @@ _UNINSTALL_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$_UNINSTALL_SCRIPT_DIR/../lib/core/logging.sh"
 source "$_UNINSTALL_SCRIPT_DIR/../lib/platform/daemon-manager.sh"
 
+# Core backup library (provides get_project_state_id via ops/state.sh)
+if [ -f "$_UNINSTALL_SCRIPT_DIR/../lib/backup-lib.sh" ]; then
+    source "$_UNINSTALL_SCRIPT_DIR/../lib/backup-lib.sh"
+fi
+
 # ==============================================================================
 # ORPHAN CLEANUP MODE (Issue #8)
 # ==============================================================================
@@ -218,7 +223,8 @@ uninstall_daemon "watcher-$PROJECT_NAME" 2>/dev/null && echo "✅ File watcher r
 
 # Clean up watcher PID files
 STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
-PROJECT_STATE_DIR="$STATE_DIR/${PROJECT_NAME}"
+_PROJECT_STATE_ID=$(get_project_state_id "${PROJECT_DIR:-$PWD}" "${PROJECT_NAME:-}" 2>/dev/null || echo "$PROJECT_NAME")
+PROJECT_STATE_DIR="$STATE_DIR/${_PROJECT_STATE_ID}"
 rm -f "$PROJECT_STATE_DIR/.watcher.pid" "$PROJECT_STATE_DIR/.watcher-timer.pid" 2>/dev/null
 
 # Stop and remove backup daemon via daemon-manager.sh (handles launchd/systemd/cron)
