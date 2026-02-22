@@ -1,18 +1,18 @@
 # CONTEXT_DIGEST.md
 <!-- Auto-updated by Superstack. Run: superstack digest -->
-<!-- Last updated: 2026-02-17T01:10:48Z -->
+<!-- Last updated: 2026-02-22T00:33:50Z -->
 
 ## Current State
 - GSD: Phase 25 of 25 (Backup Search & Browse CLI) (Phase complete)
 - Pending: 3 task(s) in TODO.md
 
 ## Recent Changes
-- Modified: ONTEXT_DIGEST.md
-- Modified: bin/backup-all-projects.sh
-- Modified: bin/backup-now.sh
-- docs(25-02): complete history interactive + routing plan (fbd4eb6)
-- feat(25-02): wire search and browse into checkpoint.sh routing (b973927)
-- feat(25-02): add --interactive fzf mode to history command (9b31f90)
+- Modified: claude/skills/backup-pause/run.sh
+- Modified: CONTEXT_DIGEST.md
+- Modified: README.md
+- feat: float-on-top setting, orange sync icon, green flash on completion, no auto-open dashboard (566e344)
+- fix: database detector edge cases — dedup, sanitization, MongoDB no-auth URLs (a97e620)
+- chore: update installers with new CLI commands, schedule presets, and dashboard features (65b6105)
 
 ## Open Threads
 - (none detected)

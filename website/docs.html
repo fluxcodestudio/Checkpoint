@@ -25,7 +25,7 @@
     <link rel="apple-touch-icon" href="checkpoint-logo-no-text.png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#a666ff">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2.6.1">
     <link rel="stylesheet" href="fonts/fonts.css">
 </head>
 <body class="docs-page">
@@ -44,15 +44,15 @@
                 <img src="checkpoint-logo-no-text.png" alt="Checkpoint" class="logo-img">
                 <span class="logo-text">CHECKPOINT</span>
             </a>
-            <button class="nav-toggle" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="Toggle navigation">☰</button>
+            <button class="nav-toggle" aria-label="Toggle navigation">☰</button>
             <div class="nav-links">
                 <a href="index.html#features">Features</a>
                 <a href="index.html#dashboard">Dashboard</a>
                 <a href="docs.html" class="active">Docs</a>
                 <a href="compare.html">Compare</a>
                 <a href="https://github.com/fluxcodestudio/Checkpoint" target="_blank" rel="noopener noreferrer">GitHub</a>
-                <a href="index.html#contact" onclick="if(window.openContactModal){openContactModal();return false;}">Contact</a>
-                <a href="index.html#newsletter" onclick="if(window.openNewsletterModal){openNewsletterModal();return false;}">Join Us</a>
+                <a href="index.html#contact">Contact</a>
+                <a href="index.html#newsletter">Join Us</a>
                 <a href="index.html#download" class="btn btn-primary">Download Free</a>
             </div>
         </div>
@@ -161,40 +161,74 @@ backup-now</code>
 
             <section id="add-projects">
                 <h2>Managing Projects</h2>
-                <h2>Adding Projects</h2>
-                <p>There are three ways to add a project to Checkpoint:</p>
+                <h3>Adding Projects</h3>
+                <p>There are four ways to add a project to Checkpoint:</p>
 
-                <h3>Option 1: Run backup-now (simplest)</h3>
+                <h3>Option 1: CLI (recommended)</h3>
+                <div class="code-block docs-code">
+                    <code>checkpoint add /path/to/your/project</code>
+                </div>
+                <p>Auto-generates a config file and registers the project. It will be included in all future hourly backups.</p>
+
+                <h3>Option 2: Dashboard</h3>
+                <p>Click the <strong>+ Add</strong> button in the dashboard footer (or the "Add Project" button on the empty state). A folder picker opens — select your project directory and the first backup runs immediately.</p>
+
+                <h3>Option 3: Run backup-now</h3>
                 <div class="code-block docs-code">
                     <code>cd /path/to/your/project
 backup-now</code>
                 </div>
                 <p>The project is automatically registered and will be included in all future hourly backups.</p>
 
-                <h3>Option 2: Dashboard</h3>
-                <p>Open the Checkpoint menu bar app and use the settings to manage registered projects. Projects appear automatically after their first backup.</p>
-
-                <h3>Option 3: Configure manually</h3>
+                <h3>Option 4: Configure manually</h3>
                 <div class="code-block docs-code">
                     <code>checkpoint --project /path/to/your/project</code>
                 </div>
                 <p>This opens the interactive configuration wizard for that specific project.</p>
 
+                <h3>Listing Projects</h3>
+                <div class="code-block docs-code">
+                    <code>checkpoint list              # Human-readable list with status
+checkpoint list --json       # Machine-readable JSON output</code>
+                </div>
+
                 <div class="docs-callout">
-                    <strong>Multiple projects?</strong> Just run <code>backup-now</code> in each project directory once. After that, the daemon handles all of them automatically on the hourly schedule.
+                    <strong>Multiple projects?</strong> Just run <code>checkpoint add</code> for each project directory. After that, the daemon handles all of them automatically on the hourly schedule.
+                </div>
+            </section>
+
+            <section id="project-discovery">
+                <h2>Project Discovery Depth</h2>
+                <p>When auto-configuring, Checkpoint scans your developer directories for projects. The scan has depth limits to balance thoroughness with speed:</p>
+                <table class="docs-table">
+                    <thead>
+                        <tr><th>Scan Type</th><th>Max Depth</th><th>Detection Method</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Git repositories</td><td>5 levels deep</td><td>Looks for <code>.git</code> directory (maxdepth 6 to reach .git inside project)</td></tr>
+                        <tr><td>Non-git projects</td><td>4 levels deep</td><td>Checks for 28 project indicators (package.json, Cargo.toml, Dockerfile, etc.)</td></tr>
+                        <tr><td>External volumes (macOS)</td><td>5 levels deep</td><td>Scans <code>/Volumes/*/Developer</code>, <code>/Volumes/*/Projects</code>, <code>/Volumes/*/Code</code></td></tr>
+                    </tbody>
+                </table>
+                <p>A depth of 5 means <code>~/Projects/clients/acme/2025/webapp/.git</code> will be found, but projects nested 6+ levels deep will not. Non-git projects use depth 4 because indicators like <code>Makefile</code> are ambiguous deeper in a tree (they could appear inside build artifacts or submodules).</p>
+                <div class="docs-callout">
+                    <strong>Project not discovered?</strong> Manually add any project regardless of nesting depth:
+                    <div class="code-block docs-code" style="margin-top:0.5em"><code>checkpoint add /path/to/deeply/nested/project</code></div>
+                    Manually added projects work identically to auto-discovered ones.
                 </div>
             </section>
 
             <section id="remove-projects">
                 <h2>Removing Projects</h2>
-                <p>To stop backing up a project, remove it from the registry:</p>
+                <p>Remove a project from Checkpoint using the CLI or Dashboard:</p>
                 <div class="code-block docs-code">
-                    <code># View all registered projects
-checkpoint --status
+                    <code># CLI
+checkpoint remove /path/to/project
 
-# Remove a project's .backup-config.sh to unregister
-rm /path/to/project/.backup-config.sh</code>
+# Keep config file (default) or delete it
+checkpoint remove /path/to/project --delete-config</code>
                 </div>
+                <p>From the Dashboard, right-click any project and select <strong>Remove Project</strong>. A confirmation dialog will appear.</p>
                 <p>Existing backups are preserved — only future backups stop.</p>
             </section>
 
@@ -248,7 +282,7 @@ nano ~/.config/checkpoint/config.sh</code>
 
             <section id="cloud-setup">
                 <h2>Cloud Backup</h2>
-                <h2>Setting Up Cloud Sync</h2>
+                <h3>Setting Up Cloud Sync</h3>
                 <p>Checkpoint supports two cloud sync methods:</p>
 
                 <h3>Method 1: Direct folder sync (simplest)</h3>
@@ -362,18 +396,22 @@ checkpoint cloud download-all --project MyProject --zip</code>
 
             <section id="dashboard-overview">
                 <h2>Dashboard</h2>
-                <h2>Menu Bar App</h2>
+                <h3>Menu Bar App</h3>
                 <p>The Checkpoint Dashboard is a native SwiftUI app that lives in your macOS menu bar. It's installed automatically during setup.</p>
 
                 <ul>
                     <li><strong>Menu bar widget</strong> — Click the icon to see all projects, status, file counts, and last backup time</li>
+                    <li><strong>Add &amp; Remove projects</strong> — Click <strong>+ Add</strong> to select a folder, or right-click a project to remove it. No terminal needed</li>
+                    <li><strong>In-app log viewer</strong> — View backup logs with level filtering (All / Errors / Warnings), text search, and "Copy for AI Help"</li>
+                    <li><strong>Error details</strong> — Failed file counts shown inline. One-click copy of LLM-ready error prompts</li>
+                    <li><strong>Onboarding wizard</strong> — First launch guides you through selecting a project, setting preferences, and running your first backup</li>
                     <li><strong>Live progress</strong> — Watch backups run in real-time</li>
-                    <li><strong>Native notifications</strong> — macOS desktop notifications on backup failures and staleness (24h without backup)</li>
+                    <li><strong>Native notifications</strong> — macOS desktop notifications on backup failures and staleness. Tapping a notification opens the dashboard</li>
                     <li><strong>One-click actions</strong> — Backup All, Pause/Resume, per-project context menus</li>
                     <li><strong>Keyboard shortcuts</strong> — ⌘B Backup All, ⌘R Refresh, ⌘, Settings</li>
                 </ul>
 
-                <p>Right-click any project for quick actions: Backup Now, Reveal in Finder, View Backup Folder, View Log, Enable/Disable.</p>
+                <p>Right-click any project for quick actions: Backup Now, Reveal in Finder, View Backup Folder, View Log, Browse Cloud Backups, Enable/Disable, Remove Project.</p>
 
                 <h3>Notifications</h3>
                 <p>Checkpoint sends native macOS desktop notifications (via osascript) for:</p>
@@ -408,7 +446,7 @@ NOTIFY_ON_FAILURE_ONLY=false  # Only notify on failures</code>
 
             <section id="cli-commands">
                 <h2>CLI Reference</h2>
-                <h2>Commands</h2>
+                <h3>Commands</h3>
                 <table class="docs-table">
                     <thead>
                         <tr><th>Command</th><th>Description</th></tr>
@@ -429,6 +467,13 @@ NOTIFY_ON_FAILURE_ONLY=false  # Only notify on failures</code>
                         <tr><td><code>checkpoint cloud download FILE</code></td><td>Download a file from cloud (auto-decrypted)</td></tr>
                         <tr><td><code>checkpoint cloud download-all</code></td><td>Download entire backup (optional --zip)</td></tr>
                         <tr><td><code>checkpoint cloud setup</code></td><td>Configure cloud access on a new machine</td></tr>
+                        <tr><td><code>checkpoint add &lt;path&gt;</code></td><td>Register a project for backup</td></tr>
+                        <tr><td><code>checkpoint remove &lt;path&gt;</code></td><td>Unregister a project</td></tr>
+                        <tr><td><code>checkpoint list</code></td><td>List all registered projects with status</td></tr>
+                        <tr><td><code>checkpoint history &lt;file&gt;</code></td><td>Show all versions of a file</td></tr>
+                        <tr><td><code>checkpoint search &lt;pattern&gt;</code></td><td>Search backup file paths and content</td></tr>
+                        <tr><td><code>checkpoint browse</code></td><td>Interactive backup snapshot browser</td></tr>
+                        <tr><td><code>checkpoint docker-volumes</code></td><td>Manage Docker volume backups</td></tr>
                     </tbody>
                 </table>
             </section>
@@ -470,7 +515,7 @@ gunzip -k backups/databases/MyApp-2025.02.15-10.45.12.db.gz</code>
 
             <section id="databases">
                 <h2>Advanced</h2>
-                <h2>Database Backup</h2>
+                <h3>Database Backup</h3>
                 <p>Checkpoint auto-detects databases in your project and uses the proper dump tool:</p>
                 <table class="docs-table">
                     <thead>
@@ -550,5 +595,6 @@ systemctl --user restart checkpoint-daemon</code>
             </div>
         </div>
     </footer>
+    <script src="main.js"></script>
 </body>
 </html>
