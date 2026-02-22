@@ -206,7 +206,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(NSMenuItem.separator())
 
-        // Actions
+        // Backup actions
         let backupItem = NSMenuItem(title: "Backup All", action: #selector(backupNow), keyEquivalent: "b")
         backupItem.target = self
         menu.addItem(backupItem)
@@ -215,20 +215,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         addProjectItem.target = self
         menu.addItem(addProjectItem)
 
-        let dashboardItem = NSMenuItem(title: "Show Dashboard", action: #selector(showDashboard), keyEquivalent: "d")
-        dashboardItem.target = self
-        menu.addItem(dashboardItem)
-
-        menu.addItem(NSMenuItem.separator())
-
         // Pause / Resume (matches dashboard)
         pauseResumeMenuItem = NSMenuItem(title: "Pause Backups", action: #selector(togglePauseResume), keyEquivalent: "p")
         pauseResumeMenuItem.target = self
         menu.addItem(pauseResumeMenuItem)
 
+        menu.addItem(NSMenuItem.separator())
+
+        // Window controls
         let terminalItem = NSMenuItem(title: "Open in Terminal", action: #selector(openTerminal), keyEquivalent: "t")
         terminalItem.target = self
         menu.addItem(terminalItem)
+
+        let dashboardItem = NSMenuItem(title: "Show Dashboard", action: #selector(showDashboard), keyEquivalent: "d")
+        dashboardItem.target = self
+        menu.addItem(dashboardItem)
 
         // Float on top toggle
         floatOnTopMenuItem = NSMenuItem(title: "Float on Top", action: #selector(toggleFloatOnTop), keyEquivalent: "f")
