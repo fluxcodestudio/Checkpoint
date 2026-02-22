@@ -163,13 +163,15 @@ log_test "Atomic lock creation (no temp files left)"
 release_lock
 
 # Count temp files before
-TEMP_BEFORE=$(ls -la "$LOCK_BASE" 2>/dev/null | grep -c "\.pid\." || echo "0")
+TEMP_BEFORE=$(ls -la "$LOCK_BASE" 2>/dev/null | grep -c "\.pid\." || true)
+TEMP_BEFORE=${TEMP_BEFORE:-0}
 
 acquire_lock
 release_lock
 
 # Count temp files after
-TEMP_AFTER=$(ls -la "$LOCK_BASE" 2>/dev/null | grep -c "\.pid\." || echo "0")
+TEMP_AFTER=$(ls -la "$LOCK_BASE" 2>/dev/null | grep -c "\.pid\." || true)
+TEMP_AFTER=${TEMP_AFTER:-0}
 
 if [[ "$TEMP_AFTER" -le "$TEMP_BEFORE" ]]; then
     log_pass "No temp files left behind"

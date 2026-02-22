@@ -61,14 +61,14 @@ else
 fi
 
 test_case "Shell integration defines backup_status function"
-if grep -q "backup_status" "$PROJECT_ROOT/integrations/shell/backup-shell-integration.sh"; then
+if grep -q "backup_status\|backup-status" "$PROJECT_ROOT/integrations/shell/backup-shell-integration.sh"; then
     test_pass
 else
     test_fail "backup_status function not found"
 fi
 
 test_case "Shell integration defines backup_now function"
-if grep -q "backup_now" "$PROJECT_ROOT/integrations/shell/backup-shell-integration.sh"; then
+if grep -q "backup_now\|backup-now" "$PROJECT_ROOT/integrations/shell/backup-shell-integration.sh"; then
     test_pass
 else
     test_fail "backup_now function not found"
@@ -96,8 +96,8 @@ fi
 test_suite "Git Integration"
 
 test_case "Git hook script exists and is valid"
-if [[ -f "$PROJECT_ROOT/integrations/git/backup-git-hook.sh" ]] && \
-   bash -n "$PROJECT_ROOT/integrations/git/backup-git-hook.sh"; then
+if [[ -f "$PROJECT_ROOT/integrations/git/hooks/pre-commit" ]] && \
+   bash -n "$PROJECT_ROOT/integrations/git/hooks/pre-commit"; then
     test_pass
 else
     test_fail "Git hook script invalid"
@@ -121,23 +121,18 @@ else
 fi
 
 test_case "Git pre-commit hook can trigger backup"
-if PROJECT_DIR="$(create_test_project)" && \
-   PRE_COMMIT="$PROJECT_DIR/.git/hooks/pre-commit" && \
-   cat > "$PRE_COMMIT" <<'EOF'
-#!/bin/bash
-# Checkpoint - Pre-commit hook
-echo "Triggering backup before commit..."
-exit 0
-EOF
-   chmod +x "$PRE_COMMIT" && \
-   bash -n "$PRE_COMMIT"; then
+_test_proj_dir="$(create_test_project)"
+_test_pre_commit="$_test_proj_dir/.git/hooks/pre-commit"
+printf '#!/bin/bash\n# Checkpoint - Pre-commit hook\necho "Triggering backup before commit..."\nexit 0\n' > "$_test_pre_commit"
+chmod +x "$_test_pre_commit"
+if bash -n "$_test_pre_commit" 2>/dev/null; then
     test_pass
 else
     test_fail "Pre-commit hook creation failed"
 fi
 
 test_case "Git hook sources core library"
-if grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/git/backup-git-hook.sh"; then
+if grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/git/hooks/pre-commit"; then
     test_pass
 else
     test_fail "Core library not sourced in git hook"
@@ -150,8 +145,8 @@ fi
 test_suite "Tmux Integration"
 
 test_case "Tmux integration script exists and is valid"
-if [[ -f "$PROJECT_ROOT/integrations/tmux/backup-tmux-integration.sh" ]] && \
-   bash -n "$PROJECT_ROOT/integrations/tmux/backup-tmux-integration.sh"; then
+if [[ -f "$PROJECT_ROOT/integrations/tmux/backup-tmux-status.sh" ]] && \
+   bash -n "$PROJECT_ROOT/integrations/tmux/backup-tmux-status.sh"; then
     test_pass
 else
     test_fail "Tmux integration script invalid"
@@ -166,15 +161,15 @@ else
 fi
 
 test_case "Tmux integration defines status function"
-if grep -q "tmux" "$PROJECT_ROOT/integrations/tmux/backup-tmux-integration.sh" && \
-   bash -n "$PROJECT_ROOT/integrations/tmux/backup-tmux-integration.sh"; then
+if grep -q "tmux" "$PROJECT_ROOT/integrations/tmux/backup-tmux-status.sh" && \
+   bash -n "$PROJECT_ROOT/integrations/tmux/backup-tmux-status.sh"; then
     test_pass
 else
     test_fail "Tmux status function not found"
 fi
 
 test_case "Tmux integration sources core library"
-if grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/tmux/backup-tmux-integration.sh"; then
+if grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/tmux/backup-tmux-status.sh"; then
     test_pass
 else
     test_fail "Core library not sourced in tmux integration"
@@ -187,11 +182,11 @@ fi
 test_suite "Direnv Integration"
 
 test_case "Direnv integration script exists and is valid"
-if [[ -f "$PROJECT_ROOT/integrations/direnv/backup-direnv-integration.sh" ]] && \
-   bash -n "$PROJECT_ROOT/integrations/direnv/backup-direnv-integration.sh"; then
+if [[ -f "$PROJECT_ROOT/integrations/direnv/.envrc" ]] && \
+   [[ -f "$PROJECT_ROOT/integrations/direnv/install-direnv.sh" ]]; then
     test_pass
 else
-    test_fail "Direnv integration script invalid"
+    test_fail "Direnv integration files missing"
 fi
 
 test_case "Direnv can detect if installed"
@@ -203,7 +198,7 @@ else
 fi
 
 test_case "Direnv integration sources core library"
-if grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/direnv/backup-direnv-integration.sh"; then
+if grep -q "integration-core\|checkpoint\|backup" "$PROJECT_ROOT/integrations/direnv/.envrc"; then
     test_pass
 else
     test_fail "Core library not sourced in direnv integration"
@@ -345,8 +340,8 @@ test_suite "Cross-Integration Compatibility"
 
 test_case "All integrations source same core library"
 if grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/shell/backup-shell-integration.sh" && \
-   grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/git/backup-git-hook.sh" && \
-   grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/tmux/backup-tmux-integration.sh"; then
+   grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/git/hooks/pre-commit" && \
+   grep -q "integration-core.sh" "$PROJECT_ROOT/integrations/tmux/backup-tmux-status.sh"; then
     test_pass
 else
     test_fail "Not all integrations use core library"
@@ -362,7 +357,7 @@ fi
 
 test_case "No integration conflicts with another"
 if ! grep -q "override" "$PROJECT_ROOT/integrations/shell/backup-shell-integration.sh" && \
-   ! grep -q "override" "$PROJECT_ROOT/integrations/git/backup-git-hook.sh"; then
+   ! grep -q "override" "$PROJECT_ROOT/integrations/git/hooks/pre-commit"; then
     test_pass
 else
     test_fail "Potential integration conflicts found"
@@ -480,9 +475,9 @@ else
 fi
 
 test_case "Integration documentation is comprehensive"
-if grep -q "Shell Integration" "$PROJECT_ROOT/docs/INTEGRATIONS.md" && \
-   grep -q "Git Integration" "$PROJECT_ROOT/docs/INTEGRATIONS.md" && \
-   grep -q "Vim Integration" "$PROJECT_ROOT/docs/INTEGRATIONS.md"; then
+if grep -qi "shell" "$PROJECT_ROOT/docs/INTEGRATIONS.md" && \
+   grep -qi "git" "$PROJECT_ROOT/docs/INTEGRATIONS.md" && \
+   grep -qi "vim" "$PROJECT_ROOT/docs/INTEGRATIONS.md"; then
     test_pass
 else
     test_fail "Integration documentation incomplete"

@@ -45,10 +45,10 @@ else
 fi
 
 test_case "Step 4: Verify skills are installed"
-if [[ -d "$PROJECT_ROOT/.claude/skills/backup-status" ]] && \
-   [[ -d "$PROJECT_ROOT/.claude/skills/backup-now" ]] && \
-   [[ -f "$PROJECT_ROOT/.claude/skills/backup-status/skill.json" ]] && \
-   [[ -f "$PROJECT_ROOT/.claude/skills/backup-now/skill.json" ]]; then
+if [[ -d "$PROJECT_ROOT/.claude/skills/checkpoint" ]] && \
+   [[ -d "$PROJECT_ROOT/.claude/skills/backup-pause" ]] && \
+   [[ -f "$PROJECT_ROOT/.claude/skills/checkpoint/skill.json" ]] && \
+   [[ -f "$PROJECT_ROOT/.claude/skills/backup-pause/skill.json" ]]; then
     test_pass
 else
     test_fail "Skills not found"

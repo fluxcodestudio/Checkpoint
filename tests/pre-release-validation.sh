@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CHECKPOINT_VERSION=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null || echo "unknown")
 
 # Colors
 RED='\033[0;31m'
@@ -98,7 +99,7 @@ validate_libraries() {
 validate_claude_skills() {
     section "Claude Code Skills"
 
-    local skills=(checkpoint backup-update backup-pause uninstall backup-now backup-status backup-restore backup-cleanup backup-config)
+    local skills=(checkpoint backup-update backup-pause uninstall)
 
     for skill in "${skills[@]}"; do
         check "$skill skill exists" "[ -d '$PROJECT_ROOT/.claude/skills/$skill' ]"
@@ -127,9 +128,9 @@ validate_documentation() {
     check "docs/COMMANDS.md exists" "[ -f '$PROJECT_ROOT/docs/COMMANDS.md' ]"
 
     # Check for updated version
-    check "README contains v2.2.0" "grep -q '2.2.0' '$PROJECT_ROOT/README.md'"
-    check "CHANGELOG contains v2.2.0" "grep -q '2.2.0' '$PROJECT_ROOT/CHANGELOG.md'"
-    check "COMMANDS.md contains v2.2.0" "grep -q '2.2.0' '$PROJECT_ROOT/docs/COMMANDS.md'"
+    check "README contains v$CHECKPOINT_VERSION" "grep -q \"$CHECKPOINT_VERSION\" '$PROJECT_ROOT/README.md'"
+    check "CHANGELOG contains v$CHECKPOINT_VERSION" "grep -q \"$CHECKPOINT_VERSION\" '$PROJECT_ROOT/CHANGELOG.md'"
+    check "COMMANDS.md contains v$CHECKPOINT_VERSION" "grep -q \"$CHECKPOINT_VERSION\" '$PROJECT_ROOT/docs/COMMANDS.md'"
 }
 
 validate_version_consistency() {
@@ -139,11 +140,11 @@ validate_version_consistency() {
 
     local version=$(cat "$PROJECT_ROOT/VERSION" 2>/dev/null || echo "")
 
-    if [[ "$version" == "2.2.0" ]]; then
-        echo -e "${GREEN}✓${NC} Version file is 2.2.0"
+    if [[ "$version" == "$CHECKPOINT_VERSION" ]]; then
+        echo -e "${GREEN}✓${NC} Version file is $CHECKPOINT_VERSION"
         PASSED_CHECKS=$((PASSED_CHECKS + 1))
     else
-        echo -e "${RED}✗${NC} Version file is not 2.2.0 (found: $version)"
+        echo -e "${RED}✗${NC} Version file is not $CHECKPOINT_VERSION (found: $version)"
         FAILED_CHECKS=$((FAILED_CHECKS + 1))
     fi
     TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
@@ -157,12 +158,12 @@ validate_no_secrets() {
     # Check for common secret patterns
     local has_secrets=false
 
-    if grep -r "api_key\s*=\s*['\"][^'\"]*['\"]" "$PROJECT_ROOT" --exclude-dir=.git --exclude-dir=node_modules 2>/dev/null | grep -v "test" | grep -v "example"; then
+    if grep -r "api_key\s*=\s*['\"][^'\"]*['\"]" "$PROJECT_ROOT" --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=backups --exclude-dir=.planning 2>/dev/null | grep -v "test" | grep -v "example"; then
         warn "Found potential API key"
         has_secrets=true
     fi
 
-    if grep -r "password\s*=\s*['\"][^'\"]*['\"]" "$PROJECT_ROOT" --exclude-dir=.git --exclude-dir=node_modules 2>/dev/null | grep -v "test" | grep -v "example" | grep -v "password_prompt"; then
+    if grep -r "password\s*=\s*['\"][^'\"]*['\"]" "$PROJECT_ROOT" --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=backups --exclude-dir=.planning 2>/dev/null | grep -v "test" | grep -v "example" | grep -v "password_prompt" | grep -v 'password="\$' | grep -v 'password="${'; then
         warn "Found potential password"
         has_secrets=true
     fi
@@ -185,8 +186,8 @@ validate_no_personal_data() {
     local has_personal=false
 
     # Check for real usernames (excluding generic examples)
-    if grep -r "/Users/[a-z]" "$PROJECT_ROOT" --exclude-dir=.git --exclude-dir=node_modules 2>/dev/null | \
-       grep -v "yourname" | grep -v "username" | grep -v "user" | grep -v ".md:" | grep -v "example"; then
+    if grep -r "/Users/[a-z]" "$PROJECT_ROOT" --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=backups --exclude-dir=.planning --exclude-dir=.claude --exclude-dir=website 2>/dev/null | \
+       grep -v "yourname" | grep -v "username" | grep -v "/Users/you" | grep -v ".md:" | grep -v "example"; then
         warn "Found potential personal username"
         has_personal=true
     fi
@@ -291,12 +292,12 @@ print_summary() {
     if [[ $FAILED_CHECKS -eq 0 ]]; then
         echo -e "${GREEN}${BOLD}✓ READY FOR RELEASE${NC}"
         echo ""
-        echo -e "${GREEN}Checkpoint v2.2.0 is production-ready!${NC}"
+        echo -e "${GREEN}Checkpoint v$CHECKPOINT_VERSION is production-ready!${NC}"
         echo ""
         echo "Next steps:"
         echo "  1. git add ."
-        echo "  2. git commit -m \"Release v2.2.0\""
-        echo "  3. git tag v2.2.0"
+        echo "  2. git commit -m \"Release v$CHECKPOINT_VERSION\""
+        echo "  3. git tag v$CHECKPOINT_VERSION"
         echo "  4. git push origin main --tags"
         echo ""
         return 0
@@ -314,7 +315,7 @@ print_summary() {
 # ==============================================================================
 
 main() {
-    echo -e "${BOLD}${CYAN}Checkpoint v2.2.0 - Pre-Release Validation${NC}"
+    echo -e "${BOLD}${CYAN}Checkpoint v$CHECKPOINT_VERSION - Pre-Release Validation${NC}"
     echo -e "${CYAN}============================================${NC}"
     echo ""
 

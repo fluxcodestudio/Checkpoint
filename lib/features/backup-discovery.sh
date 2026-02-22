@@ -25,7 +25,9 @@ list_database_backups_sorted() {
     [ ! -d "$db_dir" ] && return 1
 
     local count=0
-    find "$db_dir" \( -name "*.db.gz" -o -name "*.db.gz.age" \) -type f 2>/dev/null | while read -r backup; do
+    find "$db_dir" \( -name "*.db.gz" -o -name "*.db.gz.age" \
+        -o -name "*.sql.gz" -o -name "*.sql.gz.age" \
+        -o -name "*.tar.gz" -o -name "*.tar.gz.age" \) -type f 2>/dev/null | while read -r backup; do
         local mtime=$(get_file_mtime "$backup")
         echo "$mtime|$backup"
     done | sort -rn -t'|' | while IFS='|' read -r mtime backup; do
@@ -38,7 +40,7 @@ list_database_backups_sorted() {
         local relative=$(format_relative_time "$mtime")
 
         echo "$created|$relative|$size_human|$filename|$backup"
-        ((count++))
+        count=$((count + 1))
     done
 }
 

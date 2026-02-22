@@ -5,7 +5,96 @@ All notable changes to Checkpoint will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-02-22
+
+### Added
+
+- **Cloud folder sync in daemon** — hourly backups now sync to Dropbox/iCloud/Google Drive automatically (previously only manual `backup-now` synced to cloud folders)
+- Shared `sync_to_cloud_folder()` library (`lib/features/cloud-sync.sh`) used by both daemon and manual backup
+
+### Improved
+
+- Daemon database count now includes MySQL (`.sql.gz`) and MongoDB (`.tar.gz`) alongside SQLite (`.db.gz`)
+
+## [2.6.0] - 2026-02-22
+
+### Added
+
+- Comprehensive real backup test suite (29 tests) — covers actual backup execution, special files, symlinks, path edge cases, git edge cases, non-git projects, SQLite, state isolation, config generation, dry run
+- Terraform state files (`.tfstate`, `.tfstate.backup`) and `.htpasswd` now backed up automatically
+- Manifest-based incremental change detection for non-git projects
+- Symlink resolution with `BACKUP_SYMLINK_TARGETS` config option
+- `BACKUP_EXTRA_PATTERNS` config option for user-defined always-include patterns
+- State directory collision prevention via `.checkpoint-id` UUID
+- Same-disk backup warning (one-time notification when no cloud configured)
+- Registry file locking to prevent concurrent corruption
+- UUID-based project relocation detection when projects are moved
+- Deeper project discovery (depth 5 for git, depth 3 for non-git, external volumes)
+- Additional project indicators: Dockerfile, docker-compose.yml, Pipfile, poetry.lock, mix.exs, deno.json, bun.lockb, Package.swift, .sln, Podfile, stack.yaml, tsconfig.json
+
+### Hardened
+
+- Strict mode compliance across all scripts — scoped variable declarations, pipeline guards, and bound-variable checks throughout `backup-now.sh`, database detector, and 10 library files
+- Non-git incremental backup now handles new files not yet in the change manifest
+- rsync exit code 23 now detects zero-transfer condition (possible permission/path issue)
+- `.env.example`, `.env.sample`, `.env.template` excluded from critical files scan (no longer double-backed-up)
+- Path handling in `cleanup_orphaned()` now supports directories with spaces
+- Divide-by-zero guard in backup failure display when `total_files` is 0
+- Pre-release validation script now uses dynamic version detection
+- Updated 16 test references for renamed integration scripts
+
+### Changed
+
+- Daemon large-file defaults now match `backup-now.sh` (no limit by default)
+- Auto-generated `.backup-config.sh` now includes `BACKUP_AI_ARTIFACTS`, `BACKUP_SYMLINK_TARGETS`, `BACKUP_SCHEDULE`
+- Discovery permission errors are now logged instead of silently swallowed
+
 ## [Unreleased]
+
+### Added
+
+**CLI Commands**
+- `checkpoint add <path>` — register a project for backup (auto-generates config)
+- `checkpoint remove <path>` — unregister a project (with `--delete-config` option)
+- `checkpoint list` — list all registered projects with status and last backup time
+- `checkpoint list --json` — machine-readable JSON output
+- `show_commands()` now lists all available commands including verify, diff, history, search, browse, cloud, encrypt, docker-volumes
+
+**Dashboard: Add & Remove Projects**
+- "Add Project" button in footer and empty state — opens folder picker, runs first backup
+- "Remove Project" in right-click context menu with confirmation dialog
+- No terminal required to manage projects
+
+**Dashboard: In-App Log Viewer**
+- View backup logs directly in the dashboard (replaces opening in external editor)
+- Filter by level: All / Errors / Warnings
+- Text search across log messages
+- Color-coded log levels (red for errors, orange for warnings)
+- "Copy for AI Help" button copies error lines to clipboard
+- Error history badges showing recent failure counts per project
+
+**Dashboard: Error Detail Display**
+- Failed file counts shown inline below project path
+- "Copy for AI" button copies LLM-ready prompt to clipboard on hover
+- Clicking error text opens the log viewer for that project
+
+**Dashboard: Onboarding Wizard**
+- 3-step guided setup on first launch
+- Step 1: Select project folder via folder picker
+- Step 2: Choose backup interval and notification preferences
+- Step 3: Runs first backup with progress indicator
+
+**Error History Persistence**
+- New `lib/ops/error-history.sh` — append-only error log per project
+- Format: `TIMESTAMP|BACKUP_ID|ERROR_COUNT|TOTAL_FILES|ERRORS_SUMMARY`
+- Capped at 100 entries with automatic rotation
+- Hooked into `backup-now.sh` — records failures after each backup
+
+### Fixed
+
+- Notification taps now open the SwiftUI dashboard instead of Terminal
+- `DaemonController.openDashboard()` opens dashboard; new `openTerminal()` opens Terminal
+- "Open in Terminal" menu item correctly calls the renamed method
 
 ## [2.4.0] - 2025-01-18
 
@@ -109,31 +198,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.2] - 2025-12-26
 
-### Fixed
+### Added
 
-**Critical Bug Fixes**
+**Backup Verification & Safety**
 
-- **Bug #1: Uninitialized `backup_errors`** - Fixed `set -u` error when `backup_errors` variable used before initialization in `backup-now.sh`
-- **Bug #2: Lock Race Condition** - Rewrote lock acquisition with atomic temp file + rename pattern to prevent PID file race conditions
-- **Bug #3: Temp File Cleanup** - Added proper cleanup with `mktemp` and trap handlers to ensure temp files are removed even on failure
+- Post-backup integrity checks — `gunzip -t` verification after all database dumps (SQLite, PostgreSQL, MySQL, MongoDB)
+- Atomic lock acquisition — temp file + rename pattern eliminates PID file race conditions under concurrent triggers
+- Automatic temp file cleanup via `mktemp` + trap handlers (safe even on crash/kill)
+- Configurable `MAX_BACKUP_FILE_SIZE` (default 100MB) to skip oversized files with warning
+- Symlink safety — skip symlinks to prevent following to system files or infinite loops
+- PID suffix on backup timestamps prevents collisions during rapid successive backups
+- LaunchAgent orphan detection — daemon self-disables when project directory is deleted
+- `uninstall.sh --cleanup-orphans` to scan and remove orphaned LaunchAgents
+- Optional `USE_UTC_TIMESTAMPS=true` for consistent timestamps across timezones
 
-**Backup Verification**
+### Improved
 
-- **Issue #4: Database Backup Verification** - Added `gunzip -t` verification after all database backups (SQLite, PostgreSQL, MySQL, MongoDB)
-- **Issue #12: Exit Code Capture** - Fixed pipeline exit code capture using `${PIPESTATUS[0]}` for all database dump commands
-
-**File Handling**
-
-- **Issue #5: Timestamp Collisions** - Added PID suffix (`_$$`) to all backup timestamps to prevent collisions during rapid successive backups
-- **Issue #6: File Size Limits** - Added configurable `MAX_BACKUP_FILE_SIZE` (default 100MB) to skip large files with warning
-- **Issue #7: Symlink Safety** - Skip symlinks during backup to prevent following to system files or infinite loops
-
-**System Robustness**
-
-- **Issue #8: LaunchAgent Orphan Detection** - Daemon now detects when project directory is deleted and self-disables the LaunchAgent
-- **Issue #9: First Backup Detection** - Fixed emptiness check to filter `.DS_Store` and other system files
-- **Issue #11: Config Self-Backup** - `.backup-config.sh` now always included in critical files backup
-- **Issue #13: UTC Timestamps** - Added optional `USE_UTC_TIMESTAMPS=true` config for consistent timestamps across timezones
+- Pipeline exit codes captured via `${PIPESTATUS[0]}` for all database dump commands
+- First backup detection now filters `.DS_Store` and system files
+- `.backup-config.sh` always included in critical files backup
+- Error counter initialization hardened for strict mode
 
 ### Added
 
@@ -201,28 +285,18 @@ USE_UTC_TIMESTAMPS=false          # Use UTC for backup filenames
 - **Zero Configuration:** Works automatically, no setup needed
 - **Use Case:** Perfect for non-code projects, legacy codebases, or directories without version control
 
-### Fixed
+### Improved
 
-**Critical set -euo pipefail Bugs** - Script exited prematurely during backup
+**Strict Mode Compliance** — full `set -euo pipefail` compatibility
 
-- **Fixed:** `((var++))` arithmetic expansion returning 0 caused exit when var=0 (lines 539, 541, 549)
-  - Changed to `var=$((var + 1))` to always return success
-- **Fixed:** `[ condition ] && command` pattern caused exit when condition false (lines 523-525)
-  - Changed to `if [ condition ]; then command; fi` for proper `set -e` handling
-- **Fixed:** Conditional logging caused exits
-  - Changed from `[ "$VERBOSE" = true ] && log_verbose "..."` to proper if statements
-- **Impact:** Backup would only process first file then exit, now processes all files correctly
+- Arithmetic expressions use safe `$((var + 1))` form instead of `((var++))` (Bash treats 0-result as failure under `set -e`)
+- Conditional patterns use `if/then/fi` instead of `[ ] && cmd` (prevents false-condition exits)
+- Conditional logging rewritten for proper `set -e` compatibility
 
-### Fixed
+**Database Auto-Detection Scoping** — project-specific detection only
 
-**CRITICAL: Database Auto-Detection** - Only detect project-specific databases
-
-- **Fixed:** Database detector was backing up system databases (mysql, postgres user db, mongodb admin) for projects without databases
-- **Root Cause:** Automatic fallback detection triggered when PostgreSQL/MySQL/MongoDB servers were running
-- **Solution:** Removed automatic fallback detection. Now ONLY detects:
-  - SQLite files in project directory
-  - Databases explicitly configured in .env files (DATABASE_URL, MYSQL_*, etc.)
-- **Impact:** Projects without databases will no longer incorrectly backup system databases
+- Database detector now scopes to project-local databases (SQLite files in project, `.env`-configured connections)
+- System-wide databases (postgres user db, mysql system db, mongodb admin) are excluded when not project-relevant
 
 ### Added
 

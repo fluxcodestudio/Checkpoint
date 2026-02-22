@@ -231,7 +231,7 @@ FILE_RETENTION_DAYS=60
 
 # Automation
 BACKUP_INTERVAL=3600
-SESSION_IDLE_THRESHOLD=600
+BACKUP_SCHEDULE="@hourly"
 
 # Optional Features
 HOOKS_ENABLED=false
@@ -242,6 +242,9 @@ BACKUP_CREDENTIALS=true
 BACKUP_IDE_SETTINGS=true
 BACKUP_LOCAL_NOTES=true
 BACKUP_LOCAL_DATABASES=true
+BACKUP_AI_ARTIFACTS=true
+BACKUP_SYMLINK_TARGETS=true
+# BACKUP_EXTRA_PATTERNS=""
 AUTOCONFIG
 
     chmod +x "$PROJECT_DIR/.backup-config.sh"
@@ -290,6 +293,13 @@ init_state_dirs
 # Ensure STATE_DIR is set for error logging
 STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
 
+# Compute unique project state subdirectory (prevents same-basename collisions)
+_PROJECT_STATE_ID=$(get_project_state_id "${PROJECT_DIR:-$PWD}" "${PROJECT_NAME:-}")
+# Migrate old state dir if needed (backward compat)
+if [ "$_PROJECT_STATE_ID" != "${PROJECT_NAME:-}" ] && [ -d "$STATE_DIR/${PROJECT_NAME}" ] && [ ! -d "$STATE_DIR/$_PROJECT_STATE_ID" ]; then
+    mv "$STATE_DIR/${PROJECT_NAME}" "$STATE_DIR/$_PROJECT_STATE_ID" 2>/dev/null || true
+fi
+
 # ==============================================================================
 # INITIALIZE STRUCTURED LOGGING
 # ==============================================================================
@@ -298,6 +308,9 @@ STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
 # Use resolved destinations (from resolve_backup_destinations) or fall back to legacy paths
 # (moved LOG_FILE default up so _init_checkpoint_logging picks it up)
 LOG_FILE="${LOG_FILE:-${BACKUP_DIR:-/tmp}/backup.log}"
+
+# Security: Ensure log file is not world-readable (may contain paths/errors)
+touch "$LOG_FILE" 2>/dev/null && chmod 600 "$LOG_FILE" 2>/dev/null || true
 
 _init_checkpoint_logging
 log_set_context "backup-now"
@@ -342,7 +355,7 @@ USE_UTC_TIMESTAMPS="${USE_UTC_TIMESTAMPS:-false}"
 DB_PATH="${DB_PATH:-}"
 DB_TYPE="${DB_TYPE:-none}"
 DB_STATE_FILE="${DB_STATE_FILE:-$BACKUP_DIR/.backup-state}"
-BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-backup-time}"
+BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/${_PROJECT_STATE_ID}/.last-backup-time}"
 BACKUP_USE_HASH_COMPARE="${BACKUP_USE_HASH_COMPARE:-true}"
 
 # Use resolved destinations (from resolve_backup_destinations) or fall back to legacy paths
@@ -450,6 +463,21 @@ if type pre_backup_storage_check &>/dev/null; then
     fi
 fi
 
+# Fix #7: One-time warning if backups are on the same disk with no cloud
+_same_disk_sentinel="$STATE_DIR/.same-disk-warned"
+if [ ! -f "$_same_disk_sentinel" ]; then
+    _proj_dev=$(df "$PROJECT_DIR" 2>/dev/null | tail -1 | awk '{print $1}')
+    _bak_dev=$(df "$BACKUP_DIR" 2>/dev/null | tail -1 | awk '{print $1}')
+    if [ -n "$_proj_dev" ] && [ "$_proj_dev" = "$_bak_dev" ] && \
+       [ "${CLOUD_FOLDER_ENABLED:-false}" != "true" ] && [ "${CLOUD_ENABLED:-false}" != "true" ]; then
+        cli_warn "   Warning: Backups are on the same disk as your project — no protection against disk failure."
+        cli_warn "   Run 'backup-cloud-config' to set up cloud sync."
+        log_warn "Backups on same disk as project, no cloud configured"
+        mkdir -p "$(dirname "$_same_disk_sentinel")" 2>/dev/null
+        touch "$_same_disk_sentinel" 2>/dev/null
+    fi
+fi
+
 if [ $preflight_errors -gt 0 ]; then
     cli_error ""
     cli_error "Pre-flight checks failed ($preflight_errors errors)"
@@ -523,11 +551,22 @@ if [ "$DRY_RUN" = true ]; then
 
         # FALLBACK: If no git repo, use mtime check for dry-run
         if [ ! -s "$changed_files" ]; then
-            eval "find . -type f -mmin -$(( BACKUP_INTERVAL / 60 )) $(get_find_excludes | tr '\n' ' ') 2>/dev/null" | sed 's|^\./||' >> "$changed_files"
+            _find_excludes=()
+            while IFS= read -r _line; do
+                # Parse: ! -path '*/foo/*' or ! -name '*.pyc'
+                # Strip surrounding single quotes from the pattern
+                _op=""; _pat=""
+                _op=$(echo "$_line" | awk '{print $2}')
+                _pat=$(echo "$_line" | awk '{print $3}' | tr -d "'")
+                _find_excludes+=( "!" "$_op" "$_pat" )
+            done < <(get_find_excludes)
+            find . -type f -mmin "-$(( BACKUP_INTERVAL / 60 ))" "${_find_excludes[@]}" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
         fi
 
         if [ "$BACKUP_ENV_FILES" = true ]; then
-            find . -maxdepth 3 -type f \( -name ".env" -o -name ".env.*" \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+            find . -maxdepth 3 -type f \( -name ".env" -o -name ".env.*" \) \
+            ! -name ".env.example" ! -name ".env.sample" ! -name ".env.template" ! -name ".env.test" \
+            2>/dev/null | sed 's|^\./||' >> "$changed_files"
         fi
 
         if [ "$BACKUP_CREDENTIALS" = true ]; then
@@ -756,7 +795,14 @@ if [ "$DATABASE_ONLY" = false ]; then
         if [ ! -s "$changed_files" ]; then
             cli_verbose "   No git repository detected - using file system scan"
             log_debug "No git repo, falling back to filesystem scan"
-            eval "find . -type f $(get_find_excludes | tr '\n' ' ') 2>/dev/null" | sed 's|^\./||' >> "$changed_files"
+            _find_excludes_first=()
+            while IFS= read -r _line; do
+                _op=""; _pat=""
+                _op=$(echo "$_line" | awk '{print $2}')
+                _pat=$(echo "$_line" | awk '{print $3}' | tr -d "'")
+                _find_excludes_first+=( "!" "$_op" "$_pat" )
+            done < <(get_find_excludes)
+            find . -type f "${_find_excludes_first[@]}" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
         fi
     else
         # INCREMENTAL: Only changed files
@@ -764,17 +810,43 @@ if [ "$DATABASE_ONLY" = false ]; then
         git diff --cached --name-only >> "$changed_files" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || true
         git ls-files --others --exclude-standard >> "$changed_files" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}" || true
 
-        # FALLBACK: If no git repo, backup modified files (by mtime)
+        # FALLBACK: If no git repo, use file manifest for change detection
         if [ ! -s "$changed_files" ]; then
-            cli_verbose "   No git repository detected - using mtime check"
-            log_debug "No git repo, falling back to mtime check"
-            # Find files modified in last hour (BACKUP_INTERVAL)
-            eval "find . -type f -mmin -$(( BACKUP_INTERVAL / 60 )) $(get_find_excludes | tr '\n' ' ') 2>/dev/null" | sed 's|^\./||' >> "$changed_files"
+            cli_verbose "   No git repository detected - using manifest-based change detection"
+            log_debug "No git repo, falling back to manifest-based change detection"
+            _find_excludes_incr=()
+            while IFS= read -r _line; do
+                _op=""; _pat=""
+                _op=$(echo "$_line" | awk '{print $2}')
+                _pat=$(echo "$_line" | awk '{print $3}' | tr -d "'")
+                _find_excludes_incr+=( "!" "$_op" "$_pat" )
+            done < <(get_find_excludes)
+
+            _file_manifest="$BACKUP_DIR/.file-manifest"
+            if [ -f "$_file_manifest" ]; then
+                # Compare current file mtimes to saved manifest
+                while IFS= read -r _found_file; do
+                    [[ -z "$_found_file" ]] && continue
+                    _found_file="${_found_file#./}"
+                    _cur_mtime=""
+                    _cur_mtime=$(stat -f%m "$_found_file" 2>/dev/null || echo "0")
+                    _old_mtime=""
+                    _old_mtime=$(grep -F "|${_found_file}|" "$_file_manifest" 2>/dev/null | cut -d'|' -f1 || true)
+                    if [[ -z "$_old_mtime" ]] || [[ "$_cur_mtime" != "$_old_mtime" ]]; then
+                        echo "$_found_file" >> "$changed_files"
+                    fi
+                done < <(find . -type f "${_find_excludes_incr[@]}" 2>/dev/null)
+            else
+                # No manifest yet — fall back to mtime window for first run
+                find . -type f -mmin "-$(( BACKUP_INTERVAL / 60 ))" "${_find_excludes_incr[@]}" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+            fi
         fi
     fi
 
     if [ "$BACKUP_ENV_FILES" = true ]; then
-        find . -maxdepth 3 -type f \( -name ".env" -o -name ".env.*" \) 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        find . -maxdepth 3 -type f \( -name ".env" -o -name ".env.*" \) \
+            ! -name ".env.example" ! -name ".env.sample" ! -name ".env.template" ! -name ".env.test" \
+            2>/dev/null | sed 's|^\./||' >> "$changed_files"
     fi
 
     if [ "$BACKUP_CREDENTIALS" = true ]; then
@@ -789,9 +861,14 @@ if [ "$DATABASE_ONLY" = false ]; then
         [ -f ".aws/config" ] && echo ".aws/config" >> "$changed_files"
         find . -maxdepth 2 -type f -path "*/.gcp/*.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
 
-        # Terraform secrets
+        # Terraform secrets and state (gitignored by default, critical for infrastructure)
         find . -maxdepth 3 -type f -name "terraform.tfvars" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
         find . -maxdepth 3 -type f -name "*.tfvars" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        find . -maxdepth 3 -type f -name "terraform.tfstate" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        find . -maxdepth 3 -type f -name "*.tfstate.backup" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+
+        # Web server auth files
+        find . -maxdepth 3 -type f -name ".htpasswd" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
 
         # Firebase configs
         find . -maxdepth 2 -type f -path "*/.firebase/*.json" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
@@ -824,8 +901,34 @@ if [ "$DATABASE_ONLY" = false ]; then
 
     if [ "$BACKUP_LOCAL_DATABASES" = true ]; then
         main_db_name=$(basename "$DB_PATH" 2>/dev/null || echo "")
-        find . -maxdepth 3 -type f \( -name "*.db" -o -name "*.sqlite" -o -name "*.sql" \) \
-            ! -name "$main_db_name" 2>/dev/null | sed 's|^\./||' >> "$changed_files"
+        # Fix #10: Use safe sqlite3 .backup for .db/.sqlite files instead of live rsync
+        while IFS= read -r _db_file; do
+            [[ -z "$_db_file" ]] && continue
+            _db_file="${_db_file#./}"
+            _db_ext="${_db_file##*.}"
+            if [[ "$_db_ext" == "db" || "$_db_ext" == "sqlite" || "$_db_ext" == "sqlite3" ]]; then
+                # Use sqlite3 safe backup if available
+                if command -v sqlite3 &>/dev/null && file "$_db_file" 2>/dev/null | grep -q "SQLite"; then
+                    _safe_db_dest="$FILES_DIR/$_db_file"
+                    mkdir -p "$(dirname "$_safe_db_dest")"
+                    _safe_tmp=""
+                    _safe_tmp=$(mktemp)
+                    if sqlite3 "$_db_file" ".backup '$_safe_tmp'" 2>/dev/null; then
+                        mv "$_safe_tmp" "$_safe_db_dest"
+                        log_debug "Safe SQLite backup: $_db_file"
+                    else
+                        rm -f "$_safe_tmp"
+                        # Fall back to adding to rsync list
+                        echo "$_db_file" >> "$changed_files"
+                    fi
+                else
+                    echo "$_db_file" >> "$changed_files"
+                fi
+            else
+                echo "$_db_file" >> "$changed_files"
+            fi
+        done < <(find . -maxdepth 3 -type f \( -name "*.db" -o -name "*.sqlite" -o -name "*.sqlite3" -o -name "*.sql" \) \
+            ! -name "$main_db_name" 2>/dev/null)
     fi
 
     # Issue #11: Always backup the backup config itself
@@ -938,6 +1041,22 @@ if [ "$DATABASE_ONLY" = false ]; then
         fi
     fi
 
+    # Fix #5: Include user-defined extra patterns (regardless of gitignore)
+    if [ -n "${BACKUP_EXTRA_PATTERNS:-}" ]; then
+        _extra_count=0
+        for _pattern in $BACKUP_EXTRA_PATTERNS; do
+            while IFS= read -r _extra_file; do
+                [[ -z "$_extra_file" ]] && continue
+                echo "$_extra_file" >> "$changed_files"
+                _extra_count=$((_extra_count + 1))
+            done < <(find . -maxdepth 5 -type f -name "$_pattern" 2>/dev/null | sed 's|^\./||')
+        done
+        if [ "$_extra_count" -gt 0 ]; then
+            log_info "Extra patterns: $_extra_count files added to backup"
+            cli_verbose "   Extra patterns: $_extra_count files matched"
+        fi
+    fi
+
     if [ ! -s "$changed_files" ]; then
         cli_info "   Files: No changes detected"
         log_info "No file changes detected"
@@ -965,18 +1084,32 @@ if [ "$DATABASE_ONLY" = false ]; then
         # Remove duplicates, blanks, and backups/ paths
         sort -u "$changed_files" | grep -v '^$' | grep -v '^backups/' > "$filtered_files" || true
 
-        # Remove symlinks and non-regular files from the list
+        # Handle symlinks and non-regular files
+        BACKUP_SYMLINK_TARGETS="${BACKUP_SYMLINK_TARGETS:-true}"
         _valid_files=$(mktemp)
         while IFS= read -r file; do
             if [ -L "$file" ]; then
-                skipped_symlinks=$((skipped_symlinks + 1))
-                if [ "$CHECKPOINT_LOG_LEVEL" -ge "$LOG_LEVEL_DEBUG" ] 2>/dev/null; then
-                    cli_verbose "      Skipped symlink: $file"
+                if [ "$BACKUP_SYMLINK_TARGETS" = "true" ]; then
+                    # Resolve symlink target — skip dangling or circular links
+                    _resolved=""
+                    _resolved=$(readlink -f "$file" 2>/dev/null || true)
+                    if [ -z "$_resolved" ] || [ ! -f "$_resolved" ]; then
+                        skipped_symlinks=$((skipped_symlinks + 1))
+                        log_trace "Skipped dangling symlink: $file"
+                        continue
+                    fi
+                    # Symlink target is valid — will be backed up under its symlink name
+                    log_trace "Resolved symlink: $file -> $_resolved"
+                else
+                    skipped_symlinks=$((skipped_symlinks + 1))
+                    if [ "$CHECKPOINT_LOG_LEVEL" -ge "$LOG_LEVEL_DEBUG" ] 2>/dev/null; then
+                        cli_verbose "      Skipped symlink: $file"
+                    fi
+                    log_trace "Skipped symlink: $file"
+                    continue
                 fi
-                log_trace "Skipped symlink: $file"
-                continue
             fi
-            if [ ! -f "$file" ]; then continue; fi
+            if [ ! -f "$file" ] && [ ! -L "$file" ]; then continue; fi
 
             # Issue #6: Check file size limits
             if [ "$MAX_BACKUP_FILE_SIZE" -gt 0 ] && [ "$BACKUP_LARGE_FILES" != "true" ]; then
@@ -1046,7 +1179,12 @@ if [ "$DATABASE_ONLY" = false ]; then
         log_debug "rsync: files-from=$filtered_files dest=$FILES_DIR backup-dir=$_archived_abs suffix=.$timestamp"
 
         rsync_exit=0
-        rsync --archive --no-links \
+        # Use --copy-links when symlink targets are enabled, --no-links otherwise
+        _rsync_link_flag="--no-links"
+        if [ "${BACKUP_SYMLINK_TARGETS:-true}" = "true" ]; then
+            _rsync_link_flag="--copy-links"
+        fi
+        rsync --archive $_rsync_link_flag \
             --files-from="$filtered_files" \
             --backup --backup-dir="$_archived_abs" --suffix=".$timestamp" \
             --itemize-changes --out-format="%i %n" \
@@ -1101,9 +1239,16 @@ if [ "$DATABASE_ONLY" = false ]; then
         # Handle rsync errors
         if [ "$rsync_exit" -ne 0 ]; then
             if [ "$rsync_exit" -eq 23 ]; then
-                # Partial transfer: some files vanished during backup (acceptable)
-                cli_warn "      Some files vanished during backup (rsync exit 23)"
-                log_warn "rsync partial transfer: some source files vanished (exit 23)"
+                # Partial transfer: some files vanished during backup
+                _vanished_count=""
+                _vanished_count=$(grep -c 'vanished' "$rsync_log" 2>/dev/null || echo "?")
+                cli_warn "      Some files vanished during backup (rsync exit 23, ~${_vanished_count} files)"
+                log_warn "rsync partial transfer: ~${_vanished_count} source files vanished (exit 23)"
+                # Check if MOST files succeeded — if very few transferred, treat as error
+                if [ "$file_count" -eq 0 ] && [ "$total_files" -gt 0 ]; then
+                    cli_error "      Warning: rsync exit 23 but NO files were transferred — possible permission or path issue"
+                    log_error "rsync exit 23 with 0 files transferred out of $total_files expected"
+                fi
             elif [ "$rsync_exit" -eq 24 ]; then
                 # Partial transfer: some files vanished (also acceptable)
                 cli_warn "      Some files vanished during backup (rsync exit 24)"
@@ -1190,6 +1335,30 @@ if [ "$DATABASE_ONLY" = false ]; then
         # Cleanup temp files
         rm -f "$manifest_file"
 
+        # Save file manifest for non-git incremental change detection (Fix #3)
+        if [ ! -d "$PROJECT_DIR/.git" ]; then
+            _file_manifest="$BACKUP_DIR/.file-manifest"
+            _file_manifest_tmp=""
+            _file_manifest_tmp=$(mktemp)
+            _find_excludes_mf=()
+            while IFS= read -r _line; do
+                _op=""; _pat=""
+                _op=$(echo "$_line" | awk '{print $2}')
+                _pat=$(echo "$_line" | awk '{print $3}' | tr -d "'")
+                _find_excludes_mf+=( "!" "$_op" "$_pat" )
+            done < <(get_find_excludes)
+            cd "$PROJECT_DIR" || true
+            while IFS= read -r _mf_file; do
+                [[ -z "$_mf_file" ]] && continue
+                _mf_file="${_mf_file#./}"
+                _mf_mtime=""
+                _mf_mtime=$(stat -f%m "$_mf_file" 2>/dev/null || echo "0")
+                echo "${_mf_mtime}|${_mf_file}|" >> "$_file_manifest_tmp"
+            done < <(find . -type f "${_find_excludes_mf[@]}" 2>/dev/null)
+            mv "$_file_manifest_tmp" "$_file_manifest"
+            log_debug "Saved file manifest: $(wc -l < "$_file_manifest" | tr -d ' ') entries"
+        fi
+
         # Report results
         if [ $file_count -gt 0 ]; then
             if [ $BACKUP_STATE_FAILED_FILES -eq 0 ]; then
@@ -1237,7 +1406,7 @@ GIT_AUTO_PUSH_ENABLED="${GIT_AUTO_PUSH_ENABLED:-false}"
 GIT_PUSH_INTERVAL="${GIT_PUSH_INTERVAL:-7200}"
 GIT_PUSH_REMOTE="${GIT_PUSH_REMOTE:-origin}"
 GIT_PUSH_BRANCH="${GIT_PUSH_BRANCH:-}"
-GIT_PUSH_STATE="${GIT_PUSH_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-git-push}"
+GIT_PUSH_STATE="${GIT_PUSH_STATE:-$STATE_DIR/${_PROJECT_STATE_ID}/.last-git-push}"
 
 if [ "$GIT_AUTO_PUSH_ENABLED" = true ]; then
     # Ensure state directory exists
@@ -1461,6 +1630,15 @@ fi
 # Write complete JSON state
 state_file=$(write_backup_state "$final_exit_code")
 
+# Append error history if failures occurred
+if [[ $total_failed -gt 0 ]]; then
+    if [[ -f "$CHECKPOINT_LIB/lib/ops/error-history.sh" ]]; then
+        source "$CHECKPOINT_LIB/lib/ops/error-history.sh"
+        _err_summary="${BACKUP_STATE_FAILED_FILES} file(s), ${BACKUP_STATE_FAILED_DBS} db(s) failed"
+        append_error_history "$PROJECT_NAME" "${BACKUP_ID:-unknown}" "$total_failed" "$BACKUP_STATE_TOTAL_FILES" "$_err_summary"
+    fi
+fi
+
 cli_info ""
 cli_info "State saved to: $state_file"
 
@@ -1633,8 +1811,8 @@ _ENCRYPT_WORKER
             | xargs -0 -P "$_ENCRYPT_JOBS" -n1 bash "$_worker_script" "$recipient" "$log_file" "$_progress_dir"
 
         local _ok_count _fail_count
-        _ok_count=$(wc -l < "$_progress_dir/ok" | tr -d ' ')
-        _fail_count=$(wc -l < "$_progress_dir/fail" | tr -d ' ')
+        _ok_count=$(wc -l < "$_progress_dir/ok" 2>/dev/null | tr -d ' ' || echo "0")
+        _fail_count=$(wc -l < "$_progress_dir/fail" 2>/dev/null | tr -d ' ' || echo "0")
 
         rm -rf "$_progress_dir" "$_worker_script"
 
@@ -1716,141 +1894,14 @@ _cloud_compress_and_encrypt() {
     fi
 }
 
-if [[ "${CLOUD_FOLDER_ENABLED:-false}" == "true" ]] && [[ -n "${CLOUD_FOLDER_PATH:-}" ]]; then
+source "$LIB_DIR/features/cloud-sync.sh" 2>/dev/null || true
+if type sync_to_cloud_folder &>/dev/null; then
     write_progress 96 "cloud_syncing"
     cli_info "Syncing to cloud folder..."
-    log_info "Starting cloud folder sync to $CLOUD_FOLDER_PATH"
-
-    # Create cloud backup directory if needed (ignore errors if path doesn't exist)
-    mkdir -p "$CLOUD_FOLDER_PATH/$PROJECT_NAME" 2>/dev/null || true
-
-    if [[ -d "$CLOUD_FOLDER_PATH" ]]; then
-        # Sync databases
-        if [[ -d "$DATABASE_DIR" ]] && [[ "$(ls -A "$DATABASE_DIR" 2>/dev/null)" ]]; then
-            write_progress 96 "cloud_databases"
-            if rsync -a --delete "$DATABASE_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/databases/" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                cli_info "   Databases synced"
-                log_info "Cloud sync: databases synced"
-
-                # Encrypt cloud database backups if encryption enabled
-                # (databases are already .db.gz — no extra compression needed)
-                if encryption_enabled 2>/dev/null; then
-                    write_progress 97 "cloud_encrypting"
-                    _cloud_db_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/databases"
-                    _age_recipient="$(get_age_recipient)"
-                    if [[ -n "$_age_recipient" ]]; then
-                        while IFS= read -r -d '' db_file; do
-                            if [[ ! -f "${db_file}.age" ]] || [[ "$db_file" -nt "${db_file}.age" ]]; then
-                                _cloud_compress_and_encrypt "$db_file" "$_age_recipient" "${_CHECKPOINT_LOG_FILE:-/dev/null}" || \
-                                    log_warn "Encryption failed for: $db_file"
-                            else
-                                rm -f "$db_file"
-                            fi
-                        done < <(find "$_cloud_db_dir" -name "*.db.gz" ! -name "*.age" -print0 2>/dev/null)
-                        cli_info "   Databases encrypted"
-                        log_info "Cloud sync: databases encrypted"
-                    fi
-                fi
-            else
-                cli_warn "   Database sync failed"
-                log_warn "Cloud sync: database sync failed"
-            fi
-        fi
-
-        # Sync all project files to cloud (excludes regeneratable dirs)
-        if [[ -d "$FILES_DIR" ]]; then
-            write_progress 97 "cloud_files"
-            if rsync -a \
-                  --exclude='node_modules/' --exclude='.git/' --exclude='.venv/' \
-                  --exclude='__pycache__/' --exclude='dist/' --exclude='build/' \
-                  --exclude='.next/' --exclude='.cache/' --exclude='coverage/' \
-                  --exclude='.turbo/' --exclude='target/' --exclude='vendor/' \
-                  --exclude='.nuxt/' --exclude='.output/' --exclude='.svelte-kit/' \
-                  --exclude='*.log' --exclude='.DS_Store' \
-                  "$FILES_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/files/" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                cli_info "   Project files synced"
-                log_info "Cloud sync: project files synced"
-
-                # Compress + encrypt cloud file backups if encryption enabled
-                if encryption_enabled 2>/dev/null; then
-                    write_progress 98 "cloud_encrypting"
-                    _cloud_files_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/files"
-                    _age_recipient="$(get_age_recipient)"
-                    if [[ -n "$_age_recipient" ]]; then
-                        # Remove plaintext files that already have encrypted counterparts
-                        while IFS= read -r -d '' src_file; do
-                            if [[ -f "${src_file}.age" ]] || [[ -f "${src_file}.gz.age" ]]; then
-                                if [[ ! "$src_file" -nt "${src_file}.age" ]] 2>/dev/null || [[ ! "$src_file" -nt "${src_file}.gz.age" ]] 2>/dev/null; then
-                                    rm -f "$src_file"
-                                fi
-                            fi
-                        done < <(find "$_cloud_files_dir" -type f ! -name "*.age" ! -name "*.gz.age" -print0 2>/dev/null)
-                        # Encrypt remaining plaintext files (parallel if 100+)
-                        _encrypted_count=$(_cloud_parallel_encrypt "$_cloud_files_dir" "$_age_recipient" "${_CHECKPOINT_LOG_FILE:-/dev/null}")
-                        if [[ $_encrypted_count -gt 0 ]]; then
-                            cli_info "   Files compressed + encrypted ($_encrypted_count files)"
-                            log_info "Cloud sync: $_encrypted_count files compressed and encrypted"
-                        fi
-                    fi
-                fi
-            else
-                cli_warn "   File sync failed"
-                log_warn "Cloud sync: file sync failed"
-            fi
-        fi
-
-        # Sync archived versions (version history) to cloud
-        if [[ -d "$ARCHIVED_DIR" ]] && [[ "$(ls -A "$ARCHIVED_DIR" 2>/dev/null)" ]]; then
-            write_progress 98 "cloud_archives"
-            if rsync -a \
-                  "$ARCHIVED_DIR/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/archived/" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                cli_info "   Archives synced"
-                log_info "Cloud sync: archives synced"
-
-                # Compress + encrypt archived files if encryption enabled
-                if encryption_enabled 2>/dev/null; then
-                    write_progress 99 "cloud_encrypting"
-                    _cloud_archived_dir="$CLOUD_FOLDER_PATH/$PROJECT_NAME/archived"
-                    _age_recipient="$(get_age_recipient)"
-                    if [[ -n "$_age_recipient" ]]; then
-                        # Remove plaintext files that already have encrypted counterparts
-                        while IFS= read -r -d '' arc_file; do
-                            if [[ -f "${arc_file}.age" ]] || [[ -f "${arc_file}.gz.age" ]]; then
-                                if [[ ! "$arc_file" -nt "${arc_file}.age" ]] 2>/dev/null || [[ ! "$arc_file" -nt "${arc_file}.gz.age" ]] 2>/dev/null; then
-                                    rm -f "$arc_file"
-                                fi
-                            fi
-                        done < <(find "$_cloud_archived_dir" -type f ! -name "*.age" ! -name "*.gz.age" -print0 2>/dev/null)
-                        # Encrypt remaining plaintext files (parallel if 100+)
-                        _archived_encrypted=$(_cloud_parallel_encrypt "$_cloud_archived_dir" "$_age_recipient" "${_CHECKPOINT_LOG_FILE:-/dev/null}")
-                        if [[ $_archived_encrypted -gt 0 ]]; then
-                            cli_info "   Archives compressed + encrypted ($_archived_encrypted files)"
-                            log_info "Cloud sync: $_archived_encrypted archived files compressed and encrypted"
-                        fi
-                    fi
-                fi
-            else
-                cli_warn "   Archive sync failed"
-                log_warn "Cloud sync: archive sync failed"
-            fi
-        fi
-
-        # Sync state file (for cross-computer portability)
-        portable_state="${BACKUP_DIR:-$PROJECT_DIR/backups}/.checkpoint-state.json"
-        if [[ -f "$portable_state" ]]; then
-            if cp "$portable_state" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/.checkpoint-state.json" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
-                cli_info "   State file synced"
-                log_info "Cloud sync: state file synced"
-            else
-                cli_warn "   State sync failed"
-                log_warn "Cloud sync: state sync failed"
-            fi
-        fi
-
+    if sync_to_cloud_folder; then
         cli_info "   Cloud folder: $CLOUD_FOLDER_PATH/$PROJECT_NAME"
     else
-        cli_warn "   Cloud folder not accessible: $CLOUD_FOLDER_PATH"
-        log_warn "Cloud folder not accessible: $CLOUD_FOLDER_PATH"
+        cli_warn "   Cloud folder not accessible: ${CLOUD_FOLDER_PATH:-<not set>}"
         CLOUD_FOLDER_FAILED=true
     fi
 fi

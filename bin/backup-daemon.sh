@@ -34,6 +34,12 @@ elif [ -f "$LIB_DIR/core/config.sh" ]; then
     apply_global_defaults
 fi
 
+# Core backup library (provides has_changes, get_changed_files_fast, get_project_state_id)
+# Must be loaded before state management variables that call get_project_state_id
+if [ -f "$LIB_DIR/backup-lib.sh" ]; then
+    source "$LIB_DIR/backup-lib.sh"
+fi
+
 # Apply defaults for optional variables (Bash 3.2 compatible)
 # Backup directories
 DATABASE_DIR="${DATABASE_DIR:-$BACKUP_DIR/databases}"
@@ -50,8 +56,9 @@ FALLBACK_LOG="${FALLBACK_LOG:-$HOME/.claudecode-backups/logs/backup-fallback.log
 
 # State management
 STATE_DIR="${STATE_DIR:-$HOME/.claudecode-backups/state}"
-BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-backup-time}"
-SESSION_FILE="${SESSION_FILE:-$STATE_DIR/${PROJECT_NAME}/.current-session-time}"
+_PROJECT_STATE_ID=$(get_project_state_id "${PROJECT_DIR:-$PWD}" "${PROJECT_NAME:-}")
+BACKUP_TIME_STATE="${BACKUP_TIME_STATE:-$STATE_DIR/${_PROJECT_STATE_ID}/.last-backup-time}"
+SESSION_FILE="${SESSION_FILE:-$STATE_DIR/${_PROJECT_STATE_ID}/.current-session-time}"
 DB_STATE_FILE="${DB_STATE_FILE:-$BACKUP_DIR/.backup-state}"
 
 # Git options
@@ -60,11 +67,11 @@ GIT_AUTO_PUSH_ENABLED="${GIT_AUTO_PUSH_ENABLED:-false}"
 GIT_PUSH_INTERVAL="${GIT_PUSH_INTERVAL:-7200}"
 GIT_PUSH_BRANCH="${GIT_PUSH_BRANCH:-}"
 GIT_PUSH_REMOTE="${GIT_PUSH_REMOTE:-origin}"
-GIT_PUSH_STATE="${GIT_PUSH_STATE:-$STATE_DIR/${PROJECT_NAME}/.last-git-push}"
+GIT_PUSH_STATE="${GIT_PUSH_STATE:-$STATE_DIR/${_PROJECT_STATE_ID}/.last-git-push}"
 
-# File size limits
-MAX_BACKUP_FILE_SIZE="${MAX_BACKUP_FILE_SIZE:-104857600}"
-BACKUP_LARGE_FILES="${BACKUP_LARGE_FILES:-false}"
+# File size limits (default: no limit, matching backup-now.sh behavior)
+MAX_BACKUP_FILE_SIZE="${MAX_BACKUP_FILE_SIZE:-0}"
+BACKUP_LARGE_FILES="${BACKUP_LARGE_FILES:-true}"
 
 # Timestamps
 USE_UTC_TIMESTAMPS="${USE_UTC_TIMESTAMPS:-false}"
@@ -74,9 +81,9 @@ if [[ -f "$LIB_DIR/cloud-backup.sh" ]] && [[ "${CLOUD_ENABLED:-false}" == "true"
     source "$LIB_DIR/cloud-backup.sh"
 fi
 
-# Core backup library (provides has_changes, get_changed_files_fast)
-if [ -f "$LIB_DIR/backup-lib.sh" ]; then
-    source "$LIB_DIR/backup-lib.sh"
+# Universal database detector (MySQL, PostgreSQL, MongoDB, SQLite, etc.)
+if [ -f "$LIB_DIR/database-detector.sh" ]; then
+    source "$LIB_DIR/database-detector.sh"
 fi
 
 # Retention policy library (for tiered cleanup)
@@ -709,20 +716,31 @@ fi
 cd "$PROJECT_DIR" || exit 1
 if type has_changes &>/dev/null && ! has_changes; then
     # No git/file changes - skip file backup entirely
-    # Still check database (it has its own change detection)
-    if db_changed; then
+    # Still run database backup (databases change independently of files)
+    if command -v backup_detected_databases &>/dev/null; then
+        backup_detected_databases "$PROJECT_DIR" "$BACKUP_DIR" || true
+    elif db_changed; then
         backup_database
-    else
-        daemon_log "No changes detected (database or files)"
-        log_debug "No changes detected, skipping"
-        # Update timestamp to prevent immediate re-check
-        echo "$NOW" > "$BACKUP_TIME_STATE"
-        exit 0
     fi
+    daemon_log "No file changes detected"
+    log_debug "No file changes detected, skipping file backup"
+    # Update timestamp to prevent immediate re-check
+    echo "$NOW" > "$BACKUP_TIME_STATE"
+    exit 0
 fi
 
-# Perform backup
-if db_changed; then
+# Database backup (universal auto-detection: MySQL, PostgreSQL, MongoDB, SQLite, etc.)
+if command -v backup_detected_databases &>/dev/null; then
+    daemon_log "Databases: Auto-detecting..."
+    if backup_detected_databases "$PROJECT_DIR" "$BACKUP_DIR"; then
+        daemon_log "Databases: Backup complete"
+        log_info "Database backup complete"
+    else
+        daemon_log "Databases: Some backups failed"
+        log_warn "Some database backups failed"
+    fi
+elif db_changed; then
+    # Legacy fallback: SQLite-only via DB_PATH
     backup_database
 else
     daemon_log "Database unchanged, skipping backup"
@@ -756,8 +774,14 @@ if [[ "${CLOUD_ENABLED:-false}" == "true" ]] && [[ "${BACKUP_LOCATION:-local}" !
     fi
 fi
 
+# Cloud folder sync (Dropbox/iCloud/Google Drive)
+source "$LIB_DIR/features/cloud-sync.sh" 2>/dev/null || true
+if type sync_to_cloud_folder &>/dev/null; then
+    sync_to_cloud_folder || true
+fi
+
 # Summary
-db_count=$(find "$DATABASE_DIR" -name "*.db.gz" -type f 2>/dev/null | wc -l | tr -d ' ')
+db_count=$(find "$DATABASE_DIR" \( -name "*.db.gz" -o -name "*.sql.gz" -o -name "*.tar.gz" \) -type f 2>/dev/null | wc -l | tr -d ' ')
 current_files=$(find "$FILES_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
 archived_files=$(find "$ARCHIVED_DIR" -type f 2>/dev/null | wc -l | tr -d ' ')
 daemon_log "Databases: $db_count snapshots"

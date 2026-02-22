@@ -170,6 +170,8 @@ source "$CONFIG_FILE"
 if type init_restore_paths &>/dev/null; then
     init_restore_paths
 fi
+DATABASE_DIR="${DATABASE_DIR:-${BACKUP_DIR:-./backups}/databases}"
+DB_PATH="${DB_PATH:-}"
 
 # ==============================================================================
 # TIMELINE FUNCTIONS
@@ -496,11 +498,15 @@ list_all_backups() {
     if [ -d "$DATABASE_DIR" ]; then
         local count=0
         list_database_backups_sorted "$DATABASE_DIR" | while IFS='|' read -r created relative size filename path; do
-            printf "  %-25s %-20s %10s\n" "$created" "($relative)" "$size"
+            local type_label
+            type_label=$(_get_backup_type_label "$path")
+            local db_name
+            db_name=$(_get_backup_db_name "$path")
+            printf "  [%-10s] %-12s  %-18s %-15s %10s\n" "$type_label" "$db_name" "$created" "($relative)" "$size"
             count=$((count + 1))
         done
 
-        local total=$(find "$DATABASE_DIR" -name "*.db.gz" -type f 2>/dev/null | wc -l | tr -d ' ')
+        local total=$(find "$DATABASE_DIR" \( -name "*.db.gz" -o -name "*.sql.gz" -o -name "*.tar.gz" \) -type f 2>/dev/null | wc -l | tr -d ' ')
         echo ""
         color_cyan "Total: $total database backups"
     else
@@ -582,11 +588,21 @@ restore_latest_database() {
 
     IFS='|' read -r created relative size filename path <<< "$latest"
 
+    local lat_db_type
+    lat_db_type=$(_get_backup_db_type "$path")
+    local lat_type_label
+    lat_type_label=$(_get_backup_type_label "$path")
+    local lat_db_name
+    lat_db_name=$(_get_backup_db_name "$path")
+
     echo ""
-    local preview=$(cat <<EOF
+
+    if [[ "$lat_db_type" == "sqlite" ]]; then
+        local preview=$(cat <<EOF
 
 ⚠️  CAUTION: This will replace your current database
 
+Type:        $lat_type_label
 Source:      $filename
 Size:        $size
 Created:     $created ($relative)
@@ -595,7 +611,27 @@ Destination: $DB_PATH
 Safety backup will be created before restore
 
 EOF
-    )
+        )
+    else
+        _read_project_env "$PROJECT_DIR" "$lat_db_type" 2>/dev/null || true
+        local display_db="${_RESTORE_DB_NAME:-$lat_db_name}"
+        local preview=$(cat <<EOF
+
+⚠️  CAUTION: This will import into your $lat_type_label database
+
+Type:        $lat_type_label
+Database:    $display_db
+Host:        ${_RESTORE_DB_HOST:-127.0.0.1}:${_RESTORE_DB_PORT}
+User:        ${_RESTORE_DB_USER:-<default>}
+Source:      $filename
+Size:        $size
+Created:     $created ($relative)
+
+Safety dump of current state will be created before restore
+
+EOF
+        )
+    fi
 
     draw_box "Restore Preview" "$preview"
     echo ""
@@ -610,13 +646,16 @@ EOF
         echo ""
     fi
 
-    # Perform restore
-    restore_database_from_backup "$path" "$DB_PATH" "$DRY_RUN"
+    # Perform restore — pass PROJECT_DIR for non-SQLite
+    local restore_target="$DB_PATH"
+    [[ "$lat_db_type" != "sqlite" ]] && restore_target="$PROJECT_DIR"
+
+    restore_database_from_backup "$path" "$restore_target" "$DRY_RUN"
 
     if [ $? -eq 0 ]; then
         echo ""
         color_green "✅ Restore complete"
-        audit_restore "DATABASE" "$path" "$DB_PATH"
+        audit_restore "DATABASE" "$path" "${lat_db_name:-$DB_PATH}"
     else
         echo ""
         color_red "❌ Restore failed"
@@ -634,14 +673,18 @@ restore_database_from_list() {
     local index=1
 
     while IFS='|' read -r created relative size filename path; do
-        printf "  [%2d] %-25s %-20s %10s\n" "$index" "$created" "($relative)" "$size"
+        local type_label
+        type_label=$(_get_backup_type_label "$path")
+        local db_name
+        db_name=$(_get_backup_db_name "$path")
+        printf "  [%2d] [%-10s] %-12s  %-18s %-15s %10s\n" "$index" "$type_label" "$db_name" "$created" "($relative)" "$size"
         backups+=("$path")
         index=$((index + 1))
 
         [ $index -gt 20 ] && break
     done < <(list_database_backups_sorted "$DATABASE_DIR")
 
-    local total=$(find "$DATABASE_DIR" -name "*.db.gz" -type f 2>/dev/null | wc -l | tr -d ' ')
+    local total=$(find "$DATABASE_DIR" \( -name "*.db.gz" -o -name "*.sql.gz" -o -name "*.tar.gz" \) -type f 2>/dev/null | wc -l | tr -d ' ')
     if [ $total -gt 20 ]; then
         echo ""
         color_gray "  (Showing newest 20 of $total total backups)"
@@ -660,12 +703,21 @@ restore_database_from_list() {
         local filename=$(basename "$selected_backup")
         local size=$(get_file_size "$selected_backup")
         local size_human=$(format_bytes "$size")
+        local sel_db_type
+        sel_db_type=$(_get_backup_db_type "$selected_backup")
+        local sel_type_label
+        sel_type_label=$(_get_backup_type_label "$selected_backup")
+        local sel_db_name
+        sel_db_name=$(_get_backup_db_name "$selected_backup")
 
         echo ""
-        local preview=$(cat <<EOF
+
+        if [[ "$sel_db_type" == "sqlite" ]]; then
+            local preview=$(cat <<EOF
 
 ⚠️  CAUTION: This will replace your current database
 
+Type:        $sel_type_label
 Source:      $filename
 Size:        $size_human
 Destination: $DB_PATH
@@ -673,7 +725,27 @@ Destination: $DB_PATH
 Safety backup will be created before restore
 
 EOF
-        )
+            )
+        else
+            # Non-SQLite: read connection info for display
+            _read_project_env "$PROJECT_DIR" "$sel_db_type" 2>/dev/null || true
+            local display_db="${_RESTORE_DB_NAME:-$sel_db_name}"
+            local preview=$(cat <<EOF
+
+⚠️  CAUTION: This will import into your $sel_type_label database
+
+Type:        $sel_type_label
+Database:    $display_db
+Host:        ${_RESTORE_DB_HOST:-127.0.0.1}:${_RESTORE_DB_PORT}
+User:        ${_RESTORE_DB_USER:-<default>}
+Source:      $filename
+Size:        $size_human
+
+Safety dump of current state will be created before restore
+
+EOF
+            )
+        fi
 
         draw_box "Restore Preview" "$preview"
         echo ""
@@ -688,13 +760,16 @@ EOF
             echo ""
         fi
 
-        # Perform restore
-        restore_database_from_backup "$selected_backup" "$DB_PATH" "$DRY_RUN"
+        # Perform restore — pass PROJECT_DIR for non-SQLite so env can be read
+        local restore_target="$DB_PATH"
+        [[ "$sel_db_type" != "sqlite" ]] && restore_target="$PROJECT_DIR"
+
+        restore_database_from_backup "$selected_backup" "$restore_target" "$DRY_RUN"
 
         if [ $? -eq 0 ]; then
             echo ""
             color_green "✅ Restore complete"
-            audit_restore "DATABASE" "$selected_backup" "$DB_PATH"
+            audit_restore "DATABASE" "$selected_backup" "${sel_db_name:-$DB_PATH}"
         else
             echo ""
             color_red "❌ Restore failed"
@@ -749,11 +824,21 @@ restore_database_at_time() {
     local size=$(get_file_size "$closest_backup")
     local size_human=$(format_bytes "$size")
 
+    local at_db_type
+    at_db_type=$(_get_backup_db_type "$closest_backup")
+    local at_type_label
+    at_type_label=$(_get_backup_type_label "$closest_backup")
+    local at_db_name
+    at_db_name=$(_get_backup_db_name "$closest_backup")
+
     echo ""
-    local preview=$(cat <<EOF
+
+    if [[ "$at_db_type" == "sqlite" ]]; then
+        local preview=$(cat <<EOF
 
 ⚠️  CAUTION: This will replace your current database
 
+Type:        $at_type_label
 Requested:   $datetime
 Closest:     $created ($(format_relative_time "$mtime"))
 Source:      $filename
@@ -763,7 +848,28 @@ Destination: $DB_PATH
 Safety backup will be created before restore
 
 EOF
-    )
+        )
+    else
+        _read_project_env "$PROJECT_DIR" "$at_db_type" 2>/dev/null || true
+        local display_db="${_RESTORE_DB_NAME:-$at_db_name}"
+        local preview=$(cat <<EOF
+
+⚠️  CAUTION: This will import into your $at_type_label database
+
+Type:        $at_type_label
+Database:    $display_db
+Host:        ${_RESTORE_DB_HOST:-127.0.0.1}:${_RESTORE_DB_PORT}
+User:        ${_RESTORE_DB_USER:-<default>}
+Requested:   $datetime
+Closest:     $created ($(format_relative_time "$mtime"))
+Source:      $filename
+Size:        $size_human
+
+Safety dump of current state will be created before restore
+
+EOF
+        )
+    fi
 
     draw_box "Restore Preview" "$preview"
     echo ""
@@ -778,13 +884,16 @@ EOF
         echo ""
     fi
 
-    # Perform restore
-    restore_database_from_backup "$closest_backup" "$DB_PATH" "$DRY_RUN"
+    # Perform restore — pass PROJECT_DIR for non-SQLite
+    local restore_target="$DB_PATH"
+    [[ "$at_db_type" != "sqlite" ]] && restore_target="$PROJECT_DIR"
+
+    restore_database_from_backup "$closest_backup" "$restore_target" "$DRY_RUN"
 
     if [ $? -eq 0 ]; then
         echo ""
         color_green "✅ Restore complete"
-        audit_restore "DATABASE_AT_TIME" "$closest_backup" "$DB_PATH"
+        audit_restore "DATABASE_AT_TIME" "$closest_backup" "${at_db_name:-$DB_PATH}"
     else
         echo ""
         color_red "❌ Restore failed"
@@ -933,7 +1042,7 @@ if [ -n "$RESTORE_TYPE" ]; then
 fi
 
 # Interactive wizard
-local content=$(cat <<EOF
+content=$(cat <<EOF
 
 What would you like to restore?
 
