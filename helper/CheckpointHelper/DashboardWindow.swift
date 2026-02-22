@@ -267,6 +267,7 @@ struct DashboardView: View {
             }
 
             ProgressView(value: Double(viewModel.backupProgressPercent), total: 100)
+                .accentColor(tintColor)
                 .tint(tintColor)
                 .scaleEffect(y: 0.6)
         }
@@ -323,6 +324,7 @@ struct DashboardView: View {
             .font(.system(size: 11, weight: .medium))
 
             ProgressView(value: Double(viewModel.syncIndex), total: Double(max(viewModel.syncTotal, 1)))
+                .accentColor(.cpAccentWarm)
                 .tint(.cpAccentWarm)
                 .scaleEffect(y: 0.6)
         }
