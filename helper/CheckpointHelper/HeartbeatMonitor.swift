@@ -95,8 +95,11 @@ class HeartbeatMonitor {
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             self?.checkHeartbeat()
         }
-        // Check immediately
-        checkHeartbeat()
+        // Check after a short delay so the app finishes launching first
+        // (avoids blocking the main thread if macOS shows a permission dialog)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.checkHeartbeat()
+        }
     }
 
     func stopMonitoring() {

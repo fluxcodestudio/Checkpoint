@@ -26,5 +26,7 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>Checkpoint needs access to external drives to back up your projects.</string>
 </dict>
 </plist>
