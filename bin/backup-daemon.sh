@@ -793,4 +793,19 @@ log_info "Backup cycle complete: $db_count DB snapshots, $current_files files, $
 # Write final healthy heartbeat
 write_heartbeat "healthy"
 
+# Ensure watchdog is alive (mutual monitoring — watchdog watches daemon, daemon watches watchdog)
+WATCHDOG_HEARTBEAT="${HOME}/.checkpoint/watchdog.heartbeat"
+if [[ -f "$WATCHDOG_HEARTBEAT" ]]; then
+    _wd_ts=$(grep -o '"timestamp": *[0-9]*' "$WATCHDOG_HEARTBEAT" 2>/dev/null | grep -o '[0-9]*' || echo "0")
+    _wd_age=$(( $(date +%s) - _wd_ts ))
+    if [[ $_wd_age -gt 300 ]]; then
+        log_warn "Watchdog heartbeat stale (${_wd_age}s), reloading LaunchAgent"
+        launchctl unload "$HOME/Library/LaunchAgents/com.checkpoint.watchdog.plist" 2>/dev/null || true
+        launchctl load "$HOME/Library/LaunchAgents/com.checkpoint.watchdog.plist" 2>/dev/null || true
+    fi
+elif [[ -f "$HOME/Library/LaunchAgents/com.checkpoint.watchdog.plist" ]]; then
+    log_warn "Watchdog heartbeat missing, loading LaunchAgent"
+    launchctl load "$HOME/Library/LaunchAgents/com.checkpoint.watchdog.plist" 2>/dev/null || true
+fi
+
 # Lock is automatically removed by trap on exit (even on crash/kill)
