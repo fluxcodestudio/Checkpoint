@@ -8,7 +8,7 @@
 
 ## Product Overview
 - Name: Checkpoint
-- Version: 2.6.0
+- Version: 2.7.0
 - License: Polyform Noncommercial 1.0.0 (free for personal use, commercial license available)
 - Platforms: macOS, Linux
 - Source: https://github.com/fluxcodestudio/Checkpoint
@@ -62,5 +62,5 @@ checkpoint restore
 ```
 
 ## Contact
-- Email: legal@fluxcode.studio
+- Contact form: https://checkpoint.fluxcode.studio/#contactModal
 - GitHub: https://github.com/fluxcodestudio/Checkpoint

@@ -17,17 +17,6 @@
     }
 
     // ==========================================
-    // EMAIL DEOBFUSCATION (legal pages)
-    // ==========================================
-    document.querySelectorAll('.eml').forEach(function (el) {
-        var a = document.createElement('a');
-        var e = el.dataset.u + '@' + el.dataset.d;
-        a.href = 'mailto:' + e;
-        a.textContent = e;
-        el.replaceWith(a);
-    });
-
-    // ==========================================
     // CONTACT LINK (nav) - all pages
     // ==========================================
     var contactLink = document.querySelector('.nav-links a[href$="#contact"], .nav-links a[href="#"]');
@@ -111,6 +100,15 @@
     }
 
     // ==========================================
+    // TIME-BASED BOT DETECTION
+    // ==========================================
+    // Record when forms loaded — reject submissions under 3 seconds
+    var formLoadTime = Date.now();
+    function isBotSubmission() {
+        return (Date.now() - formLoadTime) < 3000;
+    }
+
+    // ==========================================
     // MODAL FUNCTIONALITY (index.html only)
     // ==========================================
 
@@ -142,6 +140,8 @@
         var formData = new FormData(form);
         // Honeypot check
         if (formData.get('company_url')) return;
+        // Time-based bot check
+        if (isBotSubmission()) return;
         // Set email subject with prefix + user's subject
         var userSubject = formData.get('subject') || 'General Inquiry';
         formData.set('_subject', 'CONTACT: checkpoint.fluxcode.studio: ' + userSubject);
@@ -164,8 +164,9 @@
             }).catch(function () { });
         }
 
-        // Remove subscribe checkbox from Formspree submission
+        // Remove local-only fields from Formspree submission
         formData.delete('subscribe');
+        formData.delete('gdpr_consent');
 
         // Submit to Formspree
         fetch(form.action, {
@@ -182,12 +183,12 @@
             } else {
                 btn.textContent = 'Send Message';
                 btn.disabled = false;
-                showFormError(form, 'Something went wrong. Please try again or email ' + ['legal', 'fluxcode.studio'].join('@') + ' directly.');
+                showFormError(form, 'Something went wrong. Please try again.');
             }
         }).catch(function () {
             btn.textContent = 'Send Message';
             btn.disabled = false;
-            showFormError(form, 'Network error. Please try again or email ' + ['legal', 'fluxcode.studio'].join('@') + ' directly.');
+            showFormError(form, 'Network error. Please try again.');
         });
     }
 
@@ -210,6 +211,10 @@
         var formData = new FormData(form);
         // Honeypot check -- bots fill hidden fields
         if (formData.get('last_name')) return;
+        // Time-based bot check
+        if (isBotSubmission()) return;
+        // Remove local-only GDPR consent field before sending to Sendy
+        formData.delete('gdpr_consent');
         var btn = form.querySelector('button[type="submit"]');
         btn.textContent = 'Subscribing...';
         btn.disabled = true;
@@ -307,5 +312,29 @@
             if (document.getElementById('newsletterModal')) closeNewsletterModal();
         }
     });
+
+    // ==========================================
+    // URL PARAM: auto-open contact modal with subject
+    // ==========================================
+    // Supports links like index.html?subject=PRIVACY%20POLICY%20INQUIRY#contactModal
+    var urlParams = new URLSearchParams(window.location.search);
+    var urlSubject = urlParams.get('subject');
+    if (urlSubject && document.getElementById('contactModal')) {
+        var subjectField = document.getElementById('contact-subject');
+        if (subjectField) subjectField.value = urlSubject;
+        // Small delay so page renders first
+        setTimeout(function () { openContactModal(); }, 300);
+        // Clean URL without reloading
+        if (window.history.replaceState) {
+            window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+        }
+    }
+    // Also handle #contactModal hash on page load (from sub-page links)
+    if (window.location.hash === '#contactModal' && document.getElementById('contactModal')) {
+        setTimeout(function () { openContactModal(); }, 300);
+    }
+    if (window.location.hash === '#newsletterModal' && document.getElementById('newsletterModal')) {
+        setTimeout(function () { openNewsletterModal(); }, 300);
+    }
 
 })();

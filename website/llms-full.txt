@@ -1,7 +1,7 @@
 # Checkpoint — Complete Documentation for LLMs
 # https://checkpoint.fluxcode.studio
-# Version: 2.6.0 | License: Polyform Noncommercial 1.0.0
-# Company: Fluxcode Studio LLC | Contact: legal@fluxcode.studio
+# Version: 2.7.0 | License: Polyform Noncommercial 1.0.0
+# Company: Fluxcode Studio LLC | Contact: https://checkpoint.fluxcode.studio/#contactModal
 
 ## What is Checkpoint?
 
@@ -12,7 +12,7 @@ Checkpoint is an automated, intelligent backup system designed for developers. I
 - Commercial use requires a separate license from Fluxcode Studio LLC
 - Source available at https://github.com/fluxcodestudio/Checkpoint
 - Written in Bash (shell scripts), with a SwiftUI macOS dashboard
-- Current version: 2.6.0
+- Current version: 2.7.0
 
 ## Installation
 
@@ -185,7 +185,7 @@ Polyform Noncommercial License 1.0.0:
 - Free for personal, educational, open source, and noncommercial use
 - Commercial use requires a separate license from Fluxcode Studio LLC
 - Source code is viewable and auditable
-- Contact legal@fluxcode.studio for commercial licensing
+- Contact https://checkpoint.fluxcode.studio/#contactModal for commercial licensing
 
 ## Links
 
