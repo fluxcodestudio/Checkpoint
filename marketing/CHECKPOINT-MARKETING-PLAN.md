@@ -112,17 +112,17 @@ Complete these BEFORE posting anywhere. Every link in every article will get cli
 
 ### GitHub Repo
 
-- [ ] **BLOCKER: Add dashboard screenshot to README** — Dashboard.png exists in `/website/` but is NOT embedded in the README. HN and GitHub traffic lands on the README first. A visual showing the native macOS dashboard is critical for first impressions.
-- [ ] **BLOCKER: Set custom social preview image** — Currently using GitHub's auto-generated card (`usesCustomOpenGraphImage: false`). Upload Dashboard.png or a branded image via Settings → Social preview. This is what appears when the GitHub link is shared on Twitter, Slack, Discord.
-- [ ] **BLOCKER: Update README version from 2.6.0 to 2.7.0** — README still says 2.6.0 but VERSION file and GitHub release both say 2.7.0. Reviewers will notice the inconsistency.
-- [ ] README has logo + badges header (build passing, tests, license, version)
-- [ ] Description matches marketing copy: "Automated backup tool for developers — protects what Git ignores"
-- [ ] Topics/tags set — **DONE:** 20 topics already configured (automation, backup, bash, cli, cloud-backup, database-backup, developer-tools, devops, disaster-recovery, encryption, linux, macos, mongodb, mysql, postgresql, rclone, sqlite, swiftui, version-control)
-- [ ] License file present (Polyform Noncommercial) — **DONE**
-- [ ] CONTRIBUTING.md exists — **DONE**
-- [ ] Issues tab has a few labeled issues (good-first-issue, enhancement) for community engagement
-- [ ] Releases page has v2.7.0 with release notes — **DONE** (published 2026-02-22)
-- [ ] GitHub Discussions enabled — **DONE**
+- [x] ~~**BLOCKER: Add dashboard screenshot to README**~~ — Done. Dashboard.png copied to `.github/assets/dashboard-screenshot.png` and embedded in README.
+- [x] ~~**BLOCKER: Set custom social preview image**~~ — Done. Dashboard screenshot uploaded via GitHub Settings → Social preview.
+- [x] ~~**BLOCKER: Update README version from 2.6.0 to 2.7.0**~~ — Done. Version, badges, and v2.7.0 changelog all updated.
+- [x] README has logo + badges header (version, tests, license, platform) — Done. Shields.io badges added.
+- [x] Description matches marketing copy: "Automated backup tool for developers — protects what Git ignores" — Done.
+- [x] Topics/tags set — 20 topics configured (automation, backup, bash, cli, cloud-backup, database-backup, developer-tools, devops, disaster-recovery, encryption, linux, macos, mongodb, mysql, postgresql, rclone, sqlite, swiftui, version-control)
+- [x] License file present (Polyform Noncommercial)
+- [x] CONTRIBUTING.md exists
+- [x] Issues tab has labeled issues — Done. 5 issues created (#2–#6) with good-first-issue, enhancement, help-wanted labels.
+- [x] Releases page has v2.7.0 with release notes (published 2026-02-22)
+- [x] GitHub Discussions enabled
 
 ### Cold-Start Problem: 0 GitHub Stars
 
@@ -146,7 +146,7 @@ The repo currently has **0 stars**. This is a credibility issue for Reddit and P
 
 ### Content Review
 
-- [ ] **DONE: Command syntax fixed** — `checkpoint restore --from` corrected to `backup-restore file <path> --at` in 4 articles + website
+- [x] ~~Command syntax fixed~~ — `checkpoint restore --from` corrected to `backup-restore file <path> --at` in 4 articles + website
 - [ ] All 8 marketing articles reviewed for accuracy against v2.7.0 features
 - [ ] All links in articles tested (GitHub, website, install command)
 - [ ] **Run test suite and update count** — articles say "164 tests" (from v2.6.0). Run `./tests/run-tests.sh` and update all articles with the actual count
