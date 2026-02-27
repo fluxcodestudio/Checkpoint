@@ -23,7 +23,7 @@ Checkpoint is a free, open-source backup daemon for developers. It runs in the b
 **Key features:**
 - Written in bash -- no runtime dependencies, runs anywhere
 - Encrypted cloud sync via rclone (Dropbox, Google Drive, OneDrive, iCloud) using age encryption
-- Version history with search and restore (`checkpoint search`, `checkpoint restore --from "3 days ago"`)
+- Version history with search and restore (`checkpoint search`, `checkpoint restore`, `checkpoint history --interactive`)
 - Interactive fzf-based history browsing
 - Native SwiftUI macOS menu bar dashboard (optional -- everything works from CLI)
 - Watchdog health monitoring

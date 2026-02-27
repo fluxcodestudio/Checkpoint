@@ -4,13 +4,19 @@
 
 # Checkpoint
 
-**Automated backup tool for developers — protect your source code, databases, and project files.**
+**Automated backup tool for developers — protects what Git ignores.**
+
+[![Version](https://img.shields.io/badge/version-2.7.0-a666ff)](https://github.com/fluxcodestudio/Checkpoint/releases/tag/v2.7.0) [![Tests](https://img.shields.io/badge/tests-164%2F164-brightgreen)](https://github.com/fluxcodestudio/Checkpoint) [![License](https://img.shields.io/badge/license-Polyform%20NC-blue)](https://polyformproject.org/licenses/noncommercial/1.0.0/) [![macOS](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)](https://checkpoint.fluxcode.studio)
 
 A set-and-forget backup system that runs in the background on macOS and Linux. Checkpoint automatically backs up your project files, databases (SQLite, PostgreSQL, MySQL, MongoDB), and critical configs (.env, credentials, keys) every hour. Includes encrypted cloud sync, a native macOS dashboard, and full restore/search capabilities.
 
-**Version:** 2.6.0 &nbsp;|&nbsp; **Tests:** 164/164 (100%) &nbsp;|&nbsp; **License:** [Polyform Noncommercial](https://polyformproject.org/licenses/noncommercial/1.0.0/) &nbsp;|&nbsp; **By:** [FluxCode Studio](https://fluxcode.studio)
+[Website](https://checkpoint.fluxcode.studio) &nbsp;·&nbsp; [Documentation](https://checkpoint.fluxcode.studio/docs.html) &nbsp;·&nbsp; [Download](https://github.com/fluxcodestudio/Checkpoint/archive/refs/heads/main.zip) &nbsp;·&nbsp; **By [FluxCode Studio](https://fluxcode.studio)**
 
-[Website](https://checkpoint.fluxcode.studio) &nbsp;·&nbsp; [Documentation](https://checkpoint.fluxcode.studio/docs.html) &nbsp;·&nbsp; [Download](https://github.com/fluxcodestudio/Checkpoint/archive/refs/heads/main.zip)
+<br>
+
+<img src=".github/assets/dashboard-screenshot.png" alt="Checkpoint Dashboard — native macOS menu bar app showing real-time backup status" width="520"/>
+
+*Native macOS dashboard — real-time backup status, progress tracking, one-click controls*
 
 </div>
 
@@ -31,9 +37,37 @@ Checkpoint handles all of this: automatic hourly backups of files + databases, e
 
 ---
 
-## What's New in v2.6.0
+## What's New in v2.7.0
 
 <details open>
+<summary><strong>v2.7.0 — Cloud Folder Sync, Universal Database Restore, Mutual Watchdog</strong></summary>
+
+**Cloud Folder Sync in Daemon**
+- Cloud folder sync (Dropbox, iCloud, Google Drive, OneDrive) now runs automatically on every daemon cycle
+- Shared `sync_to_cloud_folder()` library (`lib/features/cloud-sync.sh`)
+
+**Universal Database Restore**
+- Restore wizard now supports MySQL, PostgreSQL, and MongoDB alongside SQLite
+- Daemon database backup uses universal detector for all database types
+
+**Mutual Watchdog**
+- Daemon restarts stale watchdog on each cycle — both processes now monitor each other
+- Prevents silent watchdog death from leaving the system unprotected
+
+**Dashboard & UI Fixes**
+- Progress bar color fix — accentColor fallback for macOS 12 compatibility
+- Menu bar reorder — backup actions on top, window controls below
+- Fix: prevent CheckpointHelper hang on removable volume permission dialog
+
+**Website**
+- GDPR consent checkboxes on contact and newsletter forms
+- Accessibility, SEO, LLMO optimization
+- Spam protection: time-based bot detection + honeypot fields
+- All email addresses replaced with contact modal links
+
+</details>
+
+<details>
 <summary><strong>v2.6.0 — Encrypted Cloud Sync, Compression & Cloud Restore</strong></summary>
 
 **End-to-End Encrypted Cloud Backups**

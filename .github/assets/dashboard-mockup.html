@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checkpoint Dashboard Mockup</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+    color: #e0e0e0;
+    display: flex;
+    justify-content: center;
+    padding: 0;
+}
+.window {
+    width: 560px;
+    background: #141415;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+}
+.titlebar {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    gap: 8px;
+}
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.dot-red { background: #ff5f57; }
+.dot-yellow { background: #febc2e; }
+.dot-green { background: #28c840; }
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 20px 16px;
+}
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.logo {
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #a666ff 0%, #7c3aed 100%);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.logo svg { width: 22px; height: 22px; fill: white; }
+.header-title { font-size: 20px; font-weight: 700; color: #fff; }
+.badge-active {
+    background: rgba(40,200,64,0.12);
+    color: #28c840;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.active-dot { width: 6px; height: 6px; border-radius: 50%; background: #28c840; }
+/* Banner */
+.banner {
+    margin: 0 16px 12px;
+    background: #1a1a1c;
+    border: 1px solid rgba(166,102,255,0.15);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+.banner-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(166,102,255,0.3);
+    border-top-color: #a666ff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.banner-label { color: #a666ff; font-size: 13px; font-weight: 600; }
+.banner-project { color: #e0e0e0; font-size: 14px; font-weight: 600; margin: 4px 0 2px 22px; }
+.banner-status { color: #888; font-size: 12px; margin-left: 22px; margin-bottom: 10px; }
+.progress-track {
+    height: 4px;
+    background: rgba(166,102,255,0.15);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.progress-bar {
+    height: 100%;
+    width: 72%;
+    background: linear-gradient(90deg, #a666ff, #c084fc);
+    border-radius: 2px;
+}
+/* Project rows */
+.projects { padding: 4px 16px 8px; }
+.row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 2px;
+}
+.row:hover { background: rgba(255,255,255,0.03); }
+.row-active { background: rgba(166,102,255,0.06); }
+.row-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+.indicator {
+    width: 3px;
+    height: 32px;
+    border-radius: 2px;
+    background: #a666ff;
+}
+.indicator-warm { background: #f59e0b; }
+.check-icon {
+    width: 18px;
+    height: 18px;
+    color: #a666ff;
+    flex-shrink: 0;
+}
+.row-info { min-width: 0; }
+.row-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e8e8e8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.row-name-active { color: #f59e0b; }
+.row-meta {
+    font-size: 11px;
+    font-weight: 400;
+    color: #666;
+    background: rgba(255,255,255,0.05);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+}
+.row-path {
+    font-size: 11px;
+    color: #555;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+}
+.row-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.row-time { font-size: 12px; color: #777; }
+.row-result { width: 16px; height: 16px; color: #a666ff; }
+.row-backing { font-size: 12px; color: #f59e0b; font-weight: 500; }
+.spinner-small {
+    width: 12px;
+    height: 12px;
+    border: 1.5px solid rgba(245,158,11,0.3);
+    border-top-color: #f59e0b;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+/* Footer */
+.footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.footer-left { display: flex; gap: 8px; }
+.btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+}
+.btn-primary { background: #a666ff; color: white; }
+.btn-secondary { background: rgba(255,255,255,0.08); color: #ccc; }
+.footer-right { display: flex; gap: 12px; align-items: center; }
+.footer-icon {
+    width: 20px;
+    height: 20px;
+    color: #555;
+}
+.footer-brand {
+    font-size: 11px;
+    color: #444;
+    text-align: center;
+    padding: 8px 0 14px;
+}
+.footer-brand a { color: #a666ff; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="window">
+    <!-- Title bar -->
+    <div class="titlebar">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-yellow"></div>
+        <div class="dot dot-green"></div>
+    </div>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-left">
+            <div class="logo">
+                <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+            </div>
+            <span class="header-title">Checkpoint</span>
+        </div>
+        <div class="badge-active">
+            <div class="active-dot"></div>
+            Active
+        </div>
+    </div>
+    <!-- Backup banner -->
+    <div class="banner">
+        <div class="banner-top">
+            <div class="spinner"></div>
+            <span class="banner-label">Backing up...</span>
+        </div>
+        <div class="banner-project">ecommerce-platform</div>
+        <div class="banner-status">Writing manifest... • 4,969 files</div>
+        <div class="progress-track">
+            <div class="progress-bar"></div>
+        </div>
+    </div>
+    <!-- Project list -->
+    <div class="projects">
+        <div class="row">
+            <div class="row-left">
+                <div class="indicator"></div>
+                <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                <div class="row-info">
+                    <div class="row-name">startup-landing-page <span class="row-meta">42 files • 1.8 MB</span></div>
+                    <div class="row-path">~/projects/startup-landing-page</div>
+                </div>
+            </div>
+            <div class="row-right">
+                <span class="row-time">12 min. ago</span>
+                <svg class="row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+            </div>
+        </div>
+        <div class="row row-active">
+            <div class="row-left">
+                <div class="indicator indicator-warm"></div>
+                <div class="spinner-small"></div>
+                <div class="row-info">
+                    <div class="row-name row-name-active">ecommerce-platform <span class="row-meta">4,969 files • 312.7 MB</span></div>
+                    <div class="row-path">~/projects/ecommerce-platform</div>
+                </div>
+            </div>
+            <div class="row-right">
+                <span class="row-backing">Backing up...</span>
+                <div class="spinner-small"></div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="row-left">
+                <div class="indicator"></div>
+                <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                <div class="row-info">
+                    <div class="row-name">saas-analytics-api <span class="row-meta">1,247 files • 23.5 MB</span></div>
+                    <div class="row-path">~/projects/saas-analytics-api</div>
+                </div>
+            </div>
+            <div class="row-right">
+                <span class="row-time">8 min. ago</span>
+                <svg class="row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+            </div>
+        </div>
+        <div class="row">
+            <div class="row-left">
+                <div class="indicator"></div>
+                <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                <div class="row-info">
+                    <div class="row-name">mobile-fitness-app <span class="row-meta">892 files • 45.2 MB</span></div>
+                    <div class="row-path">~/projects/mobile-fitness-app</div>
+                </div>
+            </div>
+            <div class="row-right">
+                <span class="row-time">15 min. ago</span>
+                <svg class="row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+            </div>
+        </div>
+        <div class="row">
+            <div class="row-left">
+                <div class="indicator"></div>
+                <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                <div class="row-info">
+                    <div class="row-name">portfolio-website <span class="row-meta">156 files • 8.4 MB</span></div>
+                    <div class="row-path">~/projects/portfolio-website</div>
+                </div>
+            </div>
+            <div class="row-right">
+                <span class="row-time">22 min. ago</span>
+                <svg class="row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+            </div>
+        </div>
+        <div class="row">
+            <div class="row-left">
+                <div class="indicator"></div>
+                <svg class="check-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+                <div class="row-info">
+                    <div class="row-name">client-invoice-tool <span class="row-meta">324 files • 2.1 MB</span></div>
+                    <div class="row-path">~/projects/client-invoice-tool</div>
+                </div>
+            </div>
+            <div class="row-right">
+                <span class="row-time">28 min. ago</span>
+                <svg class="row-result" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm3.22 5.72-3.5 3.5a.75.75 0 0 1-1.06 0l-1.5-1.5a.75.75 0 1 1 1.06-1.06l.97.97 2.97-2.97a.75.75 0 1 1 1.06 1.06z"/></svg>
+            </div>
+        </div>
+    </div>
+    <!-- Footer -->
+    <div class="footer">
+        <div class="footer-left">
+            <button class="btn btn-primary">Backup All</button>
+            <button class="btn btn-secondary">Settings</button>
+        </div>
+        <div class="footer-right">
+            <button class="btn btn-secondary">⏸ Pause</button>
+        </div>
+    </div>
+    <div class="footer-brand">A product of <a href="https://fluxcode.studio">FluxCode.Studio</a></div>
+</div>
+</body>
+</html>

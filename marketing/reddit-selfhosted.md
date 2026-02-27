@@ -21,7 +21,7 @@ I built an open-source backup tool after an AI coding assistant destroyed my dat
 - Cloud sync is 100% optional -- if you enable it, files are encrypted with [age](https://github.com/FiloSottile/age) before upload
 - Supports Dropbox, Google Drive, OneDrive, iCloud via rclone -- or any rclone-compatible storage
 - Zero-knowledge cloud storage: your keys never leave your machine
-- Searchable version history with restore (`checkpoint restore .env --from "3 days ago"`)
+- Searchable version history with restore (`checkpoint restore` for interactive picker, `checkpoint search "pattern"` across all backups)
 
 **Self-hosting details:**
 

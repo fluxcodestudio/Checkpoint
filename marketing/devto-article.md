@@ -75,7 +75,7 @@ $ checkpoint search ".env"
   Found in 4 files across 3 projects
 
 # Restore a specific file from 3 days ago
-$ checkpoint restore .env --from "3 days ago"
+$ backup-restore file .env --at "3 days ago"
   Restored .env (v2026-02-14_10:30)
 
 # Browse backup history interactively with fzf

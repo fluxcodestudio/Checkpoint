@@ -27,7 +27,7 @@ $ checkpoint search "DATABASE_URL"
   Found in 3 files across 2 projects
 
 # Restore a file from a specific point in time
-$ checkpoint restore src/config.js --from "3 days ago"
+$ backup-restore file src/config.js --at "3 days ago"
 
 # Browse backup history interactively with fzf
 $ checkpoint history --interactive
