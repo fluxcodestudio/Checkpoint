@@ -105,6 +105,19 @@ count_archived_files() {
     find "$archived_dir" -type f 2>/dev/null | wc -l | tr -d ' '
 }
 
+# Count named snapshots
+# Output: number of snapshot directories with manifests
+count_snapshots() {
+    local snapshots_dir="${BACKUP_DIR:-}/snapshots"
+    [ -z "$snapshots_dir" ] || [ ! -d "$snapshots_dir" ] && echo "0" && return
+
+    local count=0
+    for d in "$snapshots_dir"/*/; do
+        [ -f "$d/manifest.json" ] && count=$((count + 1))
+    done
+    echo "$count"
+}
+
 # Get total backup size in bytes
 # Output: total size in bytes
 get_total_backup_size() {

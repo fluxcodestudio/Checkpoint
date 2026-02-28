@@ -133,6 +133,17 @@ sync_to_cloud_folder() {
         fi
     fi
 
+    # --- Sync snapshots (named database snapshots) ---
+    local snapshots_dir="${BACKUP_DIR:-$PROJECT_DIR/backups}/snapshots"
+    if [[ -d "$snapshots_dir" ]] && [[ -n "$(ls -A "$snapshots_dir" 2>/dev/null)" ]]; then
+        mkdir -p "$CLOUD_FOLDER_PATH/$PROJECT_NAME/snapshots" 2>/dev/null
+        if rsync -a --delete "$snapshots_dir/" "$CLOUD_FOLDER_PATH/$PROJECT_NAME/snapshots/" 2>>"$_log"; then
+            log_info "Cloud sync: snapshots synced"
+        else
+            log_warn "Cloud sync: snapshot sync failed"
+        fi
+    fi
+
     # --- Sync state file (for cross-computer portability) ---
     local portable_state="${BACKUP_DIR:-$PROJECT_DIR/backups}/.checkpoint-state.json"
     if [[ -f "$portable_state" ]]; then

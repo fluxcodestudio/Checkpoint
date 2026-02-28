@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-01-12)
 
 **Core value:** Backups happen automatically and invisibly — developer never loses work and never thinks about backups.
-**Current focus:** v3.0 Smart Features & Developer Intelligence — AI tool awareness, smart scheduling, encryption, search/browse CLI
+**Current focus:** v3.1 Database Snapshots — Named per-table snapshots, schema-aware restore, dashboard camera button UI
 
 ## Current Position
 
-Phase: 25 of 25 (Backup Search & Browse CLI)
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-02-17 - Completed 25-02-PLAN.md
+Phase: 26 of 31 (Snapshot Core Library)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-02-28 - Milestone v3.1 created
 
-Progress: ██████████ 100%
+Progress: ░░░░░░░░░░ 0%
 
 ## Performance Metrics
 
@@ -55,9 +55,11 @@ None.
 - Milestone v1.2 shipped: 2026-01-12 (Phase 10)
 - Milestone v2.5 shipped: 2026-02-14 (Phases 11-18)
 - Milestone v3.0 created: Smart Features & Developer Intelligence, 7 phases (Phase 19-25)
+- Milestone v3.0 shipped: 2026-02-17 (Phases 19-25)
+- Milestone v3.1 created: Database Snapshots, 6 phases (Phase 26-31)
 
 ## Session Continuity
 
-Last session: 2026-02-17
-Stopped at: Completed 25-02-PLAN.md — Phase 25 complete, v3.0 milestone complete
+Last session: 2026-02-28
+Stopped at: Milestone v3.1 initialization
 Resume file: None

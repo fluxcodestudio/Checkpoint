@@ -178,6 +178,9 @@ struct DashboardView: View {
                 viewModel.addProject()
             })
         }
+        .sheet(isPresented: $viewModel.showingSnapshot) {
+            SnapshotView(isPresented: $viewModel.showingSnapshot, projects: viewModel.projects)
+        }
         .alert("Remove Project", isPresented: $viewModel.showingRemoveConfirm) {
             Button("Cancel", role: .cancel) {
                 viewModel.removeTargetProject = nil
@@ -423,6 +426,17 @@ struct DashboardView: View {
                         Image(systemName: "plus")
                             .font(.system(size: 11, weight: .semibold))
                         Text("Add")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                }
+                .buttonStyle(CPButtonStyle(accent: .cpAccent))
+
+                // Snapshot
+                Button(action: { viewModel.dismissAllModals(); viewModel.showingSnapshot = true }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "camera")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text("Snapshot")
                             .font(.system(size: 12, weight: .medium))
                     }
                 }
@@ -1991,6 +2005,40 @@ class CloudBrowseViewModel: ObservableObject {
 
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
+
+    /// Run `checkpoint snapshot <args>` in a project directory and return stdout
+    func runCheckpointSnapshot(_ args: [String], inDirectory: String? = nil) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let possiblePaths = [
+            "\(home)/.local/bin/checkpoint",
+            "/usr/local/bin/checkpoint"
+        ]
+        guard let command = possiblePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+            return ""
+        }
+
+        let task = Process()
+        task.launchPath = command
+        task.arguments = ["snapshot"] + args
+        if let dir = inDirectory {
+            task.currentDirectoryURL = URL(fileURLWithPath: dir)
+        }
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = Pipe()
+
+        do {
+            try task.run()
+        } catch {
+            NSLog("CheckpointHelper: snapshot command failed: %@", error.localizedDescription)
+            return ""
+        }
+
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
 }
 
 // MARK: - Cloud Data Models
@@ -2277,6 +2325,8 @@ class DashboardViewModel: ObservableObject {
     @Published var showingOnboarding = false
     @Published var showingRemoveConfirm = false
     @Published var removeTargetProject: ProjectInfo?
+    @Published var showingSnapshot = false
+    @Published var snapshotProject: ProjectInfo?
 
     func dismissAllModals() {
         showingSettings = false
@@ -2287,6 +2337,8 @@ class DashboardViewModel: ObservableObject {
         showingLogViewer = false
         logViewerProject = nil
         showingOnboarding = false
+        showingSnapshot = false
+        snapshotProject = nil
         if showingAbout {
             showingAbout = false
             AboutPanelController.shared.close()
@@ -3585,6 +3637,339 @@ struct OnboardingView: View {
                 isRunningBackup = false
                 backupComplete = true
             }
+        }
+    }
+}
+
+// MARK: - Snapshot View
+
+struct SnapshotEntry: Identifiable {
+    let id = UUID()
+    let name: String
+    let dbType: String
+    let dbName: String
+    let tableCount: Int
+    let timestamp: String
+    let status: String
+    let size: String
+}
+
+struct SnapshotView: View {
+    @Binding var isPresented: Bool
+    let projects: [ProjectInfo]
+
+    @State private var selectedProjectIndex = 0
+    @State private var snapshotName = ""
+    @State private var snapshots: [SnapshotEntry] = []
+    @State private var isLoading = false
+    @State private var isSaving = false
+    @State private var statusMessage = ""
+    @State private var showingRestoreConfirm = false
+    @State private var restoreTarget: SnapshotEntry?
+    @State private var showingDeleteConfirm = false
+    @State private var deleteTarget: SnapshotEntry?
+
+    private var selectedProject: ProjectInfo? {
+        guard !projects.isEmpty, selectedProjectIndex < projects.count else { return nil }
+        return projects[selectedProjectIndex]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                Image(systemName: "camera")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.cpAccent)
+                Text("Database Snapshots")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.cpTextPrimary)
+                Spacer()
+                Button(action: { isPresented = false }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.cpTextTertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
+
+            Divider().background(Color.cpBorder)
+
+            // Project selector
+            if projects.count > 1 {
+                HStack {
+                    Text("Project:")
+                        .font(.system(size: 11))
+                        .foregroundColor(.cpTextSecondary)
+                    Picker("", selection: $selectedProjectIndex) {
+                        ForEach(0..<projects.count, id: \.self) { idx in
+                            Text(projects[idx].name).tag(idx)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 200)
+                    .onChange(of: selectedProjectIndex) { _ in loadSnapshots() }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+            }
+
+            // Create snapshot section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Create Snapshot")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.cpTextSecondary)
+                    .textCase(.uppercase)
+
+                HStack(spacing: 8) {
+                    TextField("Snapshot name (e.g. pre-redesign)", text: $snapshotName)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 12))
+
+                    Button(action: createSnapshot) {
+                        HStack(spacing: 4) {
+                            if isSaving {
+                                ProgressView()
+                                    .controlSize(.mini)
+                            } else {
+                                Image(systemName: "camera.fill")
+                                    .font(.system(size: 10))
+                            }
+                            Text("Save")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                    }
+                    .buttonStyle(CPButtonStyle(accent: .cpAccent, filled: true))
+                    .disabled(snapshotName.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider().background(Color.cpBorder)
+
+            // Snapshots list
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Saved Snapshots")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.cpTextSecondary)
+                    .textCase(.uppercase)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+
+                if isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .controlSize(.small)
+                        Spacer()
+                    }
+                    .padding(.vertical, 20)
+                } else if snapshots.isEmpty {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 6) {
+                            Image(systemName: "camera.badge.ellipsis")
+                                .font(.system(size: 24))
+                                .foregroundColor(.cpTextTertiary)
+                            Text("No snapshots yet")
+                                .font(.system(size: 12))
+                                .foregroundColor(.cpTextTertiary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 20)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 6) {
+                            ForEach(snapshots) { snap in
+                                snapshotRow(snap)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 12)
+                    }
+                    .frame(maxHeight: 250)
+                }
+            }
+
+            // Status message
+            if !statusMessage.isEmpty {
+                HStack {
+                    Text(statusMessage)
+                        .font(.system(size: 11))
+                        .foregroundColor(.cpTextSecondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+            }
+        }
+        .frame(width: 460, minHeight: 300)
+        .background(Color.cpBackground)
+        .onAppear { loadSnapshots() }
+        .alert("Restore Snapshot", isPresented: $showingRestoreConfirm) {
+            Button("Cancel", role: .cancel) { restoreTarget = nil }
+            Button("Restore", role: .destructive) {
+                if let target = restoreTarget { restoreSnapshot(target) }
+            }
+        } message: {
+            Text("This will overwrite your current database data. A safety backup will be created first.")
+        }
+        .alert("Delete Snapshot", isPresented: $showingDeleteConfirm) {
+            Button("Cancel", role: .cancel) { deleteTarget = nil }
+            Button("Delete", role: .destructive) {
+                if let target = deleteTarget { deleteSnapshot(target) }
+            }
+        } message: {
+            Text("Delete snapshot '\(deleteTarget?.name ?? "")'? This cannot be undone.")
+        }
+    }
+
+    private func snapshotRow(_ snap: SnapshotEntry) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(snap.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.cpTextPrimary)
+                HStack(spacing: 6) {
+                    Text(snap.dbType)
+                        .font(.system(size: 10))
+                        .foregroundColor(.cpAccent)
+                    Text("\(snap.tableCount) tables")
+                        .font(.system(size: 10))
+                        .foregroundColor(.cpTextTertiary)
+                    Text(snap.size)
+                        .font(.system(size: 10))
+                        .foregroundColor(.cpTextTertiary)
+                }
+            }
+
+            Spacer()
+
+            // Status indicator
+            Circle()
+                .fill(snap.status == "complete" ? Color.green : (snap.status == "partial" ? Color.orange : Color.red))
+                .frame(width: 6, height: 6)
+
+            // Restore button
+            Button(action: {
+                restoreTarget = snap
+                showingRestoreConfirm = true
+            }) {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.system(size: 10))
+            }
+            .buttonStyle(CPIconButtonStyle())
+            .help("Restore this snapshot")
+
+            // Delete button
+            Button(action: {
+                deleteTarget = snap
+                showingDeleteConfirm = true
+            }) {
+                Image(systemName: "trash")
+                    .font(.system(size: 10))
+            }
+            .buttonStyle(CPIconButtonStyle())
+            .help("Delete this snapshot")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.cpCardBackground)
+        .cornerRadius(6)
+    }
+
+    // MARK: - Actions
+
+    private func loadSnapshots() {
+        guard let project = selectedProject else { return }
+        isLoading = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let vm = DashboardViewModel()
+            let output = vm.runCheckpointSnapshot(["list", "--json"], inDirectory: project.path)
+            let parsed = parseSnapshotJSON(output)
+            DispatchQueue.main.async {
+                self.snapshots = parsed
+                self.isLoading = false
+            }
+        }
+    }
+
+    private func createSnapshot() {
+        guard let project = selectedProject else { return }
+        let name = snapshotName.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else { return }
+        isSaving = true
+        statusMessage = "Creating snapshot '\(name)'..."
+        DispatchQueue.global(qos: .userInitiated).async {
+            let vm = DashboardViewModel()
+            let output = vm.runCheckpointSnapshot(["save", name], inDirectory: project.path)
+            DispatchQueue.main.async {
+                self.isSaving = false
+                if output.contains("created") || output.contains("✅") {
+                    self.statusMessage = "Snapshot '\(name)' created"
+                    self.snapshotName = ""
+                    self.loadSnapshots()
+                } else {
+                    self.statusMessage = output.isEmpty ? "Failed to create snapshot" : output
+                }
+            }
+        }
+    }
+
+    private func restoreSnapshot(_ snap: SnapshotEntry) {
+        guard let project = selectedProject else { return }
+        statusMessage = "Restoring '\(snap.name)'..."
+        DispatchQueue.global(qos: .userInitiated).async {
+            let vm = DashboardViewModel()
+            let output = vm.runCheckpointSnapshot(["restore", snap.name, "--force"], inDirectory: project.path)
+            DispatchQueue.main.async {
+                self.restoreTarget = nil
+                if output.contains("Restored") || output.contains("✅") {
+                    self.statusMessage = "Restored '\(snap.name)'"
+                } else if output.contains("Schema has changed") || output.contains("bundle") {
+                    self.statusMessage = "Schema changed — download bundle saved to ~/Downloads"
+                } else {
+                    self.statusMessage = output.isEmpty ? "Restore failed" : String(output.prefix(120))
+                }
+            }
+        }
+    }
+
+    private func deleteSnapshot(_ snap: SnapshotEntry) {
+        guard let project = selectedProject else { return }
+        statusMessage = "Deleting '\(snap.name)'..."
+        DispatchQueue.global(qos: .userInitiated).async {
+            let vm = DashboardViewModel()
+            let _ = vm.runCheckpointSnapshot(["delete", snap.name, "--force"], inDirectory: project.path)
+            DispatchQueue.main.async {
+                self.deleteTarget = nil
+                self.statusMessage = "Deleted '\(snap.name)'"
+                self.loadSnapshots()
+            }
+        }
+    }
+
+    private func parseSnapshotJSON(_ json: String) -> [SnapshotEntry] {
+        guard let data = json.data(using: .utf8),
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+        return array.compactMap { dict in
+            guard let name = dict["name"] as? String else { return nil }
+            return SnapshotEntry(
+                name: name,
+                dbType: dict["db_type"] as? String ?? "unknown",
+                dbName: dict["db_name"] as? String ?? "",
+                tableCount: dict["table_count"] as? Int ?? 0,
+                timestamp: dict["timestamp"] as? String ?? "",
+                status: dict["status"] as? String ?? "unknown",
+                size: dict["size"] as? String ?? ""
+            )
         }
     }
 }

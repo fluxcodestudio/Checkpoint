@@ -138,6 +138,7 @@ drive_connected=$(check_drive && echo "true" || echo "false")
 db_count=$(count_database_backups)
 current_files=$(count_current_files)
 archived_files=$(count_archived_files)
+snapshot_count=$(count_snapshots)
 total_size=$(get_total_backup_size)
 total_size_human=$(format_bytes $total_size)
 
@@ -271,6 +272,7 @@ if [ "$OUTPUT_MODE" = "json" ]; then
     $(json_kv "databaseSize" "$db_size_human"),
     $(json_kv_num "currentFiles" "$current_files"),
     $(json_kv_num "archivedVersions" "$archived_files"),
+    $(json_kv_num "snapshotCount" "$snapshot_count"),
     $(json_kv "totalSize" "$total_size_human"),
     $(json_kv_num "totalSizeBytes" "$total_size")
   },
@@ -383,6 +385,7 @@ echo "│ ${COLOR_CYAN}📊 Statistics${COLOR_RESET}                            
 printf "│   Database Snapshots:  %-35s │\n" "$db_count ($db_size_human compressed)"
 printf "│   Current Files:       %-35s │\n" "$current_files files"
 printf "│   Archived Versions:   %-35s │\n" "$archived_files versions"
+printf "│   Snapshots:           %-35s │\n" "$snapshot_count saved"
 printf "│   Total Size:          %-35s │\n" "$total_size_human"
 
 echo "│                                                              │"

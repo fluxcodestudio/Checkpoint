@@ -524,6 +524,7 @@ show_commands() {
     echo "  checkpoint browse       Interactive snapshot browser"
     echo "  checkpoint cloud        Cloud backup operations"
     echo "  checkpoint encrypt      Encryption setup/status"
+    echo "  checkpoint snapshot      Database snapshots (save/list/restore)"
     echo "  checkpoint docker-volumes Docker volume backup"
     echo ""
     echo "  backup-now              Run backup immediately"
@@ -846,6 +847,16 @@ case "${1:-}" in
             exec "$CHECKPOINT_LIB/bin/checkpoint-encrypt.sh" "$@"
         else
             echo "Error: checkpoint-encrypt.sh not found" >&2
+            exit 1
+        fi
+        ;;
+    snapshot|snapshots)
+        # Manage named database snapshots
+        if [[ -x "$CHECKPOINT_LIB/bin/checkpoint-snapshot.sh" ]]; then
+            shift
+            exec "$CHECKPOINT_LIB/bin/checkpoint-snapshot.sh" "$@"
+        else
+            echo "Error: checkpoint-snapshot.sh not found" >&2
             exit 1
         fi
         ;;

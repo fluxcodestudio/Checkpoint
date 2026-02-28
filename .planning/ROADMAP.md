@@ -15,6 +15,7 @@ None
 - ✅ [v1.2 Dashboard UX](milestones/v1.2-ROADMAP.md) (Phase 10) — SHIPPED 2026-01-12
 - ✅ **v2.5 Architecture & Independence** — Phases 11-18 (shipped 2026-02-14)
 - ✅ **v3.0 Smart Features & Developer Intelligence** — Phases 19-25 (shipped 2026-02-17)
+- 🚧 **v3.1 Database Snapshots** — Phases 26-31 (in progress)
 
 ## Completed Milestones
 
@@ -74,89 +75,84 @@ None
 
 </details>
 
-### ✅ v3.0 Smart Features & Developer Intelligence (Shipped 2026-02-17)
+<details>
+<summary>v3.0 Smart Features & Developer Intelligence (Phases 19-25) — SHIPPED 2026-02-17</summary>
 
-**Milestone Goal:** Add intelligent features that differentiate Checkpoint from generic backup tools — AI coding tool awareness, smart scheduling, proactive storage management, backup diffing, encryption, container support, and a powerful search/browse CLI.
+**Delivered:** AI coding tool awareness, smart scheduling, proactive storage management, backup diffing, encryption, container support, and search/browse CLI.
 
-#### Phase 19: AI Tool Artifact Backup
+- [x] **Phase 19: AI Tool Artifact Backup** (1/1 plans) — 2026-02-16
+- [x] **Phase 20: Cron-Style Scheduling** (2/2 plans) — 2026-02-16
+- [x] **Phase 21: Storage Usage Warnings** (2/2 plans) — 2026-02-16
+- [x] **Phase 22: Checkpoint Diff Command** (2/2 plans) — 2026-02-16
+- [x] **Phase 23: Encryption at Rest** (3/3 plans) — 2026-02-16
+- [x] **Phase 24: Docker Volume Backup** (2/2 plans) — 2026-02-17
+- [x] **Phase 25: Backup Search & Browse CLI** (2/2 plans) — 2026-02-17
 
-**Goal**: Automatically detect and include AI coding tool directories (.claude/, .cursor/, .aider*, .windsurf/) in backups, even when gitignored; preserve session transcripts, project memory, and tool configs across sessions
+</details>
+
+### 🚧 v3.1 Database Snapshots (In Progress)
+
+**Milestone Goal:** Named, per-table database snapshots with schema-aware restore. Camera button on dashboard for one-click capture, selective table restore with schema compatibility checking, and download bundle with LLM prompt for schema mismatches.
+
+#### Phase 26: Snapshot Core Library
+
+**Goal**: Per-table dump and schema extraction for all 4 DB types (SQLite, PostgreSQL, MySQL, MongoDB); manifest.json generation; storage layout in `snapshots/` directory under project backups
 **Depends on**: Previous milestone complete
-**Research**: Likely (AI tool directory structures, which files are ephemeral vs persistent, gitignore override patterns in rsync)
-**Research topics**: Claude Code .claude/ structure, Cursor .cursor/ contents, Aider file patterns, Windsurf .windsurf/ layout, rsync --include override for gitignored paths
+**Research**: Unlikely (extends existing database-detector.sh patterns with per-table flags)
 **Plans**: TBD
 
 Plans:
-- [x] 19-01: AI Tool Artifact Backup — config, detection, status display
+- [ ] 26-01: TBD (run /gsd:plan-phase 26 to break down)
 
-#### Phase 20: Cron-Style Scheduling
+#### Phase 27: Snapshot CLI Commands
 
-**Goal**: Replace flat BACKUP_INTERVAL seconds with cron-like expressions supporting work-hours-only, weekday/weekend differentiation, and time-of-day awareness
-**Depends on**: Phase 19
-**Research**: Unlikely (cron expression parsing is well-documented; internal daemon scheduling logic)
+**Goal**: `checkpoint snapshot save "name"`, `checkpoint snapshot list`, `checkpoint snapshot delete "name"` bash commands with interactive name prompt and table enumeration
+**Depends on**: Phase 26
+**Research**: Unlikely (follows existing CLI patterns in checkpoint.sh)
 **Plans**: TBD
 
 Plans:
-- [x] 20-01: Scheduling Library (TDD) — cron parser, matcher, presets, validation, next-match
-- [x] 20-02: Config & Integration — config wiring, daemon/watcher integration, status display
+- [ ] 27-01: TBD
 
-#### Phase 21: Storage Usage Warnings
+#### Phase 28: Schema Comparison Engine
 
-**Goal**: Pre-backup disk space checks on destination volume; warn via notification when approaching capacity; show per-project storage consumption; suggest cleanup actions
-**Depends on**: Phase 20
-**Research**: Unlikely (df command, existing notification infrastructure)
+**Goal**: Compare snapshot schema vs live database; detect added/removed/changed columns per table; generate human-readable diff report; produce LLM prompt bundle with old schema, new schema, and sample data for AI-assisted migration
+**Depends on**: Phase 27
+**Research**: Unlikely (SQL schema extraction already used in Phase 26; diff logic is string comparison)
 **Plans**: TBD
 
 Plans:
-- [x] 21-01: Storage Monitoring Library & Config — storage-monitor.sh, STORAGE_* config wiring
-- [x] 21-02: Pipeline Integration & Status Display — pre-backup gate check, checkpoint status
+- [ ] 28-01: TBD
 
-#### Phase 22: Checkpoint Diff Command
+#### Phase 29: Selective Table Restore
 
-**Goal**: New `checkpoint diff` CLI command to compare backup snapshots — show files added/modified/deleted between any two points in time; support current-vs-backup and backup-vs-backup comparisons
-**Depends on**: Phase 21
-**Research**: Unlikely (diff/rsync dry-run patterns, existing archived file structure)
+**Goal**: Per-table restore with safety pre-dump; schema-match path restores directly with confirmation modal; schema-mismatch path generates download bundle (SQL dumps + schema diff + llm-prompt.md); handles all 4 DB types
+**Depends on**: Phase 28
+**Research**: Unlikely (extends existing restore.sh with per-table restore commands)
 **Plans**: TBD
 
 Plans:
-- [x] 22-01: Core Diff Library — extract_timestamp fix, centralized excludes, backup-diff.sh
-- [x] 22-02: CLI Commands & Tests — checkpoint-diff.sh, checkpoint.sh routing, unit tests
+- [ ] 29-01: TBD
 
-#### Phase 23: Encryption at Rest
+#### Phase 30: Dashboard Snapshot UI
 
-**Goal**: Optional encryption of backup files using age (modern, simple alternative to GPG); encrypt after compression, decrypt on restore; single keypair per user stored in ~/.config/checkpoint/; works transparently with cloud sync
-**Depends on**: Phase 22
-**Research**: Likely (age CLI integration, key management patterns, encrypt-then-compress vs compress-then-encrypt)
-**Research topics**: age encryption CLI, key generation and storage, streaming encryption for large files, integration with existing gzip pipeline
+**Goal**: SwiftUI camera button in toolbar; name input modal; snapshot list view with dates and table counts; table picker checklist for selective restore; confirmation modal ("will overwrite, safety backup created first"); schema warning modal with download bundle option
+**Depends on**: Phase 29
+**Research**: Unlikely (extends existing SwiftUI dashboard patterns)
 **Plans**: TBD
 
 Plans:
-- [x] 23-01: Encryption Library & Config — encryption.sh, config wiring, checkpoint encrypt CLI
-- [x] 23-02: Backup Pipeline Encryption — cloud folder post-sync encryption in backup-now.sh
-- [x] 23-03: Restore & Discovery Adaptation — .age handling in restore, discovery, verification, diff
+- [ ] 30-01: TBD
 
-#### Phase 24: Docker Volume Backup
+#### Phase 31: Cloud Sync & Integration
 
-**Goal**: Detect docker-compose.yml in projects; identify named volumes; export volume data alongside regular file backups; restore volumes on demand
-**Depends on**: Phase 23
-**Research**: Likely (docker volume export methods, compose file parsing in bash, volume mount strategies)
-**Research topics**: docker run --rm volume export patterns, docker-compose.yml parsing for volume names, handling running vs stopped containers
+**Goal**: Verify snapshots sync via existing rclone/cloud folder pipeline; encryption support for snapshot files via age; `checkpoint snapshot` routing in main CLI; update `checkpoint status` to show snapshot count
+**Depends on**: Phase 30
+**Research**: Unlikely (existing cloud sync and encryption infrastructure)
 **Plans**: TBD
 
 Plans:
-- [x] 24-01: Docker Volumes Library — docker-volumes.sh, config wiring
-- [x] 24-02: Pipeline Integration & CLI — backup-now.sh integration, checkpoint docker-volumes command
-
-#### Phase 25: Backup Search & Browse CLI
-
-**Goal**: New CLI commands: `checkpoint browse` for interactive backup file browser, `checkpoint search` to grep across backup snapshots, `checkpoint history <file>` to show all versions of a specific file with timestamps
-**Depends on**: Phase 24
-**Research**: Unlikely (existing backup directory structure, fzf/select patterns for interactive browsing)
-**Plans**: TBD
-
-Plans:
-- [x] 25-01: Search & Browse CLI — checkpoint-search.sh with search and browse modes
-- [x] 25-02: History Interactive + Routing — fzf history upgrade, checkpoint.sh wiring
+- [ ] 31-01: TBD
 
 ## Progress
 
@@ -187,3 +183,9 @@ Plans:
 | 23. Encryption at Rest | v3.0 | 3/3 | Complete | 2026-02-16 |
 | 24. Docker Volume Backup | v3.0 | 2/2 | Complete | 2026-02-17 |
 | 25. Backup Search & Browse CLI | v3.0 | 2/2 | Complete | 2026-02-17 |
+| 26. Snapshot Core Library | v3.1 | 0/? | Not started | - |
+| 27. Snapshot CLI Commands | v3.1 | 0/? | Not started | - |
+| 28. Schema Comparison Engine | v3.1 | 0/? | Not started | - |
+| 29. Selective Table Restore | v3.1 | 0/? | Not started | - |
+| 30. Dashboard Snapshot UI | v3.1 | 0/? | Not started | - |
+| 31. Cloud Sync & Integration | v3.1 | 0/? | Not started | - |

@@ -2081,6 +2081,18 @@ RCLONE_FILTER
             fi
         fi
 
+        # Upload snapshots (named database snapshots)
+        _snapshots_dir="${BACKUP_DIR:-$PROJECT_DIR/backups}/snapshots"
+        if [[ -d "$_snapshots_dir" ]] && [[ -n "$(ls -A "$_snapshots_dir" 2>/dev/null)" ]]; then
+            if rclone sync "$_snapshots_dir/" "$rclone_dest/snapshots/" --checksum --log-level INFO --log-file "${_CHECKPOINT_LOG_FILE:-/dev/null}" 2>>"${_CHECKPOINT_LOG_FILE:-/dev/null}"; then
+                cli_info "   Snapshots uploaded"
+                log_info "rclone: snapshots uploaded"
+            else
+                cli_warn "   Snapshot upload failed"
+                log_warn "rclone: snapshot upload failed"
+            fi
+        fi
+
         # Upload state file (for cross-computer portability)
         portable_state="${BACKUP_DIR:-$PROJECT_DIR/backups}/.checkpoint-state.json"
         if [[ -f "$portable_state" ]]; then
