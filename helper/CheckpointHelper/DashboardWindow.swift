@@ -2006,39 +2006,40 @@ class CloudBrowseViewModel: ObservableObject {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
-    /// Run `checkpoint snapshot <args>` in a project directory and return stdout
-    func runCheckpointSnapshot(_ args: [String], inDirectory: String? = nil) -> String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let possiblePaths = [
-            "\(home)/.local/bin/checkpoint",
-            "/usr/local/bin/checkpoint"
-        ]
-        guard let command = possiblePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
-            return ""
-        }
+}
 
-        let task = Process()
-        task.launchPath = command
-        task.arguments = ["snapshot"] + args
-        if let dir = inDirectory {
-            task.currentDirectoryURL = URL(fileURLWithPath: dir)
-        }
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = Pipe()
-
-        do {
-            try task.run()
-        } catch {
-            NSLog("CheckpointHelper: snapshot command failed: %@", error.localizedDescription)
-            return ""
-        }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        task.waitUntilExit()
-
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+/// Run `checkpoint snapshot <args>` in a project directory and return stdout
+func runCheckpointSnapshot(_ args: [String], inDirectory: String? = nil) -> String {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    let possiblePaths = [
+        "\(home)/.local/bin/checkpoint",
+        "/usr/local/bin/checkpoint"
+    ]
+    guard let command = possiblePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+        return ""
     }
+
+    let task = Process()
+    task.launchPath = command
+    task.arguments = ["snapshot"] + args
+    if let dir = inDirectory {
+        task.currentDirectoryURL = URL(fileURLWithPath: dir)
+    }
+    let pipe = Pipe()
+    task.standardOutput = pipe
+    task.standardError = Pipe()
+
+    do {
+        try task.run()
+    } catch {
+        NSLog("CheckpointHelper: snapshot command failed: %@", error.localizedDescription)
+        return ""
+    }
+
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    task.waitUntilExit()
+
+    return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 }
 
 // MARK: - Cloud Data Models
@@ -3808,8 +3809,8 @@ struct SnapshotView: View {
                 .padding(.bottom, 8)
             }
         }
-        .frame(width: 460, minHeight: 300)
-        .background(Color.cpBackground)
+        .frame(width: 460, height: 480)
+        .background(Color.cpBg)
         .onAppear { loadSnapshots() }
         .alert("Restore Snapshot", isPresented: $showingRestoreConfirm) {
             Button("Cancel", role: .cancel) { restoreTarget = nil }
@@ -3879,7 +3880,7 @@ struct SnapshotView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.cpCardBackground)
+        .background(Color.cpSurface)
         .cornerRadius(6)
     }
 
@@ -3889,8 +3890,7 @@ struct SnapshotView: View {
         guard let project = selectedProject else { return }
         isLoading = true
         DispatchQueue.global(qos: .userInitiated).async {
-            let vm = DashboardViewModel()
-            let output = vm.runCheckpointSnapshot(["list", "--json"], inDirectory: project.path)
+            let output = runCheckpointSnapshot(["list", "--json"], inDirectory: project.path)
             let parsed = parseSnapshotJSON(output)
             DispatchQueue.main.async {
                 self.snapshots = parsed
@@ -3906,8 +3906,7 @@ struct SnapshotView: View {
         isSaving = true
         statusMessage = "Creating snapshot '\(name)'..."
         DispatchQueue.global(qos: .userInitiated).async {
-            let vm = DashboardViewModel()
-            let output = vm.runCheckpointSnapshot(["save", name], inDirectory: project.path)
+            let output = runCheckpointSnapshot(["save", name], inDirectory: project.path)
             DispatchQueue.main.async {
                 self.isSaving = false
                 if output.contains("created") || output.contains("✅") {
@@ -3925,8 +3924,7 @@ struct SnapshotView: View {
         guard let project = selectedProject else { return }
         statusMessage = "Restoring '\(snap.name)'..."
         DispatchQueue.global(qos: .userInitiated).async {
-            let vm = DashboardViewModel()
-            let output = vm.runCheckpointSnapshot(["restore", snap.name, "--force"], inDirectory: project.path)
+            let output = runCheckpointSnapshot(["restore", snap.name, "--force"], inDirectory: project.path)
             DispatchQueue.main.async {
                 self.restoreTarget = nil
                 if output.contains("Restored") || output.contains("✅") {
@@ -3944,8 +3942,7 @@ struct SnapshotView: View {
         guard let project = selectedProject else { return }
         statusMessage = "Deleting '\(snap.name)'..."
         DispatchQueue.global(qos: .userInitiated).async {
-            let vm = DashboardViewModel()
-            let _ = vm.runCheckpointSnapshot(["delete", snap.name, "--force"], inDirectory: project.path)
+            let _ = runCheckpointSnapshot(["delete", snap.name, "--force"], inDirectory: project.path)
             DispatchQueue.main.async {
                 self.deleteTarget = nil
                 self.statusMessage = "Deleted '\(snap.name)'"
