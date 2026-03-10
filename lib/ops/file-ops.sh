@@ -299,13 +299,13 @@ get_backup_disk_usage() {
 }
 
 # Check if disk space is critically low
-# Returns: 0 if OK, 1 if warning (>80%), 2 if critical (>90%)
+# Returns: 0 if OK, 1 if warning (>95%), 2 if critical (>98%)
 check_disk_space() {
     local usage=$(get_backup_disk_usage)
 
-    if [ $usage -ge 90 ]; then
+    if [ $usage -ge 98 ]; then
         return 2
-    elif [ $usage -ge 80 ]; then
+    elif [ $usage -ge 95 ]; then
         return 1
     fi
 

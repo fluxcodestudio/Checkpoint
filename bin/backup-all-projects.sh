@@ -131,50 +131,89 @@ PEOF
     mv "$tmp_file" "$PROGRESS_HEARTBEAT_FILE"
 }
 
-# Backup each project
+# ==============================================================================
+# TWO-PASS DOCKER STRATEGY
+# ==============================================================================
+# Pass 1: Scan projects for Docker compose files. If found and Docker isn't
+#          running, start Docker in background. Back up non-Docker projects
+#          first while Docker boots (~30-60s).
+# Pass 2: Back up Docker projects last (Docker is ready by then).
+# Cleanup: If we started Docker, shut it down after all backups complete.
+
+# Quick scan: check for docker-compose files (doesn't need Docker running)
+has_docker_compose() {
+    local dir="$1"
+    for f in "docker-compose.yml" "docker-compose.yaml" "compose.yml" "compose.yaml"; do
+        [[ -f "$dir/$f" ]] && return 0
+    done
+    find "$dir" -maxdepth 2 -type f \( -name "docker-compose.yml" -o -name "docker-compose.yaml" \
+        -o -name "compose.yml" -o -name "compose.yaml" \) \
+        -not -path "*/node_modules/*" -not -path "*/.git/*" 2>/dev/null | grep -q . 2>/dev/null
+}
+
+# Classify projects into standard vs Docker
+docker_projects=()
+non_docker_projects=()
 while IFS= read -r project_path; do
-    if [[ -z "$project_path" ]]; then
-        continue
+    [[ -z "$project_path" ]] && continue
+    [[ ! -d "$project_path" ]] && continue
+    if has_docker_compose "$project_path"; then
+        docker_projects+=("$project_path")
+    else
+        non_docker_projects+=("$project_path")
     fi
+done < <(list_projects)
+
+daemon_log "Projects: ${#non_docker_projects[@]} standard, ${#docker_projects[@]} with Docker"
+
+# Pre-start Docker if needed (boots in background while we back up standard projects)
+_docker_started_by_us=false
+if [[ ${#docker_projects[@]} -gt 0 ]] && ! is_docker_running; then
+    if [[ "${AUTO_START_DOCKER:-true}" == "true" ]]; then
+        daemon_log "🐳 Starting Docker Desktop (will back up Docker projects last)..."
+        open -a Docker 2>/dev/null || true
+        _docker_started_by_us=true
+    fi
+fi
+
+# Helper: back up a single project
+backup_one_project() {
+    local project_path="$1"
 
     ((project_index++)) || true
+    local project_name
     project_name="$(basename "$project_path")"
     log_set_context "all-projects:$project_name"
 
-    # Write progress heartbeat BEFORE starting this project
     write_progress_heartbeat "$project_name"
 
     daemon_log "─────────────────────────────────────────────"
     daemon_log "Project: $project_name"
     daemon_log "Path: $project_path"
 
-    # Check if project directory exists
     if [[ ! -d "$project_path" ]]; then
         daemon_log "  ⚠️  Directory not found - skipping"
         ((skipped++)) || true
         write_progress_heartbeat "$project_name"
-        continue
+        return
     fi
 
-    # Check if config exists
     if [[ ! -f "$project_path/.backup-config.sh" ]]; then
         daemon_log "  ⚠️  No config found - skipping"
         ((skipped++)) || true
         write_progress_heartbeat "$project_name"
-        continue
+        return
     fi
 
-    # Run backup for this project
     daemon_log "  🚀 Running backup..."
 
-    # Use backup-now --force or backup-daemon depending on force flag
+    local backup_cmd
     if [[ "$FORCE_BACKUP" == "true" ]]; then
         backup_cmd="$SCRIPT_DIR/backup-now.sh --force"
     else
         backup_cmd="$SCRIPT_DIR/backup-daemon.sh"
     fi
 
-    # Export sync progress so backup-daemon.sh can include it in heartbeats
     export CHECKPOINT_SYNC_INDEX="$project_index"
     export CHECKPOINT_SYNC_TOTAL="$project_count"
     export CHECKPOINT_SYNC_PROJECT="$project_name"
@@ -185,11 +224,9 @@ while IFS= read -r project_path; do
     if (cd "$project_path" && $backup_cmd 2>&1); then
         daemon_log "  ✅ Backup complete"
         ((backed_up++)) || true
-
-        # Update last backup in registry
         update_last_backup "$project_path"
     else
-        exit_code=$?
+        local exit_code=$?
         if [[ $exit_code -eq 0 ]]; then
             daemon_log "  ✅ Backup complete (with warnings)"
             ((backed_up++)) || true
@@ -199,13 +236,44 @@ while IFS= read -r project_path; do
         fi
     fi
 
-    # Write progress heartbeat AFTER this project completes
     write_progress_heartbeat "$project_name"
+}
 
-done < <(list_projects)
+# PASS 1: Standard projects (while Docker boots in background)
+if [[ ${#non_docker_projects[@]} -gt 0 ]]; then
+    daemon_log "── Pass 1: Standard projects ──────────────────"
+    for project_path in "${non_docker_projects[@]}"; do
+        backup_one_project "$project_path"
+    done
+fi
+
+# PASS 2: Docker projects (Docker should be ready by now)
+if [[ ${#docker_projects[@]} -gt 0 ]]; then
+    daemon_log "── Pass 2: Docker projects ────────────────────"
+
+    if [[ "$_docker_started_by_us" == "true" ]] && ! is_docker_running; then
+        daemon_log "  ⏳ Waiting for Docker Desktop..."
+        _wait=0
+        while ! is_docker_running && [[ $_wait -lt 90 ]]; do
+            sleep 3
+            _wait=$((_wait + 3))
+        done
+        if is_docker_running; then
+            daemon_log "  ✓ Docker ready (${_wait}s)"
+            mkdir -p "$CHECKPOINT_CACHE_DIR" 2>/dev/null || true
+            [[ ! -L "$CHECKPOINT_DOCKER_FLAG" ]] && touch "$CHECKPOINT_DOCKER_FLAG"
+        else
+            daemon_log "  ⚠ Docker failed to start — Docker DB dumps will be skipped"
+        fi
+    fi
+
+    for project_path in "${docker_projects[@]}"; do
+        backup_one_project "$project_path"
+    done
+fi
 
 # Cleanup: Stop Docker if we started it (only after ALL backups complete)
-if did_we_start_docker; then
+if [[ "$_docker_started_by_us" == "true" ]] || did_we_start_docker; then
     daemon_log "🐳 Cleaning up Docker..."
     stop_docker
 fi

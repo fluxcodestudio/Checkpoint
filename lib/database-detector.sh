@@ -806,6 +806,25 @@ detect_docker_databases() {
     printf '%s\n' "${databases[@]}"
 }
 
+# Cached Docker availability — checked once per backup cycle (not per project)
+# Avoids 5s timeout per project when Docker Desktop is not running
+# Set _DOCKER_AVAILABLE_CACHED="" to reset (e.g. at start of backup-all cycle)
+_DOCKER_AVAILABLE_CACHED=""
+
+is_docker_available_cached() {
+    if [[ -n "$_DOCKER_AVAILABLE_CACHED" ]]; then
+        [[ "$_DOCKER_AVAILABLE_CACHED" == "yes" ]]
+        return $?
+    fi
+    if is_docker_running; then
+        _DOCKER_AVAILABLE_CACHED="yes"
+        return 0
+    else
+        _DOCKER_AVAILABLE_CACHED="no"
+        return 1
+    fi
+}
+
 # Check if Docker is running (with timeout to prevent hanging)
 is_docker_running() {
     # Use timeout if available (prevents hanging when Docker is starting)
@@ -1456,13 +1475,14 @@ backup_single_database() {
                 return 1
             fi
 
-            # Start Docker if needed
-            if ! is_docker_running; then
+            # Fast-check Docker availability (cached per backup cycle)
+            if ! is_docker_available_cached; then
                 if [[ "${AUTO_START_DOCKER:-true}" == "true" ]]; then
                     start_docker || {
                         echo "⊘ Docker/$db_type: $database (Docker not available)"
                         return 0
                     }
+                    _DOCKER_AVAILABLE_CACHED="yes"
                 else
                     echo "⊘ Docker/$db_type: $database (Docker not running)"
                     return 0

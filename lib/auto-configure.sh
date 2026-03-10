@@ -93,6 +93,12 @@ PROJECT_INDICATORS=(
     "Podfile"
     "stack.yaml"
     "tsconfig.json"
+    "Justfile"
+    "flake.nix"
+    "WORKSPACE"
+    "BUILD.bazel"
+    "Taskfile.yml"
+    "meson.build"
 )
 
 # Directories to skip during scanning

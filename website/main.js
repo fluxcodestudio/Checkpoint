@@ -7,6 +7,70 @@
     'use strict';
 
     // ==========================================
+    // GA4 EVENT TRACKING
+    // ==========================================
+    function trackEvent(action, category, label, value) {
+        if (typeof gtag === 'function') {
+            var params = { event_category: category };
+            if (label) params.event_label = label;
+            if (value) params.value = value;
+            gtag('event', action, params);
+        }
+    }
+
+    // Download ZIP click
+    var downloadBtn = document.querySelector('a[href*="archive/refs/heads/main.zip"]');
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', function () {
+            trackEvent('download', 'engagement', 'zip_download');
+        });
+    }
+
+    // Hero CTA click (Download Free → #download)
+    var heroCta = document.querySelector('a.btn-primary[href="#download"]');
+    if (heroCta) {
+        heroCta.addEventListener('click', function () {
+            trackEvent('cta_click', 'engagement', 'hero_download_free');
+        });
+    }
+
+    // Outbound link tracking (GitHub, external)
+    document.addEventListener('click', function (e) {
+        var link = e.target.closest('a[href^="http"]');
+        if (link && link.hostname !== window.location.hostname) {
+            trackEvent('outbound_click', 'engagement', link.href);
+        }
+    });
+
+    // Scroll depth milestones (25%, 50%, 75%, 100%)
+    var scrollMarks = {};
+    window.addEventListener('scroll', function () {
+        var pct = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100);
+        [25, 50, 75, 100].forEach(function (mark) {
+            if (pct >= mark && !scrollMarks[mark]) {
+                scrollMarks[mark] = true;
+                trackEvent('scroll_depth', 'engagement', mark + '%');
+            }
+        });
+    }, { passive: true });
+
+    // Section visibility tracking (key sections on index.html)
+    if (typeof IntersectionObserver !== 'undefined') {
+        var trackedSections = {};
+        var sectionObserver = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting && !trackedSections[entry.target.id]) {
+                    trackedSections[entry.target.id] = true;
+                    trackEvent('section_view', 'engagement', entry.target.id);
+                }
+            });
+        }, { threshold: 0.3 });
+        document.querySelectorAll('section[id]').forEach(function (s) {
+            sectionObserver.observe(s);
+        });
+    }
+
+    // ==========================================
     // NAV TOGGLE (all pages)
     // ==========================================
     var navToggle = document.querySelector('.nav-toggle');
@@ -94,6 +158,7 @@
         copyBtn.addEventListener('click', function () {
             var btn = this;
             navigator.clipboard.writeText('git clone https://github.com/fluxcodestudio/Checkpoint.git');
+            trackEvent('copy_clone_command', 'engagement', 'git_clone');
             btn.textContent = 'Copied!';
             setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
         });
@@ -127,6 +192,7 @@
     function openContactModal() {
         document.getElementById('contactModal').classList.add('active');
         document.body.style.overflow = 'hidden';
+        trackEvent('modal_open', 'engagement', 'contact');
     }
 
     function closeContactModal() {
@@ -175,6 +241,7 @@
             headers: { 'Accept': 'application/json' }
         }).then(function (response) {
             if (response.ok) {
+                trackEvent('contact_form_submit', 'conversion', 'contact');
                 var success = document.createElement('div');
                 success.className = 'form-success';
                 success.textContent = "Message sent! We'll get back to you soon.";
@@ -196,6 +263,7 @@
     function openNewsletterModal() {
         document.getElementById('newsletterModal').classList.add('active');
         document.body.style.overflow = 'hidden';
+        trackEvent('modal_open', 'engagement', 'newsletter');
     }
 
     function closeNewsletterModal() {
@@ -226,6 +294,7 @@
             mode: 'no-cors' // Sendy may not have CORS headers
         }).then(function () {
             // Show success (we can't read response with no-cors)
+            trackEvent('newsletter_signup', 'conversion', 'newsletter');
             var success = document.createElement('div');
             success.className = 'form-success';
             success.textContent = "You're in! Check your email to confirm.";

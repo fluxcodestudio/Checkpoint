@@ -75,9 +75,9 @@ discover_project_volumes() {
         return 1
     fi
 
-    # Check Docker is running (reuse is_docker_running if available, else inline)
-    if type is_docker_running &>/dev/null; then
-        if ! is_docker_running; then
+    # Check Docker is running (use cached check if available, else direct check)
+    if type is_docker_available_cached &>/dev/null; then
+        if ! is_docker_available_cached; then
             if type log_warn &>/dev/null; then
                 log_warn "Docker is not running"
             fi
