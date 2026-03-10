@@ -39,14 +39,42 @@ fi
 # ==============================================================================
 
 # Get backup age in seconds for a project
+# Uses BOTH the registry timestamp (updated every successful cycle) AND
+# the newest backup file on disk, returning whichever is more recent.
+# This prevents false staleness alerts when a backup cycle runs but
+# produces no new files (no changes detected in the project).
 # Args: $1 = project path
 # Returns: age in seconds, or -1 if never backed up
 get_project_backup_age() {
     local project_path="$1"
+    local now
+    now=$(date +%s)
+    local best_time=0
+
+    # Source 1: Registry last_backup timestamp (updated every successful cycle)
+    if command -v python3 &>/dev/null && [[ -f "${REGISTRY_FILE:-$HOME/.config/checkpoint/projects.json}" ]]; then
+        local registry_time
+        registry_time=$(python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    for p in data.get('projects', []):
+        if p['path'] == sys.argv[2]:
+            print(p.get('last_backup', 0))
+            sys.exit(0)
+    print(0)
+except: print(0)
+" "${REGISTRY_FILE:-$HOME/.config/checkpoint/projects.json}" "$project_path" 2>/dev/null)
+        registry_time="${registry_time//[^0-9]/}"  # Strip non-numeric chars
+        if [[ -n "$registry_time" ]] && [[ "$registry_time" -gt "$best_time" ]]; then
+            best_time=$registry_time
+        fi
+    fi
+
+    # Source 2: Newest backup file on disk
     local config_file="$project_path/.backup-config.sh"
     local backup_dir
-
-    # Get backup directory from config
     if [[ -f "$config_file" ]]; then
         backup_dir=$(
             source "$config_file" 2>/dev/null
@@ -56,38 +84,33 @@ get_project_backup_age() {
         backup_dir="$project_path/backups"
     fi
 
-    if [[ ! -d "$backup_dir" ]]; then
-        echo "-1"
-        return
+    if [[ -d "$backup_dir" ]]; then
+        local last_file
+        last_file=$(find "$backup_dir" -type f \( -name "*.gz" -o -name "*.tar" -o -name "*.sql" \) -print0 2>/dev/null |
+                    xargs -0 ls -t 2>/dev/null | head -1)
+        if [[ -n "$last_file" ]]; then
+            local file_time
+            file_time=$(get_file_mtime "$last_file")
+            file_time="${file_time//[^0-9]/}"  # Strip non-numeric chars
+            if [[ -n "$file_time" ]] && [[ "$file_time" -gt "$best_time" ]]; then
+                best_time=$file_time
+            fi
+        fi
     fi
 
-    # Find most recent backup file
-    local last_file
-    last_file=$(find "$backup_dir" -type f \( -name "*.gz" -o -name "*.tar" -o -name "*.sql" \) -print0 2>/dev/null |
-                xargs -0 ls -t 2>/dev/null | head -1)
-
-    if [[ -z "$last_file" ]]; then
+    if [[ "$best_time" -eq 0 ]]; then
         echo "-1"
-        return
+    else
+        echo $((now - best_time))
     fi
-
-    # Get file modification time
-    local file_time
-    file_time=$(get_file_mtime "$last_file")
-
-    if [[ -z "$file_time" ]]; then
-        echo "-1"
-        return
-    fi
-
-    # Calculate age
-    local now=$(date +%s)
-    echo $((now - file_time))
 }
 
-# Check for errors in project's backup log
+# Check for critical errors in project's backup log
+# Only flags true errors: backup script crashes or explicit FATAL/CRITICAL markers.
+# Ignores sub-component warnings (e.g. optional DB dump failures when Docker is off)
+# since the file backup itself may have succeeded.
 # Args: $1 = project path
-# Returns: 0 if errors found, 1 if no errors
+# Returns: 0 if critical errors found, 1 if no critical errors
 has_project_errors() {
     local project_path="$1"
     local config_file="$project_path/.backup-config.sh"
@@ -105,13 +128,19 @@ has_project_errors() {
     local log_file="$backup_dir/backup.log"
 
     if [[ -f "$log_file" ]]; then
-        # Check last 20 lines for errors
-        if tail -20 "$log_file" 2>/dev/null | grep -qi "error\|fail"; then
-            return 0  # Has errors
+        # Only check checkpoint's own log lines (prefixed with timestamp brackets)
+        # for critical failures. Ignore interleaved stderr from sub-processes
+        # like pg_dump which write "error:" lines when Docker is off.
+        local last_checkpoint_line
+        last_checkpoint_line=$(grep '^\[' "$log_file" 2>/dev/null | tail -1)
+        if [[ -n "$last_checkpoint_line" ]]; then
+            if echo "$last_checkpoint_line" | grep -qi "FATAL\|CRITICAL\|backup failed\|exit code"; then
+                return 0  # Has critical errors
+            fi
         fi
     fi
 
-    return 1  # No errors
+    return 1  # No critical errors
 }
 
 # Get health status for a single project
