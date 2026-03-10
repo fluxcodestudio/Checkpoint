@@ -20,9 +20,9 @@ BUILD_DIR="$SCRIPT_DIR/build"
 APP_NAME="CheckpointHelper"
 OUTPUT_APP="$SCRIPT_DIR/$APP_NAME.app"
 
-# Code signing identity
-DEVELOPER_ID="Developer ID Application: Fluxcode Studio LLC (5L88QV65A9)"
-TEAM_ID="5L88QV65A9"
+# Code signing identity (override via environment variables)
+DEVELOPER_ID="${CHECKPOINT_DEVELOPER_ID:-Developer ID Application: Fluxcode Studio LLC (${CHECKPOINT_TEAM_ID:-5L88QV65A9})}"
+TEAM_ID="${CHECKPOINT_TEAM_ID:-5L88QV65A9}"
 BUNDLE_ID="com.checkpoint.helper"
 ENTITLEMENTS="$SOURCE_DIR/CheckpointHelper.entitlements"
 

@@ -64,6 +64,13 @@ FILE_MAP.md
 SCOPE_LOCK.md
 CONTEXT_DIGEST.md
 
+# Helper app build artifacts
+helper/*.app/
+helper/*.zip
+helper/*.dmg
+helper/build/
+helper/*-notarize.zip
+
 # Internal development docs
 PRE-RELEASE-CHECKLIST.md
 DOCUMENTATION-STATUS.md
