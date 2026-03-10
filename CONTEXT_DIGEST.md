@@ -1,18 +1,18 @@
 # CONTEXT_DIGEST.md
 <!-- Auto-updated by Superstack. Run: superstack digest -->
-<!-- Last updated: 2026-02-22T00:33:50Z -->
+<!-- Last updated: 2026-03-10T15:12:00Z -->
 
 ## Current State
-- GSD: Phase 25 of 25 (Backup Search & Browse CLI) (Phase complete)
+- GSD: Phase 26 of 31 (Snapshot Core Library) (Ready to plan)
 - Pending: 3 task(s) in TODO.md
 
 ## Recent Changes
-- Modified: claude/skills/backup-pause/run.sh
-- Modified: CONTEXT_DIGEST.md
-- Modified: README.md
-- feat: float-on-top setting, orange sync icon, green flash on completion, no auto-open dashboard (566e344)
-- fix: database detector edge cases — dedup, sanitization, MongoDB no-auth URLs (a97e620)
-- chore: update installers with new CLI commands, schedule presets, and dashboard features (65b6105)
+- Modified: ONTEXT_DIGEST.md
+- Modified: website/Dashboard.png
+- Untracked: .claude/phase-fsm.json
+- chore: sanitize repo for public use (9d3396c)
+- docs: update README with two-pass Docker backup, new FAQ entries (2194ff4)
+- feat: two-pass Docker backup, GA4 analytics, backup reliability fixes (b20995f)
 
 ## Open Threads
 - (none detected)
