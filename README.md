@@ -59,7 +59,18 @@ Checkpoint handles all of this: automatic hourly backups of files + databases, e
 - Menu bar reorder — backup actions on top, window controls below
 - Fix: prevent CheckpointHelper hang on removable volume permission dialog
 
+**Two-Pass Docker Backup**
+- Scans all projects upfront for Docker compose files
+- Starts Docker Desktop in background, backs up non-Docker projects first
+- Docker projects backed up last (Docker ready by then), auto-shuts down Docker when done
+- Cached Docker availability check — no more 5s timeout per project when Docker is off
+
+**Backup Reliability**
+- Disk space warning threshold raised from 80% to 95% (reduces false alarms on large drives)
+- 6 new project indicators: Justfile, flake.nix, WORKSPACE, BUILD.bazel, Taskfile.yml, meson.build
+
 **Website**
+- GA4 analytics with event tracking (downloads, CTAs, scroll depth, forms, outbound links)
 - GDPR consent checkboxes on contact and newsletter forms
 - Accessibility, SEO, LLMO optimization
 - Spam protection: time-based bot detection + honeypot fields
@@ -764,7 +775,7 @@ When you run `checkpoint --auto` or the installer's auto-configure, Checkpoint s
 | Pass | What | Max Depth | How |
 |------|------|-----------|-----|
 | **Git repos** | Directories containing `.git` | 5 levels | `find -name .git` (maxdepth 6 to reach `.git` inside the project) |
-| **Non-git projects** | Directories with project indicators (package.json, Cargo.toml, Dockerfile, etc.) | 4 levels | Checks for 28 file indicators |
+| **Non-git projects** | Directories with project indicators (package.json, Cargo.toml, Dockerfile, Justfile, etc.) | 4 levels | Checks for 34 file indicators |
 | **External volumes** | `/Volumes/*/Developer`, `/Volumes/*/Projects`, `/Volumes/*/Code` | 5 levels | macOS only, git repos |
 | **Desktop/Documents** | `~/Desktop`, `~/Documents` | 5 levels | git repos only |
 
@@ -933,6 +944,12 @@ A: Yes! The CheckpointHelper menu bar app (macOS) provides a dashboard with proj
 
 **Q: Can I change global defaults for all projects?**
 A: Yes. Edit `~/.config/checkpoint/config.sh` or use the Settings button (`⌘,`) in the menu bar app. Per-project settings in `.backup-config.sh` always override globals.
+
+**Q: What happens with Docker databases when Docker Desktop isn't running?**
+A: Checkpoint uses a two-pass strategy. It starts Docker Desktop in the background, backs up all non-Docker projects first (giving Docker time to boot), then backs up Docker projects last. If Docker fails to start within 90 seconds, Docker DB dumps are skipped but file backups still run. Docker is automatically shut down after all backups complete if Checkpoint started it.
+
+**Q: I keep getting stale backup notifications even though backups are running?**
+A: With 40+ projects, a full backup cycle can take 30-60 minutes. Projects not yet reached in the cycle may trigger staleness warnings. The watchdog checks every 5 minutes — once the cycle completes, all warnings clear. If notifications persist, check `~/.config/checkpoint/daemon.log` for errors.
 
 **Q: How do I uninstall?**
 A: Global: `./bin/uninstall-global.sh`. Per-project: `./bin/uninstall.sh`. Backup data is preserved by default.
