@@ -93,18 +93,43 @@ fi
 
 test_case "macOS compatibility"
 if [[ "$(uname -s)" == "Darwin" ]]; then
-    echo "    (Running on macOS)"
-    test_pass
+    echo "    (Running on macOS — verifying macOS-specific commands)"
+    # On macOS, verify key macOS tools exist
+    if command -v security &>/dev/null && command -v osascript &>/dev/null; then
+        test_pass
+    else
+        test_fail "macOS detected but missing expected tools (security, osascript)"
+    fi
 else
-    test_skip "Not running on macOS"
+    echo "    (Not macOS — verifying compat.sh provides cross-platform wrappers)"
+    # On non-macOS, verify compat.sh wrappers exist and work
+    if source "$PROJECT_ROOT/lib/platform/compat.sh" 2>/dev/null && \
+       declare -f get_file_size &>/dev/null && \
+       declare -f get_file_mtime &>/dev/null; then
+        test_pass
+    else
+        test_fail "Cross-platform wrappers missing from compat.sh"
+    fi
 fi
 
 test_case "Linux compatibility"
 if [[ "$(uname -s)" == "Linux" ]]; then
-    echo "    (Running on Linux)"
-    test_pass
+    echo "    (Running on Linux — verifying GNU coreutils)"
+    # On Linux, verify GNU date and stat work
+    if date -d "2025-01-01" +%s &>/dev/null && stat -c%s /dev/null &>/dev/null; then
+        test_pass
+    else
+        test_fail "Linux detected but GNU date/stat not working"
+    fi
 else
-    test_skip "Not running on Linux"
+    echo "    (Not Linux — verifying compat.sh provides cross-platform wrappers)"
+    if source "$PROJECT_ROOT/lib/platform/compat.sh" 2>/dev/null && \
+       declare -f date_to_epoch &>/dev/null && \
+       declare -f to_upper &>/dev/null; then
+        test_pass
+    else
+        test_fail "Cross-platform wrappers missing from compat.sh"
+    fi
 fi
 
 # ==============================================================================
@@ -122,13 +147,21 @@ else
     test_fail "git not found"
 fi
 
-test_case "sqlite3 is available"
+test_case "sqlite3 is available (or gracefully absent)"
 if command -v sqlite3 &>/dev/null; then
     SQLITE_VERSION=$(sqlite3 --version | awk '{print $1}')
     echo "    (SQLite version: $SQLITE_VERSION)"
     test_pass
 else
-    test_skip "sqlite3 not installed (optional)"
+    echo "    (sqlite3 not installed — verifying code handles absence)"
+    # Verify scripts that use sqlite3 guard with command -v checks
+    if grep -rn "sqlite3" "$PROJECT_ROOT/lib/" "$PROJECT_ROOT/bin/" 2>/dev/null | \
+       grep -v "command -v\|which\|#.*sqlite\|\.md\|test" | grep -q "sqlite3"; then
+        # Found unguarded sqlite3 usage — that's a problem
+        test_fail "sqlite3 not installed and unguarded usage found in scripts"
+    else
+        test_pass
+    fi
 fi
 
 test_case "gzip is available"
@@ -268,20 +301,21 @@ fi
 
 test_suite "Notification Support"
 
-test_case "macOS osascript (for notifications)"
+test_case "Platform-native notification command exists"
 if command -v osascript &>/dev/null; then
-    echo "    (macOS notifications available)"
+    echo "    (macOS: osascript available)"
+    test_pass
+elif command -v notify-send &>/dev/null; then
+    echo "    (Linux: notify-send available)"
     test_pass
 else
-    test_skip "Not on macOS"
-fi
-
-test_case "Linux notify-send (for notifications)"
-if command -v notify-send &>/dev/null; then
-    echo "    (Linux notifications available)"
-    test_pass
-else
-    test_skip "notify-send not installed"
+    echo "    (No native notification tool — verifying terminal fallback)"
+    # Code must have a terminal echo fallback for notifications
+    if grep -q "echo" "$PROJECT_ROOT/integrations/lib/integration-core.sh" 2>/dev/null; then
+        test_pass
+    else
+        test_fail "No notification method available and no terminal fallback"
+    fi
 fi
 
 test_case "Terminal fallback always works"

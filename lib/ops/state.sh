@@ -75,10 +75,16 @@ send_notification() {
     fi
 
     # Use osascript for native macOS notifications (no dependencies)
+    # Escape special characters for AppleScript string embedding
+    local _safe_title="${title//\\/\\\\}"
+    _safe_title="${_safe_title//\"/\\\"}"
+    local _safe_message="${message//\\/\\\\}"
+    _safe_message="${_safe_message//\"/\\\"}"
+
     if [[ -n "$sound" ]]; then
-        osascript -e "display notification \"$message\" with title \"$title\" sound name \"$sound\"" 2>/dev/null || true
+        osascript -e "display notification \"$_safe_message\" with title \"$_safe_title\" sound name \"$sound\"" 2>/dev/null || true
     else
-        osascript -e "display notification \"$message\" with title \"$title\"" 2>/dev/null || true
+        osascript -e "display notification \"$_safe_message\" with title \"$_safe_title\"" 2>/dev/null || true
     fi
 }
 
@@ -295,8 +301,11 @@ calculate_severity() {
         fi
     done
 
-    # Calculate failure percentage
-    local failure_percent=$((failed_items * 100 / total_items))
+    # Calculate failure percentage (guard against division by zero)
+    local failure_percent=0
+    if [ "$total_items" -gt 0 ]; then
+        failure_percent=$((failed_items * 100 / total_items))
+    fi
 
     if [ $failure_percent -ge 50 ]; then
         echo "high"  # More than half failed
@@ -345,7 +354,10 @@ get_severity_reason() {
     elif [ $failed_items -lt 5 ]; then
         echo "$failed_items files failed to backup"
     else
-        local failure_percent=$((failed_items * 100 / total_items))
+        local failure_percent=0
+        if [ "$total_items" -gt 0 ]; then
+            failure_percent=$((failed_items * 100 / total_items))
+        fi
         echo "$failure_percent% of files failed to backup"
     fi
 }
@@ -581,10 +593,10 @@ show_backup_failures() {
     echo "Project: ${PROJECT_NAME:-Unknown}"
     echo "Status: $backup_status"
     echo "Failed: $time_ago ($failed_files errors)"
-    if [ "${total_files:-0}" -gt 0 ]; then
+    if [ "${total_files:-0}" -gt 0 ] 2>/dev/null; then
         echo "Success Rate: $succeeded_files/$total_files files ($(( succeeded_files * 100 / total_files ))%)"
     else
-        echo "Success Rate: $succeeded_files/$total_files files"
+        echo "Success Rate: ${succeeded_files:-0}/${total_files:-0} files"
     fi
     echo ""
     echo "Severity: $(echo $severity | tr '[:lower:]' '[:upper:]')"

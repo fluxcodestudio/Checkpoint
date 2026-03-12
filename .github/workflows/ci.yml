@@ -66,6 +66,7 @@ jobs:
             exit 1
           fi
           pass_rate=$(echo "$rate_line" | grep -oE '[0-9]+%' | tr -d '%')
+          pass_rate="${pass_rate:-0}"
           echo "Pass rate: ${pass_rate}%"
           if [ "$pass_rate" -lt 90 ]; then
             echo "::error::Pass rate ${pass_rate}% is below 90% threshold"

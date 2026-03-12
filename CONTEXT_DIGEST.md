@@ -1,18 +1,18 @@
 # CONTEXT_DIGEST.md
 <!-- Auto-updated by Superstack. Run: superstack digest -->
-<!-- Last updated: 2026-03-10T15:12:00Z -->
+<!-- Last updated: 2026-03-11T16:21:40Z -->
 
 ## Current State
 - GSD: Phase 26 of 31 (Snapshot Core Library) (Ready to plan)
 - Pending: 3 task(s) in TODO.md
 
 ## Recent Changes
-- Modified: ONTEXT_DIGEST.md
-- Modified: website/Dashboard.png
-- Untracked: .claude/phase-fsm.json
+- Modified: github/workflows/ci.yml
+- Modified: CONTEXT_DIGEST.md
+- Modified: bin/backup-all-projects.sh
+- chore: update dashboard screenshot and context digest (776830e)
+- fix: eliminate false staleness notifications (b694b51)
 - chore: sanitize repo for public use (9d3396c)
-- docs: update README with two-pass Docker backup, new FAQ entries (2194ff4)
-- feat: two-pass Docker backup, GA4 analytics, backup reliability fixes (b20995f)
 
 ## Open Threads
 - (none detected)

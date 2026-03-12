@@ -178,7 +178,9 @@ _detect_project_database() {
                 ;;
             postgresql|mysql|mongodb)
                 IFS='|' read -r host port db_name user _ _ _ <<< "$rest"
-                echo -e "  ${C_CYAN}$idx.${C_RESET} ${db_type^}: $db_name ($host:$port)" >&2
+                local _db_label
+                _db_label="$(printf '%s' "$db_type" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
+                echo -e "  ${C_CYAN}$idx.${C_RESET} ${_db_label}: $db_name ($host:$port)" >&2
                 ;;
         esac
         db_array+=("$db_info")
@@ -187,7 +189,7 @@ _detect_project_database() {
     echo "" >&2
     local selection
     read -p "  Select database [1-$idx]: " selection
-    if [[ -z "$selection" ]] || [[ "$selection" -lt 1 ]] || [[ "$selection" -gt "$idx" ]]; then
+    if [[ -z "$selection" ]] || ! [[ "$selection" =~ ^[0-9]+$ ]] || [[ "$selection" -lt 1 ]] || [[ "$selection" -gt "$idx" ]]; then
         echo "Invalid selection" >&2
         return 1
     fi

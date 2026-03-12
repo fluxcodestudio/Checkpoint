@@ -482,13 +482,7 @@ list_volume_backups() {
 
         # Get file size (portable)
         local size
-        if stat --version &>/dev/null 2>&1; then
-            # GNU stat
-            size=$(stat --format="%s" "$file" 2>/dev/null)
-        else
-            # BSD stat (macOS)
-            size=$(stat -f "%z" "$file" 2>/dev/null)
-        fi
+        size=$(get_file_size "$file")
 
         # Human-readable size
         local human_size
@@ -508,11 +502,7 @@ list_volume_backups() {
 
         # Get modification date (portable)
         local mod_date
-        if stat --version &>/dev/null 2>&1; then
-            mod_date=$(stat --format="%y" "$file" 2>/dev/null | cut -d' ' -f1)
-        else
-            mod_date=$(stat -f "%Sm" -t "%Y-%m-%d" "$file" 2>/dev/null)
-        fi
+        mod_date=$(epoch_to_date "$(get_file_mtime "$file")" "%Y-%m-%d")
 
         local encrypted=""
         case "$basename" in

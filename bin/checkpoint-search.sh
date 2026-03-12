@@ -191,13 +191,7 @@ timestamp_to_epoch() {
     local ts="$1"
     # ts format: YYYYMMDD_HHMMSS
     local ts_flat="${ts//_/}"
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        date -j -f "%Y%m%d%H%M%S" "$ts_flat" +%s 2>/dev/null || echo "0"
-    else
-        # Linux: parse YYYYMMDDHHMMSS
-        local formatted="${ts_flat:0:4}-${ts_flat:4:2}-${ts_flat:6:2} ${ts_flat:8:2}:${ts_flat:10:2}:${ts_flat:12:2}"
-        date -d "$formatted" +%s 2>/dev/null || echo "0"
-    fi
+    date_to_epoch "%Y%m%d%H%M%S" "$ts_flat" 2>/dev/null || echo "0"
 }
 
 # ==============================================================================

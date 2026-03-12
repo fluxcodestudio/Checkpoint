@@ -73,11 +73,16 @@ SWIFT_FILES=(
     "$SOURCE_DIR/AppDelegate.swift"
 )
 
+# Use a real empty file for the bridging header (not /dev/null, whose mtime
+# can change mid-build and cause PCH staleness errors).
+EMPTY_HEADER="$BUILD_DIR/empty-bridging-header.h"
+touch "$EMPTY_HEADER"
+
 swiftc \
     $SWIFT_FLAGS \
     -sdk $(xcrun --show-sdk-path) \
     -target arm64-apple-macos12.0 \
-    -import-objc-header /dev/null \
+    -import-objc-header "$EMPTY_HEADER" \
     -framework Cocoa \
     -framework SwiftUI \
     -framework UserNotifications \

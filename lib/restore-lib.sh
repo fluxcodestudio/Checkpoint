@@ -48,14 +48,10 @@ parse_time_to_epoch() {
 
     # ISO format: YYYY-MM-DD HH:MM:SS or YYYY-MM-DD
     if [[ "$input" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} ]]; then
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            if [[ "$input" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-                date -j -f "%Y-%m-%d" "$input" "+%s" 2>/dev/null
-            else
-                date -j -f "%Y-%m-%d %H:%M:%S" "$input" "+%s" 2>/dev/null
-            fi
+        if [[ "$input" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            date_to_epoch "%Y-%m-%d" "$input" 2>/dev/null
         else
-            date -d "$input" "+%s" 2>/dev/null
+            date_to_epoch "%Y-%m-%d %H:%M:%S" "$input" 2>/dev/null
         fi
         return $?
     fi
@@ -77,13 +73,14 @@ parse_time_to_epoch() {
         "yesterday "*)
             # "yesterday 3pm" style
             local time_part="${input#yesterday }"
+            local yesterday
             if [[ "$OSTYPE" == "darwin"* ]]; then
-                local yesterday=$(date -v-1d +"%Y-%m-%d")
-                date -j -f "%Y-%m-%d %I%p" "$yesterday $time_part" "+%s" 2>/dev/null || \
-                date -j -f "%Y-%m-%d %H:%M" "$yesterday $time_part" "+%s" 2>/dev/null
+                yesterday=$(date -v-1d +"%Y-%m-%d")
             else
-                date -d "yesterday $time_part" +%s 2>/dev/null
+                yesterday=$(date -d "yesterday" +"%Y-%m-%d")
             fi
+            date_to_epoch "%Y-%m-%d %I%p" "$yesterday $time_part" 2>/dev/null || \
+                date_to_epoch "%Y-%m-%d %H:%M" "$yesterday $time_part" 2>/dev/null
             ;;
         *" ago")
             # "X units ago" style

@@ -446,8 +446,7 @@ cloud_rotate_backups() {
 
         # Parse file date to Unix timestamp
         local file_timestamp
-        file_timestamp=$(date -j -f "%Y-%m-%d %H:%M:%S" "$file_date $file_time" +%s 2>/dev/null || \
-                        date -d "$file_date $file_time" +%s 2>/dev/null || echo "0")
+        file_timestamp=$(date_to_epoch "%Y-%m-%d %H:%M:%S" "$file_date $file_time" 2>/dev/null || echo "0")
 
         if [[ "$file_timestamp" -eq 0 ]]; then
             # Can't parse date, keep the file

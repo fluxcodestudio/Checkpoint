@@ -171,20 +171,12 @@ parse_date_string() {
             ;;
         [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*)
             # ISO format
-            if [[ "$OSTYPE" == "darwin"* ]]; then
-                date -j -f "%Y-%m-%d %H:%M" "$input" +%s 2>/dev/null || \
-                date -j -f "%Y-%m-%d" "$input" +%s 2>/dev/null
-            else
-                date -d "$input" +%s
-            fi
+            date_to_epoch "%Y-%m-%d %H:%M" "$input" 2>/dev/null || \
+                date_to_epoch "%Y-%m-%d" "$input" 2>/dev/null
             ;;
         *)
             # Try direct parsing
-            if [[ "$OSTYPE" == "darwin"* ]]; then
-                date -j -f "%Y-%m-%d %H:%M:%S" "$input" +%s 2>/dev/null
-            else
-                date -d "$input" +%s 2>/dev/null
-            fi
+            date_to_epoch "%Y-%m-%d %H:%M:%S" "$input" 2>/dev/null
             ;;
     esac
 }

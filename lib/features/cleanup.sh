@@ -322,7 +322,7 @@ generate_cleanup_recommendations() {
 
 # Log restore operation to audit log
 audit_restore() {
-    local audit_file="${BACKUP_DIR:-}/audit.log"
+    local audit_file="${BACKUP_DIR:-${HOME}/.checkpoint}/audit.log"
     local operation="$1"
     local source="$2"
     local target="$3"
@@ -333,7 +333,7 @@ audit_restore() {
 
 # Log cleanup operation to audit log
 audit_cleanup() {
-    local audit_file="${BACKUP_DIR:-}/audit.log"
+    local audit_file="${BACKUP_DIR:-${HOME}/.checkpoint}/audit.log"
     local operation="$1"
     local count="$2"
     local size="$3"

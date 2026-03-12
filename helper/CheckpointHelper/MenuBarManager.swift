@@ -1,6 +1,9 @@
 import Cocoa
 
-/// Manages the menu bar status item and dropdown menu
+/// DEPRECATED: This class is unused dead code. AppDelegate now handles all menu bar
+/// management directly (status item, menu building, heartbeat monitoring).
+/// MenuBarManager.setup() is never called from any code path.
+/// Retained for reference; safe to remove in a future cleanup pass.
 class MenuBarManager: NSObject {
 
     // MARK: - Properties

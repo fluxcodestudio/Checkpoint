@@ -885,17 +885,29 @@ persist_manifest_json() {
     local db_count=0
 
     if [ -d "$files_dir" ]; then
-        # Single find piped to xargs stat — 2 forks total instead of 2 per file
-        find "$files_dir" -type f 2>/dev/null | \
-            tr '\n' '\0' | xargs -0 stat -f$'%z\t%N' 2>/dev/null | \
-            sort -t$'\t' -k2 > "$_files_tmp"
+        # Cross-platform stat: BSD uses -f, GNU uses -c
+        if [ "$_COMPAT_OS" = "Darwin" ]; then
+            find "$files_dir" -type f 2>/dev/null | \
+                tr '\n' '\0' | xargs -0 stat -f$'%z\t%N' 2>/dev/null | \
+                sort -t$'\t' -k2 > "$_files_tmp"
+        else
+            find "$files_dir" -type f 2>/dev/null | \
+                tr '\n' '\0' | xargs -0 stat -c$'%s\t%n' 2>/dev/null | \
+                sort -t$'\t' -k2 > "$_files_tmp"
+        fi
         file_count=$(wc -l < "$_files_tmp" | tr -d ' ')
     fi
 
     if [ -d "$database_dir" ]; then
-        find "$database_dir" -type f \( -name "*.gz" -o -name "*.gz.age" -o -name "*.db" \) 2>/dev/null | \
-            tr '\n' '\0' | xargs -0 stat -f$'%z\t%N' 2>/dev/null | \
-            sort -t$'\t' -k2 > "$_dbs_tmp"
+        if [ "$_COMPAT_OS" = "Darwin" ]; then
+            find "$database_dir" -type f \( -name "*.gz" -o -name "*.gz.age" -o -name "*.db" \) 2>/dev/null | \
+                tr '\n' '\0' | xargs -0 stat -f$'%z\t%N' 2>/dev/null | \
+                sort -t$'\t' -k2 > "$_dbs_tmp"
+        else
+            find "$database_dir" -type f \( -name "*.gz" -o -name "*.gz.age" -o -name "*.db" \) 2>/dev/null | \
+                tr '\n' '\0' | xargs -0 stat -c$'%s\t%n' 2>/dev/null | \
+                sort -t$'\t' -k2 > "$_dbs_tmp"
+        fi
         db_count=$(wc -l < "$_dbs_tmp" | tr -d ' ')
     fi
 

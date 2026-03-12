@@ -98,8 +98,12 @@ class DaemonController {
 
     static func restart() -> Bool {
         _ = stop()
-        // Small delay to ensure clean stop
-        Thread.sleep(forTimeInterval: 0.5)
+        // Brief delay to allow launchctl to complete the stop.
+        // Uses usleep instead of Thread.sleep to reduce main-thread impact
+        // when callers forget to dispatch to a background queue.
+        for _ in 0..<4 {
+            usleep(50_000) // 50ms per iteration, 200ms total
+        }
         return start()
     }
 
@@ -139,7 +143,12 @@ class DaemonController {
 
     // MARK: - Manual Backup
 
-    private static var backupProcess: Process?
+    private static let processQueue = DispatchQueue(label: "com.checkpoint.daemon.process")
+    private static var _backupProcess: Process?
+    private static var backupProcess: Process? {
+        get { processQueue.sync { _backupProcess } }
+        set { processQueue.sync { _backupProcess = newValue } }
+    }
 
     static func runBackupNow(completion: @escaping (Bool, String) -> Void) {
         // Prevent concurrent backup runs

@@ -426,7 +426,9 @@ _restore_mysql() {
     local safety_file="${BACKUP_DIR:-/tmp}/databases/${db_name}.pre-restore-$(date +%Y%m%d-%H%M%S).sql.gz"
     mkdir -p "$(dirname "$safety_file")"
     local _dump_err
-    if _dump_err=$(mysqldump "${mysql_args[@]}" "$db_name" 2>&1 | gzip > "$safety_file"); then
+    _dump_err=$(mysqldump "${mysql_args[@]}" "$db_name" 2>&1 | gzip > "$safety_file")
+    local _pipe_status=("${PIPESTATUS[@]}")
+    if [ "${_pipe_status[0]}" -eq 0 ]; then
         if [ -s "$safety_file" ]; then
             color_green "✅ Safety dump: $(basename "$safety_file")"
         else
@@ -495,7 +497,9 @@ _restore_postgres() {
     local safety_file="${BACKUP_DIR:-/tmp}/databases/${db_name}.pre-restore-$(date +%Y%m%d-%H%M%S).sql.gz"
     mkdir -p "$(dirname "$safety_file")"
     local _dump_err
-    if _dump_err=$(pg_dump "${psql_args[@]}" "$db_name" 2>&1 | gzip > "$safety_file"); then
+    _dump_err=$(pg_dump "${psql_args[@]}" "$db_name" 2>&1 | gzip > "$safety_file")
+    local _pipe_status=("${PIPESTATUS[@]}")
+    if [ "${_pipe_status[0]}" -eq 0 ]; then
         if [ -s "$safety_file" ]; then
             color_green "✅ Safety dump: $(basename "$safety_file")"
         else

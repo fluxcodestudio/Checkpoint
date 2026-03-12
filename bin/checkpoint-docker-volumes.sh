@@ -113,8 +113,8 @@ cmd_list() {
         # Check for existing backups
         if [ -f "$vol_dir/${volume}.tar.gz.age" ]; then
             local size mod_date
-            size=$(stat -f "%z" "$vol_dir/${volume}.tar.gz.age" 2>/dev/null || echo "0")
-            mod_date=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$vol_dir/${volume}.tar.gz.age" 2>/dev/null || echo "unknown")
+            size=$(get_file_size "$vol_dir/${volume}.tar.gz.age")
+            mod_date=$(epoch_to_date "$(get_file_mtime "$vol_dir/${volume}.tar.gz.age")" "%Y-%m-%d %H:%M")
             if [ "$size" -gt 1048576 ] 2>/dev/null; then
                 backup_info="$((size / 1048576))MB, $mod_date 🔐"
             elif [ "$size" -gt 1024 ] 2>/dev/null; then
@@ -124,8 +124,8 @@ cmd_list() {
             fi
         elif [ -f "$vol_dir/${volume}.tar.gz" ]; then
             local size mod_date
-            size=$(stat -f "%z" "$vol_dir/${volume}.tar.gz" 2>/dev/null || echo "0")
-            mod_date=$(stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$vol_dir/${volume}.tar.gz" 2>/dev/null || echo "unknown")
+            size=$(get_file_size "$vol_dir/${volume}.tar.gz")
+            mod_date=$(epoch_to_date "$(get_file_mtime "$vol_dir/${volume}.tar.gz")" "%Y-%m-%d %H:%M")
             if [ "$size" -gt 1048576 ] 2>/dev/null; then
                 backup_info="$((size / 1048576))MB, $mod_date"
             elif [ "$size" -gt 1024 ] 2>/dev/null; then

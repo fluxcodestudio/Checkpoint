@@ -71,11 +71,11 @@ _credential_env_var_name() {
     local service="$1"
     local account="$2"
 
-    # Uppercase and replace hyphens with underscores
-    local svc="${service^^}"
-    svc="${svc//-/_}"
-    local acct="${account^^}"
-    acct="${acct//-/_}"
+    # Uppercase and replace hyphens with underscores (bash 3.2 compatible)
+    local svc
+    svc="$(printf '%s' "$service" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
+    local acct
+    acct="$(printf '%s' "$account" | tr '[:lower:]' '[:upper:]' | tr '-' '_')"
 
     echo "CHECKPOINT_${svc}_${acct}"
 }

@@ -534,9 +534,16 @@ config_var_to_key() {
 }
 
 # Get schema details for a key
+# NOTE: Requires BACKUP_CONFIG_SCHEMA (bash 4+ associative array, currently disabled)
+# Returns 1 (not found) when schema is unavailable
 config_get_schema() {
     local key="$1"
     local field="${2:-all}"  # all, type, default, description
+
+    # Schema is disabled for bash 3.2 compatibility — always return not-found
+    if [ -z "${BACKUP_CONFIG_SCHEMA+x}" ]; then
+        return 1
+    fi
 
     local schema="${BACKUP_CONFIG_SCHEMA[$key]}"
     [[ -z "$schema" ]] && return 1
@@ -662,12 +669,16 @@ config_set_value() {
     var_name="$(config_key_to_var "$key")"
 
     # Update value in config file using sed
+    # Escape sed special characters in value (|, &, \)
+    local _escaped_value
+    _escaped_value="$(printf '%s' "$value" | sed 's/[|&\\/]/\\&/g')"
+
     if grep -q "^${var_name}=" "$config_file"; then
         # Value needs quoting if it contains spaces or special chars
         if [[ "$value" =~ [[:space:]] ]] || [[ "$value" == *'$'* ]]; then
-            sed -i.bak "s|^${var_name}=.*|${var_name}=\"${value}\"|" "$config_file"
+            sed -i.bak "s|^${var_name}=.*|${var_name}=\"${_escaped_value}\"|" "$config_file"
         else
-            sed -i.bak "s|^${var_name}=.*|${var_name}=${value}|" "$config_file"
+            sed -i.bak "s|^${var_name}=.*|${var_name}=${_escaped_value}|" "$config_file"
         fi
         rm -f "${config_file}.bak"
     else

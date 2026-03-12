@@ -226,14 +226,8 @@ backup_one_project() {
         ((backed_up++)) || true
         update_last_backup "$project_path"
     else
-        local exit_code=$?
-        if [[ $exit_code -eq 0 ]]; then
-            daemon_log "  ✅ Backup complete (with warnings)"
-            ((backed_up++)) || true
-        else
-            daemon_log "  ❌ Backup failed (exit code: $exit_code)"
-            ((failed++)) || true
-        fi
+        daemon_log "  ❌ Backup failed (exit code: $?)"
+        ((failed++)) || true
     fi
 
     write_progress_heartbeat "$project_name"
@@ -308,7 +302,8 @@ else
     error_json="null"
 fi
 
-cat > "$HEARTBEAT_FILE" <<EOF
+tmp_heartbeat="${HEARTBEAT_DIR}/.heartbeat.final.tmp.$$"
+cat > "$tmp_heartbeat" <<EOF
 {
   "timestamp": $now,
   "status": "$status",
@@ -325,6 +320,7 @@ cat > "$HEARTBEAT_FILE" <<EOF
   "syncing_skipped": $skipped
 }
 EOF
+mv "$tmp_heartbeat" "$HEARTBEAT_FILE"
 
 # Cleanup orphaned projects periodically (every 24 hours)
 CLEANUP_STATE="$HOME/.config/checkpoint/.last-cleanup"

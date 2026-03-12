@@ -63,8 +63,8 @@ color_bold() { color_echo "$COLOR_BOLD" "$@"; }
 # Escape string for JSON
 json_escape() {
     local str="$1"
-    # Escape backslashes, quotes, newlines, tabs
-    echo "$str" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g; s/\t/\\t/g'
+    # Escape backslashes, quotes, real newlines, real tabs, and literal \n \t sequences
+    printf '%s' "$str" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\t/\\t/g' | tr '\n' '\036' | sed 's/\x1e/\\n/g'
 }
 
 # JSON key-value pair

@@ -303,9 +303,9 @@ get_backup_disk_usage() {
 check_disk_space() {
     local usage=$(get_backup_disk_usage)
 
-    if [ $usage -ge 98 ]; then
+    if [ "$usage" -ge 98 ]; then
         return 2
-    elif [ $usage -ge 95 ]; then
+    elif [ "$usage" -ge 95 ]; then
         return 1
     fi
 

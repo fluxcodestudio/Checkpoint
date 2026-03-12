@@ -829,7 +829,7 @@ if [ "$DATABASE_ONLY" = false ]; then
                     [[ -z "$_found_file" ]] && continue
                     _found_file="${_found_file#./}"
                     _cur_mtime=""
-                    _cur_mtime=$(stat -f%m "$_found_file" 2>/dev/null || echo "0")
+                    _cur_mtime=$(get_file_mtime "$_found_file" 2>/dev/null || echo "0")
                     _old_mtime=""
                     _old_mtime=$(grep -F "|${_found_file}|" "$_file_manifest" 2>/dev/null | cut -d'|' -f1 || true)
                     if [[ -z "$_old_mtime" ]] || [[ "$_cur_mtime" != "$_old_mtime" ]]; then
@@ -1157,9 +1157,11 @@ if [ "$DATABASE_ONLY" = false ]; then
         log_debug "Building backup manifest for $total_files files"
         # Bulk stat: one xargs call instead of per-file get_file_size loop
         # tr converts newlines to NUL for xargs -0 (handles spaces in filenames)
-        # macOS stat -f"%z<TAB>%N" outputs "size<TAB>filename" per line
-        tr '\n' '\0' < "$filtered_files" | xargs -0 stat -f$'%z\t%N' 2>/dev/null | \
-            while IFS=$'\t' read -r fsize fname; do
+        # stat outputs "size<TAB>filename" per line (platform-appropriate flag)
+        case "${_COMPAT_OS:-$(uname -s)}" in
+            Darwin) tr '\n' '\0' < "$filtered_files" | xargs -0 stat -f$'%z\t%N' 2>/dev/null ;;
+            *) tr '\n' '\0' < "$filtered_files" | xargs -0 stat -c$'%s\t%n' 2>/dev/null ;;
+        esac | while IFS=$'\t' read -r fsize fname; do
                 echo "$fname|$fsize"
             done > "$manifest_file"
 
@@ -1352,7 +1354,7 @@ if [ "$DATABASE_ONLY" = false ]; then
                 [[ -z "$_mf_file" ]] && continue
                 _mf_file="${_mf_file#./}"
                 _mf_mtime=""
-                _mf_mtime=$(stat -f%m "$_mf_file" 2>/dev/null || echo "0")
+                _mf_mtime=$(get_file_mtime "$_mf_file" 2>/dev/null || echo "0")
                 echo "${_mf_mtime}|${_mf_file}|" >> "$_file_manifest_tmp"
             done < <(find . -type f "${_find_excludes_mf[@]}" 2>/dev/null)
             mv "$_file_manifest_tmp" "$_file_manifest"

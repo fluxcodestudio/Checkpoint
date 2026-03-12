@@ -45,7 +45,9 @@
     // Scroll depth milestones (25%, 50%, 75%, 100%)
     var scrollMarks = {};
     window.addEventListener('scroll', function () {
-        var pct = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100);
+        var denom = document.body.scrollHeight - window.innerHeight;
+        if (denom <= 0) return;
+        var pct = Math.round((window.scrollY / denom) * 100);
         [25, 50, 75, 100].forEach(function (mark) {
             if (pct >= mark && !scrollMarks[mark]) {
                 scrollMarks[mark] = true;
@@ -62,6 +64,7 @@
                 if (entry.isIntersecting && !trackedSections[entry.target.id]) {
                     trackedSections[entry.target.id] = true;
                     trackEvent('section_view', 'engagement', entry.target.id);
+                    sectionObserver.unobserve(entry.target);
                 }
             });
         }, { threshold: 0.3 });
@@ -83,8 +86,7 @@
     // ==========================================
     // CONTACT LINK (nav) - all pages
     // ==========================================
-    var contactLink = document.querySelector('.nav-links a[href$="#contact"], .nav-links a[href="#"]');
-    // More precise: find link by its text content
+    // Find link by its text content
     document.querySelectorAll('.nav-links a').forEach(function (a) {
         if (a.textContent.trim() === 'Contact') {
             a.addEventListener('click', function (e) {
@@ -157,10 +159,15 @@
     if (copyBtn) {
         copyBtn.addEventListener('click', function () {
             var btn = this;
-            navigator.clipboard.writeText('git clone https://github.com/fluxcodestudio/Checkpoint.git');
-            trackEvent('copy_clone_command', 'engagement', 'git_clone');
-            btn.textContent = 'Copied!';
-            setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
+            navigator.clipboard.writeText('git clone https://github.com/fluxcodestudio/Checkpoint.git').then(function() {
+                trackEvent('copy_clone_command', 'engagement', 'git_clone');
+                btn.textContent = 'Copied!';
+                setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
+            }).catch(function() {
+                // Fallback for non-HTTPS or permission denied
+                btn.textContent = 'Failed';
+                setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
+            });
         });
     }
 

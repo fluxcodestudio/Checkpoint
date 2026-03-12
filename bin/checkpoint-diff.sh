@@ -221,7 +221,7 @@ if [[ "$MODE" == "list-snapshots" ]]; then
             formatted="${local_year}-${local_month}-${local_day} ${local_hour}:${local_min}:${local_sec}"
 
             # Calculate relative time
-            if epoch=$(date -j -f "%Y%m%d%H%M%S" "${ts//_/}" +%s 2>/dev/null); then
+            if epoch=$(date_to_epoch "%Y%m%d%H%M%S" "${ts//_/}" 2>/dev/null); then
                 relative=$(format_relative_time "$epoch")
             else
                 relative=""

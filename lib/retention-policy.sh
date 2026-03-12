@@ -51,7 +51,7 @@ classify_retention_tier() {
         local hour="${timestamp:9:2}"
         local min="${timestamp:11:2}"
         local sec="${timestamp:13:2}"
-        epoch=$(date -j -f "%Y%m%d%H%M%S" "${year}${month}${day}${hour}${min}${sec}" +%s 2>/dev/null || echo 0)
+        epoch=$(date_to_epoch "%Y%m%d%H%M%S" "${year}${month}${day}${hour}${min}${sec}" 2>/dev/null || echo 0)
     else
         epoch="$timestamp"
     fi
@@ -115,7 +115,7 @@ get_week_key() {
     local year="${timestamp:0:4}"
     local month="${timestamp:4:2}"
     local day="${timestamp:6:2}"
-    date -j -f "%Y%m%d" "${year}${month}${day}" "+%G-W%V" 2>/dev/null || echo ""
+    date_format_iso_week "${year}${month}${day}" 2>/dev/null || echo ""
 }
 
 # Get month key for monthly tier grouping

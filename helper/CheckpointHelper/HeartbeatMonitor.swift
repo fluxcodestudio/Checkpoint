@@ -1,6 +1,8 @@
 import Foundation
 
-/// Monitors the daemon heartbeat file for health status
+/// Monitors the daemon heartbeat file for health status.
+/// Callers must ensure only one instance has startMonitoring() active at a time
+/// to avoid duplicate timer callbacks and redundant file I/O.
 class HeartbeatMonitor {
 
     // MARK: - Types
@@ -162,9 +164,10 @@ class HeartbeatMonitor {
             var status: DaemonStatus
             let syncTotal = json["syncing_total_projects"] as? Int ?? 0
 
-            if heartbeatAge > staleThreshold && statusStr != "syncing" {
-                // Mark stale only if not actively syncing — a single project backup
-                // can take several minutes without updating the heartbeat timestamp
+            if heartbeatAge > staleThreshold && statusStr != "syncing" && statusStr != "healthy" && statusStr != "error" {
+                // Mark stale only for ambiguous states — not for terminal states
+                // like "healthy" (daemon finished successfully, heartbeat naturally ages
+                // between hourly runs) or "error" (preserve the error status).
                 status = .stale
             } else if heartbeatAge > staleThreshold && statusStr == "syncing" && syncTotal > 0 {
                 // Syncing but heartbeat is old — keep syncing status with a longer
@@ -250,9 +253,12 @@ class HeartbeatMonitor {
             let timestamp = Date(timeIntervalSince1970: (json["timestamp"] as? TimeInterval) ?? 0)
             let pid = json["pid"] as? Int
 
-            // Watchdog stale if not updated in 2 minutes
+            // Watchdog writes every 60s; allow 3 minutes before marking stale.
+            // Also check if PID is still alive — a running process means it's fine.
             let age = Date().timeIntervalSince(timestamp)
-            let status: DaemonStatus = age > staleThreshold ? .stale : .healthy
+            let watchdogStaleThreshold: TimeInterval = 180  // 3 minutes (3x write interval)
+            let pidAlive = pid.map { kill(pid_t($0), 0) == 0 } ?? false
+            let status: DaemonStatus = (age > watchdogStaleThreshold && !pidAlive) ? .stale : .healthy
 
             return HeartbeatData(
                 timestamp: timestamp,

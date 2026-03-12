@@ -268,9 +268,9 @@ execute_cleanup() {
                 color_cyan "ℹ️  [DRY RUN] Would delete ${#db_files[@]} database backups ($(format_bytes "$db_size"))"
             else
                 for file in "${db_files[@]}"; do
+                    local size=$(get_file_size "$file")
                     if rm -f "$file" 2>/dev/null; then
                         ((deleted_count++))
-                        local size=$(get_file_size "$file")
                         freed_size=$((freed_size + size))
                     fi
                 done
@@ -297,9 +297,9 @@ execute_cleanup() {
                 color_cyan "ℹ️  [DRY RUN] Would delete ${#archive_files[@]} archived files ($(format_bytes "$archive_size"))"
             else
                 for file in "${archive_files[@]}"; do
+                    local size=$(get_file_size "$file")
                     if rm -f "$file" 2>/dev/null; then
                         ((deleted_count++))
-                        local size=$(get_file_size "$file")
                         freed_size=$((freed_size + size))
                     fi
                 done
@@ -746,8 +746,8 @@ if [ "$AUTO_MODE" = "true" ]; then
     color_bold "Auto Cleanup Mode"
     echo ""
 
-    local db_retention="$DB_RETENTION_DAYS"
-    local file_retention="$FILE_RETENTION_DAYS"
+    db_retention="$DB_RETENTION_DAYS"
+    file_retention="$FILE_RETENTION_DAYS"
 
     # Apply custom retention if specified
     if [ -n "$OLDER_THAN" ]; then

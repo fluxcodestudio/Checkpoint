@@ -73,11 +73,10 @@ load_project_config() {
         fi
         # Security: Reject world-writable or group-writable config files
         local file_perms
-        if [[ "$(uname)" == "Darwin" ]]; then
-            file_perms=$(stat -f '%Lp' "$config_file")
-        else
-            file_perms=$(stat -c '%a' "$config_file")
-        fi
+        case "${_COMPAT_OS:-$(uname -s)}" in
+            Darwin) file_perms=$(stat -f '%Lp' "$config_file") ;;
+            *) file_perms=$(stat -c '%a' "$config_file") ;;
+        esac
         # Check if group-write (bit 2 of middle octal) or other-write (bit 2 of last octal)
         if [[ $((file_perms % 100 / 10 & 2)) -ne 0 ]] || [[ $((file_perms % 10 & 2)) -ne 0 ]]; then
             echo "⚠️  Warning: Config file is group/world-writable (mode $file_perms). Skipping for security." >&2

@@ -9,7 +9,7 @@ class DashboardWindowController: NSWindowController {
 
     private init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -20,7 +20,7 @@ class DashboardWindowController: NSWindowController {
         window.center()
         window.setFrameAutosaveName("CheckpointDashboard")
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 520, height: 420)
+        window.minSize = NSSize(width: 480, height: 420)
         window.backgroundColor = NSColor(red: 0.08, green: 0.08, blue: 0.10, alpha: 1)
 
         super.init(window: window)
@@ -403,127 +403,122 @@ struct DashboardView: View {
 
     // MARK: - Footer
 
-    private var footerView: some View {
-        VStack(spacing: 0) {
-            // Action bar
-            HStack(spacing: 10) {
-                // Backup All
-                Button(action: viewModel.backupAll) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Backup All")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                }
-                .buttonStyle(CPButtonStyle(accent: .cpAccent))
-                .disabled(viewModel.isBackingUp)
-                .keyboardShortcut("b", modifiers: .command)
+    /// Whether footer buttons should show labels (false = icon-only compact mode)
+    private func showLabels(for width: CGFloat) -> Bool {
+        return width >= 620
+    }
 
-                // Add Project
-                Button(action: viewModel.addProject) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Add")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                }
-                .buttonStyle(CPButtonStyle(accent: .cpAccent))
-
-                // Snapshot
-                Button(action: { viewModel.dismissAllModals(); viewModel.showingSnapshot = true }) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "camera")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Snapshot")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                }
-                .buttonStyle(CPButtonStyle(accent: .cpAccent))
-
-                // Settings
-                Button(action: { viewModel.dismissAllModals(); viewModel.showingSettings = true }) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "gear")
-                            .font(.system(size: 11))
-                        Text("Settings")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                }
-                .buttonStyle(CPButtonStyle(accent: .cpTextSecondary))
-                .keyboardShortcut(",", modifiers: .command)
-
-                Spacer()
-
-                // Help
-                Button(action: { viewModel.dismissAllModals(); viewModel.showingHelp = true }) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(CPIconButtonStyle())
-                .help("How it Works")
-
-                // Info / About
-                Button(action: { viewModel.dismissAllModals(); viewModel.showingAbout = true }) {
-                    Image(systemName: "info.circle")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(CPIconButtonStyle())
-
-                // Check for Updates
-                Button(action: { viewModel.dismissAllModals(); viewModel.checkForUpdates() }) {
-                    Image(systemName: "arrow.down.circle")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(CPIconButtonStyle())
-                .help("Check for Updates")
-
-                // Refresh
-                Button(action: viewModel.refresh) {
-                    HStack(spacing: 4) {
-                        switch viewModel.refreshState {
-                        case .idle:
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .font(.system(size: 10))
-                        case .refreshing:
-                            ProgressView()
-                                .controlSize(.mini)
-                        case .done:
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.cpAccent)
-                        }
-                    }
-                }
-                .buttonStyle(CPIconButtonStyle())
-                .keyboardShortcut("r", modifiers: .command)
-
-                // Pause / Resume
-                if viewModel.daemonRunning {
-                    Button(action: viewModel.stopDaemon) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "pause.fill")
-                                .font(.system(size: 9))
-                            Text("Pause")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                    }
-                    .buttonStyle(CPButtonStyle(accent: .cpTextSecondary))
-                } else {
-                    Button(action: viewModel.startDaemon) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 9))
-                            Text("Resume")
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                    }
-                    .buttonStyle(CPButtonStyle(accent: .cpAccent, filled: true))
+    /// Adaptive footer button: shows icon+label at full width, icon-only when compact
+    @ViewBuilder
+    private func footerButton(icon: String, label: String, accent: Color,
+                              compact: Bool, filled: Bool = false, iconSize: CGFloat = 11,
+                              action: @escaping () -> Void) -> some View {
+        if compact {
+            Button(action: action) {
+                Image(systemName: icon)
+                    .font(.system(size: iconSize, weight: .semibold))
+            }
+            .buttonStyle(CPIconButtonStyle())
+            .help(label)
+        } else {
+            Button(action: action) {
+                HStack(spacing: 5) {
+                    Image(systemName: icon)
+                        .font(.system(size: iconSize, weight: .semibold))
+                    Text(label)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                        .fixedSize()
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .buttonStyle(CPButtonStyle(accent: accent, filled: filled))
+            .help(label)
+        }
+    }
+
+    private var footerView: some View {
+        VStack(spacing: 0) {
+            // Action bar — responsive: labels collapse to icon-only below 620pt
+            GeometryReader { geo in
+                let compact = !showLabels(for: geo.size.width)
+                HStack(spacing: compact ? 6 : 10) {
+                    // Backup All
+                    footerButton(icon: "arrow.clockwise", label: "Backup All", accent: .cpAccent,
+                                 compact: compact, action: viewModel.backupAll)
+                        .disabled(viewModel.isBackingUp)
+                        .keyboardShortcut("b", modifiers: .command)
+
+                    // Add Project
+                    footerButton(icon: "plus", label: "Add", accent: .cpAccent,
+                                 compact: compact, action: viewModel.addProject)
+
+                    // Snapshot
+                    footerButton(icon: "camera", label: "Snapshot", accent: .cpAccent,
+                                 compact: compact, action: { viewModel.dismissAllModals(); viewModel.showingSnapshot = true })
+
+                    // Settings
+                    footerButton(icon: "gear", label: "Settings", accent: .cpTextSecondary,
+                                 compact: compact, action: { viewModel.dismissAllModals(); viewModel.showingSettings = true })
+                        .keyboardShortcut(",", modifiers: .command)
+
+                    Spacer()
+
+                    // Help
+                    Button(action: { viewModel.dismissAllModals(); viewModel.showingHelp = true }) {
+                        Image(systemName: "questionmark.circle")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(CPIconButtonStyle())
+                    .help("How it Works")
+
+                    // Info / About
+                    Button(action: { viewModel.dismissAllModals(); viewModel.showingAbout = true }) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(CPIconButtonStyle())
+
+                    // Check for Updates
+                    Button(action: { viewModel.dismissAllModals(); viewModel.checkForUpdates() }) {
+                        Image(systemName: "arrow.down.circle")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(CPIconButtonStyle())
+                    .help("Check for Updates")
+
+                    // Refresh
+                    Button(action: viewModel.refresh) {
+                        HStack(spacing: 4) {
+                            switch viewModel.refreshState {
+                            case .idle:
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 10))
+                            case .refreshing:
+                                ProgressView()
+                                    .controlSize(.mini)
+                            case .done:
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.cpAccent)
+                            }
+                        }
+                    }
+                    .buttonStyle(CPIconButtonStyle())
+                    .keyboardShortcut("r", modifiers: .command)
+
+                    // Pause / Resume
+                    if viewModel.daemonRunning {
+                        footerButton(icon: "pause.fill", label: "Pause", accent: .cpTextSecondary,
+                                     compact: compact, iconSize: 9, action: viewModel.stopDaemon)
+                    } else {
+                        footerButton(icon: "play.fill", label: "Resume", accent: .cpAccent,
+                                     compact: compact, filled: true, iconSize: 9, action: viewModel.startDaemon)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            }
+            .frame(height: 44)
 
             // Attribution bar
             HStack {
@@ -1974,6 +1969,8 @@ class CloudBrowseViewModel: ObservableObject {
         }
     }
 
+    /// NOTE: This function runs a Process synchronously and MUST be called from a
+    /// background queue (DispatchQueue.global), never from the main thread.
     private func runCheckpointCloud(_ args: [String]) -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let possiblePaths = [
@@ -2008,7 +2005,9 @@ class CloudBrowseViewModel: ObservableObject {
 
 }
 
-/// Run `checkpoint snapshot <args>` in a project directory and return stdout
+/// Run `checkpoint snapshot <args>` in a project directory and return stdout.
+/// NOTE: This function runs a Process synchronously and MUST be called from a
+/// background queue (DispatchQueue.global), never from the main thread.
 func runCheckpointSnapshot(_ args: [String], inDirectory: String? = nil) -> String {
     let home = FileManager.default.homeDirectoryForCurrentUser.path
     let possiblePaths = [
@@ -2194,6 +2193,7 @@ class SettingsViewModel: ObservableObject {
     // Advanced
     @Published var compressionLevel: Int = 6
     @Published var debugMode: Bool = false
+    @Published var saveError: String?
 
     private let configURL: URL = {
         FileManager.default.homeDirectoryForCurrentUser
@@ -2268,12 +2268,18 @@ class SettingsViewModel: ObservableObject {
         }
 
         let output = rawLines.joined(separator: "\n")
-        try? output.write(to: configURL, atomically: true, encoding: .utf8)
-        // Restrict config file permissions to owner-only read/write (0600)
-        try? FileManager.default.setAttributes(
-            [.posixPermissions: 0o600],
-            ofItemAtPath: configURL.path
-        )
+        do {
+            try output.write(to: configURL, atomically: true, encoding: .utf8)
+            // Restrict config file permissions to owner-only read/write (0600)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600],
+                ofItemAtPath: configURL.path
+            )
+            saveError = nil
+        } catch {
+            NSLog("CheckpointHelper: failed to save config: %@", error.localizedDescription)
+            saveError = "Failed to save settings: \(error.localizedDescription)"
+        }
     }
 
     private func parseShellConfig(_ contents: String) -> [String: String] {
@@ -2711,25 +2717,29 @@ class DashboardViewModel: ObservableObject {
     }
 
     func startDaemon() {
-        let success = DaemonController.start()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            self.refresh()
-            if success {
-                NotificationCenter.default.post(name: NSNotification.Name("CheckpointDaemonStateChanged"), object: nil)
-            } else {
-                self.daemonError = "Could not resume automatic backups. The background service may not be installed yet.\n\nRun 'checkpoint install' in Terminal to set it up."
+        DispatchQueue.global(qos: .userInitiated).async {
+            let success = DaemonController.start()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                self.refresh()
+                if success {
+                    NotificationCenter.default.post(name: NSNotification.Name("CheckpointDaemonStateChanged"), object: nil)
+                } else {
+                    self.daemonError = "Could not resume automatic backups. The background service may not be installed yet.\n\nRun 'checkpoint install' in Terminal to set it up."
+                }
             }
         }
     }
 
     func stopDaemon() {
-        let success = DaemonController.stop()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            self.refresh()
-            if success {
-                NotificationCenter.default.post(name: NSNotification.Name("CheckpointDaemonStateChanged"), object: nil)
-            } else {
-                self.daemonError = "Could not pause automatic backups. They may already be paused."
+        DispatchQueue.global(qos: .userInitiated).async {
+            let success = DaemonController.stop()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                self.refresh()
+                if success {
+                    NotificationCenter.default.post(name: NSNotification.Name("CheckpointDaemonStateChanged"), object: nil)
+                } else {
+                    self.daemonError = "Could not pause automatic backups. They may already be paused."
+                }
             }
         }
     }
@@ -3671,7 +3681,7 @@ struct SnapshotView: View {
     @State private var deleteTarget: SnapshotEntry?
 
     private var selectedProject: ProjectInfo? {
-        guard !projects.isEmpty, selectedProjectIndex < projects.count else { return nil }
+        guard !projects.isEmpty, selectedProjectIndex >= 0, selectedProjectIndex < projects.count else { return nil }
         return projects[selectedProjectIndex]
     }
 
@@ -3942,10 +3952,14 @@ struct SnapshotView: View {
         guard let project = selectedProject else { return }
         statusMessage = "Deleting '\(snap.name)'..."
         DispatchQueue.global(qos: .userInitiated).async {
-            let _ = runCheckpointSnapshot(["delete", snap.name, "--force"], inDirectory: project.path)
+            let result = runCheckpointSnapshot(["delete", snap.name, "--force"], inDirectory: project.path)
             DispatchQueue.main.async {
                 self.deleteTarget = nil
-                self.statusMessage = "Deleted '\(snap.name)'"
+                if result.isEmpty {
+                    self.statusMessage = "Failed to delete '\(snap.name)'"
+                } else {
+                    self.statusMessage = "Deleted '\(snap.name)'"
+                }
                 self.loadSnapshots()
             }
         }
