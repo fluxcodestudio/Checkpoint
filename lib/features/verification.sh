@@ -812,7 +812,7 @@ EOF
             # Cloud section
             echo "Cloud"
             printf "  Status ............ %s (%s)\n" \
-                "$(echo "$VERIFY_CLOUD_STATUS" | tr '[:lower:]' '[:upper:]')" \
+                "$(to_upper "$VERIFY_CLOUD_STATUS")" \
                 "$VERIFY_CLOUD_DETAILS"
             echo ""
 

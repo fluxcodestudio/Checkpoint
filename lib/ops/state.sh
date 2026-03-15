@@ -599,7 +599,7 @@ show_backup_failures() {
         echo "Success Rate: ${succeeded_files:-0}/${total_files:-0} files"
     fi
     echo ""
-    echo "Severity: $(echo $severity | tr '[:lower:]' '[:upper:]')"
+    echo "Severity: $(to_upper "$severity")"
     echo "Reason: $reason"
     if [ "$immediate" = "true" ]; then
         echo "⚠️  REQUIRES IMMEDIATE ACTION"
